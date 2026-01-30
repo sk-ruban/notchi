@@ -8,6 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.setActivationPolicy(.accessory)
         setupNotchWindow()
         observeScreenChanges()
+        startHookServices()
+    }
+
+    private func startHookServices() {
+        HookInstaller.installIfNeeded()
+        SocketServer.shared.start { event in
+            // Events are logged by SocketServer; UI integration deferred to Stage 3
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
