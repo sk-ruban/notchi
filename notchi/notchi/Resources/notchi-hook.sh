@@ -6,9 +6,10 @@ SOCKET_PATH="/tmp/notchi.sock"
 # Exit silently if socket doesn't exist (app not running)
 [ -S "$SOCKET_PATH" ] || exit 0
 
-# Parse input JSON and build output payload in a single Python call
+# Parse input and send to socket using Python
 /usr/bin/python3 -c "
 import json
+import socket
 import sys
 
 try:
@@ -42,6 +43,11 @@ tool_id = input_data.get('tool_use_id', '')
 if tool_id:
     output['tool_use_id'] = tool_id
 
-print(json.dumps(output))
-" | nc -U "$SOCKET_PATH" 2>/dev/null &
-exit 0
+try:
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect('/tmp/notchi.sock')
+    sock.sendall(json.dumps(output).encode())
+    sock.close()
+except:
+    pass
+"

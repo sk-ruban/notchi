@@ -14,7 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startHookServices() {
         HookInstaller.installIfNeeded()
         SocketServer.shared.start { event in
-            // Events are logged by SocketServer; UI integration deferred to Stage 3
+            Task { @MainActor in
+                NotchiStateMachine.shared.handleEvent(event)
+            }
         }
     }
 

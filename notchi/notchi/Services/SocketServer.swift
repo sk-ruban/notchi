@@ -119,7 +119,7 @@ final class SocketServer {
         guard !allData.isEmpty else { return }
 
         guard let event = try? JSONDecoder().decode(HookEvent.self, from: allData) else {
-            logger.warning("Failed to parse event: \(String(data: allData, encoding: .utf8) ?? "?", privacy: .public)")
+            logger.warning("Failed to parse event")
             return
         }
 
@@ -128,22 +128,20 @@ final class SocketServer {
     }
 
     private func logEvent(_ event: HookEvent) {
-        let sessionPrefix = String(event.sessionId.prefix(8))
-
         switch event.event {
         case "SessionStart":
-            logger.info("[Notchi] Session started: \(sessionPrefix, privacy: .public)")
+            logger.info("Session started")
         case "SessionEnd":
-            logger.info("[Notchi] Session ended: \(sessionPrefix, privacy: .public)")
+            logger.info("Session ended")
         case "PreToolUse":
             let tool = event.tool ?? "unknown"
-            logger.info("[Notchi] Tool use: \(tool, privacy: .public)")
+            logger.info("Tool: \(tool, privacy: .public)")
         case "PostToolUse":
             let tool = event.tool ?? "unknown"
             let success = event.status != "error"
-            logger.info("[Notchi] Tool result: \(success ? "success" : "error", privacy: .public) (\(tool, privacy: .public))")
+            logger.info("Result: \(success ? "✓" : "✗", privacy: .public) \(tool, privacy: .public)")
         default:
-            logger.debug("[Notchi] Event: \(event.event, privacy: .public) status: \(event.status, privacy: .public)")
+            break
         }
     }
 }

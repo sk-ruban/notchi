@@ -10,6 +10,8 @@ struct NotchContentView: View {
     @State private var isHovering = false
     @State private var bobOffset: CGFloat = 0
 
+    private var state: NotchiState { NotchiStateMachine.shared.currentState }
+
     private var sideWidth: CGFloat {
         max(0, notchSize.height - 12) + 10
     }
@@ -53,24 +55,35 @@ struct NotchContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                bobOffset = 3
-            }
+            startBobAnimation()
         }
+        .onChange(of: state) {
+            restartBobAnimation()
+        }
+    }
+
+    private func startBobAnimation() {
+        withAnimation(.easeInOut(duration: state.bobDuration).repeatForever(autoreverses: true)) {
+            bobOffset = 3
+        }
+    }
+
+    private func restartBobAnimation() {
+        bobOffset = 0
+        startBobAnimation()
     }
 
     @ViewBuilder
     private var notchContent: some View {
         HStack(spacing: 0) {
-            // Black spacer for hardware notch area
             Rectangle()
                 .fill(.black)
                 .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
-            // Sprite on right side
-            Image(systemName: "face.smiling")
+            Image(systemName: state.sfSymbolName)
                 .font(.system(size: 14))
                 .foregroundColor(.white)
+                .contentTransition(.symbolEffect(.replace))
                 .offset(y: bobOffset)
                 .frame(width: sideWidth)
         }
