@@ -9,9 +9,9 @@ import SwiftUI
 
 @main
 struct notchiApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+        Settings { EmptyView() }
     }
 }
