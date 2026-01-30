@@ -19,6 +19,12 @@ struct NotchContentView: View {
 
     private var isExpanded: Bool { panelManager.isExpanded }
 
+    private var panelAnimation: Animation {
+        isExpanded
+            ? .spring(response: 0.42, dampingFraction: 0.8)
+            : .spring(response: 0.45, dampingFraction: 1.0)
+    }
+
     private var sideWidth: CGFloat {
         max(0, notchSize.height - 12) + 24
     }
@@ -53,6 +59,7 @@ struct NotchContentView: View {
             radius: 6
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(panelAnimation, value: isExpanded)
         .onAppear {
             startBobAnimation()
         }
@@ -84,10 +91,10 @@ struct NotchContentView: View {
                 .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
             Image(systemName: stateMachine.currentState.sfSymbolName)
-                .font(.system(size: 14))
+                .font(.system(size: 18))
                 .foregroundColor(.white)
                 .contentTransition(.symbolEffect(.replace))
-                .offset(y: bobOffset)
+                .offset(x: 15,y: bobOffset - 2)
                 .frame(width: sideWidth)
         }
     }
@@ -102,4 +109,9 @@ struct NotchContentView: View {
         bobOffset = 0
         startBobAnimation()
     }
+}
+
+#Preview {
+    NotchContentView(notchSize: CGSize(width: 180, height: 32))
+        .frame(width: 400, height: 200)
 }

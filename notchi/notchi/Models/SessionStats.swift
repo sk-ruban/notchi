@@ -1,11 +1,19 @@
 import Foundation
 
+enum ToolStatus {
+    case running
+    case success
+    case error
+}
+
 struct SessionEvent: Identifiable {
     let id = UUID()
     let timestamp: Date
     let type: String
     let tool: String?
-    let success: Bool?
+    var status: ToolStatus
+    let toolInput: [String: Any]?
+    let toolUseId: String?
 }
 
 @MainActor
@@ -17,12 +25,44 @@ final class SessionStats {
     private(set) var formattedDuration: String = "0m 00s"
 
     private var durationTimer: Task<Void, Never>?
+    private static let maxEvents = 20
 
-    func recordEvent(type: String, tool: String?, success: Bool?) {
+    func recordPreToolUse(tool: String?, toolInput: [String: Any]?, toolUseId: String?) {
         eventCount += 1
-        let event = SessionEvent(timestamp: Date(), type: type, tool: tool, success: success)
+        let event = SessionEvent(
+            timestamp: Date(),
+            type: "PreToolUse",
+            tool: tool,
+            status: .running,
+            toolInput: toolInput,
+            toolUseId: toolUseId
+        )
         recentEvents.append(event)
-        if recentEvents.count > 3 {
+        trimEvents()
+    }
+
+    func recordPostToolUse(tool: String?, toolUseId: String?, success: Bool) {
+        eventCount += 1
+
+        if let toolUseId,
+           let index = recentEvents.lastIndex(where: { $0.toolUseId == toolUseId && $0.status == .running }) {
+            recentEvents[index].status = success ? .success : .error
+        } else {
+            let event = SessionEvent(
+                timestamp: Date(),
+                type: "PostToolUse",
+                tool: tool,
+                status: success ? .success : .error,
+                toolInput: nil,
+                toolUseId: toolUseId
+            )
+            recentEvents.append(event)
+            trimEvents()
+        }
+    }
+
+    private func trimEvents() {
+        while recentEvents.count > Self.maxEvents {
             recentEvents.removeFirst()
         }
     }

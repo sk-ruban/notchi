@@ -30,13 +30,14 @@ final class NotchiStateMachine {
             transition(to: .thinking)
 
         case "PreToolUse":
-            stats.recordEvent(type: event.event, tool: event.tool, success: nil)
+            let toolInput = event.toolInput?.mapValues { $0.value }
+            stats.recordPreToolUse(tool: event.tool, toolInput: toolInput, toolUseId: event.toolUseId)
             cancelRevertTimer()
             transition(to: .working)
 
         case "PostToolUse":
             let success = event.status != "error"
-            stats.recordEvent(type: event.event, tool: event.tool, success: success)
+            stats.recordPostToolUse(tool: event.tool, toolUseId: event.toolUseId, success: success)
             transition(to: success ? .happy : .alert)
             scheduleRevert()
 
