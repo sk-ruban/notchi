@@ -1,0 +1,50 @@
+# Reference repos
+/reference/
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Archives
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Secrets
+.env
+
+# Claude
+CLAUDE.md
+PLAN.md
+
+# Distribution
+*.dmg
+*.app
+*.pkg
+
+# Temporary
+*.log
+tmp/
