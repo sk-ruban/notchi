@@ -10,6 +10,9 @@ final class NotchPanel: NSPanel {
             defer: false
         )
 
+        isFloatingPanel = true
+        becomesKeyOnlyIfNeeded = true
+
         level = .mainMenu + 3
         collectionBehavior = [
             .fullScreenAuxiliary,
@@ -22,9 +25,18 @@ final class NotchPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         isMovable = false
-        ignoresMouseEvents = false
+
+        // CRITICAL: Start with ignoring mouse events
+        // Global event monitors detect clicks on notch area
+        ignoresMouseEvents = true
     }
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            NotificationCenter.default.post(name: .notchiShouldCollapse, object: nil)
+        }
+    }
 }

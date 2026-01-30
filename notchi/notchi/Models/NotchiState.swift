@@ -22,4 +22,15 @@ enum NotchiState: String, CaseIterable {
         case .alert:    return 0.3
         }
     }
+
+    var displayName: String {
+        switch self {
+        case .idle:     return "Idle"
+        case .thinking: return "Thinking..."
+        case .working:  return "Working..."
+        case .happy:    return "Done!"
+        case .alert:    return "Error"
+        case .sleeping: return "Sleeping"
+        }
+    }
 }

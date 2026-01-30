@@ -9,6 +9,7 @@ final class NotchiStateMachine {
     static let shared = NotchiStateMachine()
 
     private(set) var currentState: NotchiState = .idle
+    let stats = SessionStats()
 
     private var sleepTimer: Task<Void, Never>?
     private var revertTimer: Task<Void, Never>?
@@ -25,18 +26,22 @@ final class NotchiStateMachine {
 
         switch event.event {
         case "SessionStart":
+            stats.startSession()
             transition(to: .thinking)
 
         case "PreToolUse":
+            stats.recordEvent(type: event.event, tool: event.tool, success: nil)
             cancelRevertTimer()
             transition(to: .working)
 
         case "PostToolUse":
             let success = event.status != "error"
+            stats.recordEvent(type: event.event, tool: event.tool, success: success)
             transition(to: success ? .happy : .alert)
             scheduleRevert()
 
         case "SessionEnd":
+            stats.endSession()
             cancelRevertTimer()
             transition(to: .idle)
 

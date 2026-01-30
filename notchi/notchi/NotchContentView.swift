@@ -1,5 +1,9 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let notchiShouldCollapse = Notification.Name("notchiShouldCollapse")
+}
+
 private let cornerRadiusInsets = (
     opened: (top: CGFloat(19), bottom: CGFloat(24)),
     closed: (top: CGFloat(6), bottom: CGFloat(14))
@@ -7,63 +11,89 @@ private let cornerRadiusInsets = (
 
 struct NotchContentView: View {
     let notchSize: CGSize
-    @State private var isHovering = false
+    var stateMachine: NotchiStateMachine = .shared
+    var panelManager: NotchPanelManager = .shared
     @State private var bobOffset: CGFloat = 0
 
-    private var state: NotchiState { NotchiStateMachine.shared.currentState }
+    private let openedSize = CGSize(width: 380, height: 400)
+
+    private var isExpanded: Bool { panelManager.isExpanded }
 
     private var sideWidth: CGFloat {
-        max(0, notchSize.height - 12) + 10
+        max(0, notchSize.height - 12) + 24
     }
 
     private var topCornerRadius: CGFloat {
-        isHovering ? cornerRadiusInsets.opened.top : cornerRadiusInsets.closed.top
+        isExpanded ? cornerRadiusInsets.opened.top : cornerRadiusInsets.closed.top
     }
 
     private var bottomCornerRadius: CGFloat {
-        isHovering ? cornerRadiusInsets.opened.bottom : cornerRadiusInsets.closed.bottom
+        isExpanded ? cornerRadiusInsets.opened.bottom : cornerRadiusInsets.closed.bottom
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            notchContent
-                .padding(.horizontal, cornerRadiusInsets.closed.bottom)
-                .background(.black)
-                .clipShape(NotchShape(
-                    topCornerRadius: topCornerRadius,
-                    bottomCornerRadius: bottomCornerRadius
-                ))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(.black)
-                        .frame(height: 1)
-                        .padding(.horizontal, topCornerRadius)
-                }
-                .shadow(
-                    color: isHovering ? .black.opacity(0.7) : .clear,
-                    radius: 6
-                )
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                        isHovering = hovering
-                    }
-                }
-                .onTapGesture {
-                    print("Notchi clicked")
-                }
+            notchLayout
         }
+        .padding(.horizontal, isExpanded ? cornerRadiusInsets.opened.top : cornerRadiusInsets.closed.bottom)
+        .padding(.bottom, isExpanded ? 12 : 0)
+        .background(.black)
+        .clipShape(NotchShape(
+            topCornerRadius: topCornerRadius,
+            bottomCornerRadius: bottomCornerRadius
+        ))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.black)
+                .frame(height: 1)
+                .padding(.horizontal, topCornerRadius)
+        }
+        .shadow(
+            color: isExpanded ? .black.opacity(0.7) : .clear,
+            radius: 6
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             startBobAnimation()
         }
-        .onChange(of: state) {
+        .onChange(of: stateMachine.currentState) {
             restartBobAnimation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .notchiShouldCollapse)) { _ in
+            panelManager.collapse()
+        }
+    }
+
+    @ViewBuilder
+    private var notchLayout: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            headerRow
+                .frame(height: notchSize.height)
+
+            if isExpanded {
+                ExpandedPanelView(state: stateMachine.currentState, stats: stateMachine.stats)
+                    .frame(width: openedSize.width - 48, height: openedSize.height - notchSize.height - 24)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var headerRow: some View {
+        HStack(spacing: 0) {
+            Color.clear
+                .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
+
+            Image(systemName: stateMachine.currentState.sfSymbolName)
+                .font(.system(size: 14))
+                .foregroundColor(.white)
+                .contentTransition(.symbolEffect(.replace))
+                .offset(y: bobOffset)
+                .frame(width: sideWidth)
         }
     }
 
     private func startBobAnimation() {
-        withAnimation(.easeInOut(duration: state.bobDuration).repeatForever(autoreverses: true)) {
+        withAnimation(.easeInOut(duration: stateMachine.currentState.bobDuration).repeatForever(autoreverses: true)) {
             bobOffset = 3
         }
     }
@@ -71,22 +101,5 @@ struct NotchContentView: View {
     private func restartBobAnimation() {
         bobOffset = 0
         startBobAnimation()
-    }
-
-    @ViewBuilder
-    private var notchContent: some View {
-        HStack(spacing: 0) {
-            Rectangle()
-                .fill(.black)
-                .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
-
-            Image(systemName: state.sfSymbolName)
-                .font(.system(size: 14))
-                .foregroundColor(.white)
-                .contentTransition(.symbolEffect(.replace))
-                .offset(y: bobOffset)
-                .frame(width: sideWidth)
-        }
-        .frame(height: notchSize.height)
     }
 }
