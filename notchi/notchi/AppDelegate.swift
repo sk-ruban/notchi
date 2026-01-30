@@ -16,8 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupNotchWindow() {
         let screen = NSScreen.builtInOrMain
-        let frame = screen.notchWindowFrame
         let notchSize = screen.notchSize
+        let frame = notchPanelFrame(baseFrame: screen.notchWindowFrame, notchSize: notchSize)
 
         let panel = NotchPanel(frame: frame)
         let contentView = NotchContentView(notchSize: notchSize)
@@ -39,7 +39,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func repositionWindow() {
         guard let panel = notchPanel else { return }
         let screen = NSScreen.builtInOrMain
-        let frame = screen.notchWindowFrame
+        let frame = notchPanelFrame(baseFrame: screen.notchWindowFrame, notchSize: screen.notchSize)
         panel.setFrame(frame, display: true)
+    }
+
+    private func notchPanelFrame(baseFrame: CGRect, notchSize: CGSize) -> CGRect {
+        let sideWidth = max(0, notchSize.height - 12) + 10
+        let expandBuffer: CGFloat = 50
+        return CGRect(
+            x: baseFrame.origin.x,
+            y: baseFrame.origin.y - expandBuffer,
+            width: baseFrame.width + sideWidth,
+            height: notchSize.height + expandBuffer
+        )
     }
 }
