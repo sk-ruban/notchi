@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startHookServices()
         startUsageService()
         updater.checkForUpdates()
+        SoundService.shared.playStartupSound()
     }
 
     private func startHookServices() {

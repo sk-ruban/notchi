@@ -100,11 +100,11 @@
 			);
 			mainGroup = 47C922792F2CFA1F00EA1E18;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = 47C922832F2CFA1F00EA1E18 /* Products */;
 			packageReferences = (
 				47C923A22F2CFA1F00EA1E18 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 47C922832F2CFA1F00EA1E18 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -268,7 +268,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = SXT98GH5HN;
+				DEVELOPMENT_TEAM = F87ZYV7CW8;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -306,7 +306,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = SXT98GH5HN;
+				DEVELOPMENT_TEAM = F87ZYV7CW8;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
