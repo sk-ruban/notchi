@@ -5,6 +5,20 @@ struct AppSettings {
     private static let isMutedKey = "isMuted"
     private static let previousSoundKey = "previousNotificationSound"
     private static let isUsageEnabledKey = "isUsageEnabled"
+    private static let emotionAnalysisModeKey = "emotionAnalysisMode"
+
+    static var emotionAnalysisMode: EmotionAnalysisMode {
+        get {
+            guard let rawValue = UserDefaults.standard.string(forKey: emotionAnalysisModeKey),
+                  let mode = EmotionAnalysisMode(rawValue: rawValue) else {
+                return .simple
+            }
+            return mode
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: emotionAnalysisModeKey)
+        }
+    }
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
