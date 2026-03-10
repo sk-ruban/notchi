@@ -13,6 +13,7 @@ final class ClaudeUsageService {
     var isConnected = false
 
     private static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+    private static let messagesURL = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let authFailureStatusCodes: Set<Int> = [401, 403]
 
     private var pollTimer: Timer?
@@ -96,11 +97,38 @@ final class ClaudeUsageService {
         await performFetch(with: accessToken)
     }
 
+    private enum FetchResult {
+        case success
+        case authFailure
+        case rateLimited
+        case error(String)
+    }
+
     private func performFetch(with accessToken: String) async {
         isLoading = true
-
         defer { isLoading = false }
 
+        // Method 1: OAuth usage endpoint (Pro/Max)
+        let oauthResult = await fetchFromOAuth(with: accessToken)
+        if case .success = oauthResult { return }
+
+        // Method 2: Fallback — extract rate limits from Messages API headers (Enterprise)
+        if await fetchFromHeaders(with: accessToken) { return }
+
+        // Both methods failed
+        switch oauthResult {
+        case .authFailure:
+            await handleAuthFailure(currentToken: accessToken)
+        case .rateLimited:
+            break // Already handled in fetchFromOAuth
+        case .error(let message):
+            error = message
+        case .success:
+            break
+        }
+    }
+
+    private func fetchFromOAuth(with accessToken: String) async -> FetchResult {
         var request = URLRequest(url: Self.usageURL)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -111,8 +139,7 @@ final class ClaudeUsageService {
             let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                error = "Invalid response"
-                return
+                return .error("Invalid response")
             }
 
             guard httpResponse.statusCode == 200 else {
@@ -123,39 +150,105 @@ final class ClaudeUsageService {
                         error = nil
                     }
                     logger.debug("Rate limited (429), will retry next poll cycle")
-                    return
+                    return .rateLimited
                 }
 
                 if Self.authFailureStatusCodes.contains(httpResponse.statusCode) {
-                    cachedToken = nil
-                    KeychainManager.clearCachedOAuthToken()
-
-                    if let freshToken = KeychainManager.refreshAccessTokenSilently(),
-                       freshToken != accessToken {
-                        logger.info("Token refreshed silently from Claude Code keychain")
-                        await fetchAndStartPolling(with: freshToken)
-                        return
-                    }
-
-                    error = "Token expired"
-                    isConnected = false
-                    stopPolling()
-                } else {
-                    error = "HTTP \(httpResponse.statusCode)"
+                    return .authFailure
                 }
-                logger.warning("API error: HTTP \(httpResponse.statusCode)")
-                return
+
+                logger.warning("OAuth API error: HTTP \(httpResponse.statusCode)")
+                return .error("HTTP \(httpResponse.statusCode)")
             }
 
             let usageResponse = try JSONDecoder().decode(UsageResponse.self, from: data)
             isConnected = true
             error = nil
             currentUsage = usageResponse.fiveHour
-            logger.info("Usage fetched: \(self.currentUsage?.usagePercentage ?? 0)%")
+            logger.info("Usage fetched via OAuth: \(self.currentUsage?.usagePercentage ?? 0)%")
+            return .success
 
         } catch {
-            self.error = "Network error"
-            logger.error("Fetch failed: \(error.localizedDescription)")
+            logger.error("OAuth fetch failed: \(error.localizedDescription)")
+            return .error("Network error")
         }
+    }
+
+    /// Makes a minimal Messages API call (Haiku, max_tokens=1) and extracts
+    /// enterprise rate limit info from the `anthropic-ratelimit-unified-*` headers.
+    private func fetchFromHeaders(with accessToken: String) async -> Bool {
+        var request = URLRequest(url: Self.messagesURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("Notchi", forHTTPHeaderField: "User-Agent")
+
+        let body: [String: Any] = [
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 1,
+            "messages": [["role": "user", "content": "x"]]
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else { return false }
+
+            guard let h5Util = headerDouble(httpResponse, key: "anthropic-ratelimit-unified-5h-utilization") else {
+                logger.debug("No unified rate limit headers in response")
+                return false
+            }
+
+            let h5Reset = headerDate(httpResponse, key: "anthropic-ratelimit-unified-5h-reset")
+            let resetsAt = h5Reset.map { ISO8601DateFormatter().string(from: $0) }
+
+            // Headers return utilization as 0.0-1.0, convert to 0-100
+            let usage = QuotaPeriod(utilization: (h5Util * 100).rounded(), resetsAt: resetsAt)
+            currentUsage = usage
+            isConnected = true
+            error = nil
+            logger.info("Usage fetched via headers fallback: \(usage.usagePercentage)%")
+            return true
+
+        } catch {
+            logger.error("Headers fallback failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func handleAuthFailure(currentToken: String) async {
+        cachedToken = nil
+        KeychainManager.clearCachedOAuthToken()
+
+        if let freshToken = KeychainManager.refreshAccessTokenSilently(),
+           freshToken != currentToken {
+            logger.info("Token refreshed silently from Claude Code keychain")
+            await fetchAndStartPolling(with: freshToken)
+            return
+        }
+
+        error = "Token expired"
+        isConnected = false
+        stopPolling()
+    }
+
+    private func headerDouble(_ response: HTTPURLResponse, key: String) -> Double? {
+        guard let value = response.value(forHTTPHeaderField: key) else { return nil }
+        return Double(value)
+    }
+
+    private func headerDate(_ response: HTTPURLResponse, key: String) -> Date? {
+        guard let value = response.value(forHTTPHeaderField: key) else { return nil }
+        // Try epoch timestamp
+        if let epoch = TimeInterval(value) {
+            return Date(timeIntervalSince1970: epoch)
+        }
+        // Try ISO 8601
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 }

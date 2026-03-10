@@ -19,6 +19,11 @@ struct QuotaPeriod: Decodable {
         case resetsAt = "resets_at"
     }
 
+    init(utilization: Double, resetsAt: String? = nil) {
+        self.utilization = utilization
+        self.resetsAt = resetsAt
+    }
+
     var usagePercentage: Int {
         // API returns utilization as percentage (0-100), not decimal (0-1)
         Int(utilization.rounded())
