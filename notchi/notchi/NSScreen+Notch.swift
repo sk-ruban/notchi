@@ -29,7 +29,8 @@ extension NSScreen {
         let leftPadding = auxiliaryTopLeftArea?.width ?? 0
         let rightPadding = auxiliaryTopRightArea?.width ?? 0
         let notchWidth = fullWidth - leftPadding - rightPadding + 4
-        let notchHeight = safeAreaInsets.top
+        let menuBarHeight = frame.maxY - visibleFrame.maxY
+        let notchHeight = max(safeAreaInsets.top, menuBarHeight)
 
         return CGSize(width: notchWidth, height: notchHeight)
     }
