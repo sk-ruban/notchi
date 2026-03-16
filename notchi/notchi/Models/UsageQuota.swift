@@ -14,12 +14,12 @@ struct QuotaPeriod: Decodable {
     let utilization: Double
     let resetDate: Date?
 
-    private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+    private nonisolated(unsafe) static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
-    private static let isoFormatter = ISO8601DateFormatter()
+    private nonisolated(unsafe) static let isoFormatter = ISO8601DateFormatter()
 
     enum CodingKeys: String, CodingKey {
         case utilization
@@ -61,7 +61,7 @@ struct QuotaPeriod: Decodable {
         }
     }
 
-    private static func parseISO8601(_ string: String) -> Date? {
+    private nonisolated static func parseISO8601(_ string: String) -> Date? {
         isoFormatterWithFractionalSeconds.date(from: string)
             ?? isoFormatter.date(from: string)
     }
