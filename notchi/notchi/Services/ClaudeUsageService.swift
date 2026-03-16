@@ -14,17 +14,27 @@ final class ClaudeUsageService {
 
     private static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     private static let messagesURL = URL(string: "https://api.anthropic.com/v1/messages")!
-    private static let authFailureStatusCodes: Set<Int> = [401, 403]
-
     private var pollTimer: Timer?
     private let pollInterval: TimeInterval = 60
     private var cachedToken: String?
+    private var preferHeadersFetch = false
+    private var pollsSinceOAuthCheck = 0
+    private static let oauthRecheckInterval = 10
+
+    private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoFormatter = ISO8601DateFormatter()
 
     private init() {}
 
     func connectAndStartPolling() {
         AppSettings.isUsageEnabled = true
         error = nil
+        preferHeadersFetch = false
+        pollsSinceOAuthCheck = 0
         stopPolling()
 
         Task {
@@ -108,12 +118,28 @@ final class ClaudeUsageService {
         isLoading = true
         defer { isLoading = false }
 
-        // Method 1: OAuth usage endpoint (Pro/Max)
+        var headersTried = false
+
+        // When headers previously succeeded (enterprise), skip OAuth to avoid
+        // a redundant request. Periodically recheck OAuth to self-correct
+        // if the account type changes.
+        if preferHeadersFetch && pollsSinceOAuthCheck < Self.oauthRecheckInterval {
+            pollsSinceOAuthCheck += 1
+            headersTried = true
+            if await fetchFromHeaders(with: accessToken) { return }
+            preferHeadersFetch = false
+        }
+
+        // Primary method: OAuth usage endpoint (Pro/Max)
+        pollsSinceOAuthCheck = 0
         let oauthResult = await fetchFromOAuth(with: accessToken)
         if case .success = oauthResult { return }
 
-        // Method 2: Fallback — extract rate limits from Messages API headers (Enterprise)
-        if await fetchFromHeaders(with: accessToken) { return }
+        // Fallback: extract rate limits from Messages API headers (Enterprise)
+        if !headersTried, await fetchFromHeaders(with: accessToken) {
+            preferHeadersFetch = true
+            return
+        }
 
         // Both methods failed
         switch oauthResult {
@@ -153,7 +179,7 @@ final class ClaudeUsageService {
                     return .rateLimited
                 }
 
-                if Self.authFailureStatusCodes.contains(httpResponse.statusCode) {
+                if httpResponse.statusCode == 401 {
                     return .authFailure
                 }
 
@@ -203,10 +229,9 @@ final class ClaudeUsageService {
             }
 
             let h5Reset = headerDate(httpResponse, key: "anthropic-ratelimit-unified-5h-reset")
-            let resetsAt = h5Reset.map { ISO8601DateFormatter().string(from: $0) }
 
             // Headers return utilization as 0.0-1.0, convert to 0-100
-            let usage = QuotaPeriod(utilization: (h5Util * 100).rounded(), resetsAt: resetsAt)
+            let usage = QuotaPeriod(utilization: (h5Util * 100).rounded(), resetDate: h5Reset)
             currentUsage = usage
             isConnected = true
             error = nil
@@ -247,8 +272,7 @@ final class ClaudeUsageService {
             return Date(timeIntervalSince1970: epoch)
         }
         // Try ISO 8601
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        return Self.isoFormatterWithFractionalSeconds.date(from: value)
+            ?? Self.isoFormatter.date(from: value)
     }
 }

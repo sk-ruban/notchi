@@ -13,27 +13,48 @@ struct UsageResponse: Decodable {
 struct QuotaPeriod: Decodable {
     let utilization: Double
     let resetsAt: String?
+    private let _resetDate: Date?
+
+    private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoFormatter = ISO8601DateFormatter()
 
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        utilization = try container.decode(Double.self, forKey: .utilization)
+        resetsAt = try container.decodeIfPresent(String.self, forKey: .resetsAt)
+        _resetDate = nil
+    }
+
     init(utilization: Double, resetsAt: String? = nil) {
         self.utilization = utilization
         self.resetsAt = resetsAt
+        _resetDate = nil
+    }
+
+    init(utilization: Double, resetDate: Date?) {
+        self.utilization = utilization
+        self.resetsAt = nil
+        self._resetDate = resetDate
     }
 
     var usagePercentage: Int {
-        // API returns utilization as percentage (0-100), not decimal (0-1)
         Int(utilization.rounded())
     }
 
     var resetDate: Date? {
+        if let _resetDate { return _resetDate }
         guard let resetsAt else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: resetsAt) ?? ISO8601DateFormatter().date(from: resetsAt)
+        return Self.isoFormatterWithFractionalSeconds.date(from: resetsAt)
+            ?? Self.isoFormatter.date(from: resetsAt)
     }
 
     var isExpired: Bool {
