@@ -118,30 +118,25 @@ final class ClaudeUsageService {
         isLoading = true
         defer { isLoading = false }
 
-        var headersTried = false
-
-        // When headers previously succeeded (enterprise), skip OAuth to avoid
-        // a redundant request. Periodically recheck OAuth to self-correct
-        // if the account type changes.
+        // Enterprise fast path: skip OAuth when headers previously worked
         if preferHeadersFetch && pollsSinceOAuthCheck < Self.oauthRecheckInterval {
             pollsSinceOAuthCheck += 1
-            headersTried = true
-            if await fetchFromHeaders(with: accessToken) { return }
+            if case .success = await fetchFromHeaders(with: accessToken) { return }
             preferHeadersFetch = false
         }
 
-        // Primary method: OAuth usage endpoint (Pro/Max)
+        // Primary: OAuth usage endpoint (Pro/Max)
         pollsSinceOAuthCheck = 0
         let oauthResult = await fetchFromOAuth(with: accessToken)
         if case .success = oauthResult { return }
 
-        // Fallback: extract rate limits from Messages API headers (Enterprise)
-        if !headersTried, await fetchFromHeaders(with: accessToken) {
+        // Fallback: Messages API headers (Enterprise)
+        if case .success = await fetchFromHeaders(with: accessToken) {
             preferHeadersFetch = true
             return
         }
 
-        // Both methods failed
+        // Both failed
         switch oauthResult {
         case .authFailure:
             await handleAuthFailure(currentToken: accessToken)
@@ -202,7 +197,7 @@ final class ClaudeUsageService {
 
     /// Makes a minimal Messages API call (Haiku, max_tokens=1) and extracts
     /// enterprise rate limit info from the `anthropic-ratelimit-unified-*` headers.
-    private func fetchFromHeaders(with accessToken: String) async -> Bool {
+    private func fetchFromHeaders(with accessToken: String) async -> FetchResult {
         var request = URLRequest(url: Self.messagesURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -221,11 +216,11 @@ final class ClaudeUsageService {
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse else { return false }
+            guard let httpResponse = response as? HTTPURLResponse else { return .error("Invalid response") }
 
             guard let h5Util = headerDouble(httpResponse, key: "anthropic-ratelimit-unified-5h-utilization") else {
                 logger.debug("No unified rate limit headers in response")
-                return false
+                return .error("No rate limit headers")
             }
 
             let h5Reset = headerDate(httpResponse, key: "anthropic-ratelimit-unified-5h-reset")
@@ -235,12 +230,12 @@ final class ClaudeUsageService {
             currentUsage = usage
             isConnected = true
             error = nil
-            logger.info("Usage fetched via headers fallback: \(usage.usagePercentage)%")
-            return true
+            logger.info("Usage fetched via headers: \(usage.usagePercentage)%")
+            return .success
 
         } catch {
-            logger.error("Headers fallback failed: \(error.localizedDescription)")
-            return false
+            logger.error("Headers fetch failed: \(error.localizedDescription)")
+            return .error("Network error")
         }
     }
 

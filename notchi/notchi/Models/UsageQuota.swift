@@ -12,8 +12,7 @@ struct UsageResponse: Decodable {
 
 struct QuotaPeriod: Decodable {
     let utilization: Double
-    let resetsAt: String?
-    private let _resetDate: Date?
+    let resetDate: Date?
 
     private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -30,31 +29,17 @@ struct QuotaPeriod: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         utilization = try container.decode(Double.self, forKey: .utilization)
-        resetsAt = try container.decodeIfPresent(String.self, forKey: .resetsAt)
-        _resetDate = nil
+        let resetsAt = try container.decodeIfPresent(String.self, forKey: .resetsAt)
+        resetDate = resetsAt.flatMap(Self.parseISO8601)
     }
 
-    init(utilization: Double, resetsAt: String? = nil) {
+    init(utilization: Double, resetDate: Date? = nil) {
         self.utilization = utilization
-        self.resetsAt = resetsAt
-        _resetDate = nil
-    }
-
-    init(utilization: Double, resetDate: Date?) {
-        self.utilization = utilization
-        self.resetsAt = nil
-        self._resetDate = resetDate
+        self.resetDate = resetDate
     }
 
     var usagePercentage: Int {
         Int(utilization.rounded())
-    }
-
-    var resetDate: Date? {
-        if let _resetDate { return _resetDate }
-        guard let resetsAt else { return nil }
-        return Self.isoFormatterWithFractionalSeconds.date(from: resetsAt)
-            ?? Self.isoFormatter.date(from: resetsAt)
     }
 
     var isExpired: Bool {
@@ -63,11 +48,9 @@ struct QuotaPeriod: Decodable {
     }
 
     var formattedResetTime: String? {
-        guard let resetDate else { return nil }
-        let now = Date()
-        guard resetDate > now else { return nil }
+        guard let resetDate, resetDate > Date() else { return nil }
 
-        let interval = resetDate.timeIntervalSince(now)
+        let interval = resetDate.timeIntervalSince(Date())
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
 
@@ -76,5 +59,10 @@ struct QuotaPeriod: Decodable {
         } else {
             return "\(minutes)m"
         }
+    }
+
+    private static func parseISO8601(_ string: String) -> Date? {
+        isoFormatterWithFractionalSeconds.date(from: string)
+            ?? isoFormatter.date(from: string)
     }
 }
