@@ -7,6 +7,7 @@ struct PanelSettingsView: View {
     @State private var hooksError = false
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
     @State private var baseURLInput = AppSettings.anthropicApiBaseURL ?? ""
+    @State private var selectedMode = AppSettings.emotionAnalysisMode
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
@@ -78,78 +79,114 @@ struct PanelSettingsView: View {
             }
             .buttonStyle(.plain)
 
-            apiKeySection
+            emotionAnalysisSection
         }
     }
 
-    private var apiKeySection: some View {
+    private var emotionStatusText: String {
+        switch selectedMode {
+        case .simple: return "Active"
+        case .api: return hasApiKey ? "Active" : "No Key"
+        case .disabled: return "Disabled"
+        }
+    }
+
+    private var emotionStatusColor: Color {
+        switch selectedMode {
+        case .simple: return TerminalColors.green
+        case .api: return hasApiKey ? TerminalColors.green : TerminalColors.red
+        case .disabled: return TerminalColors.dimmedText
+        }
+    }
+
+    private var emotionAnalysisSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             SettingsRowView(icon: "brain", title: "Emotion Analysis") {
-                statusBadge(
-                    hasApiKey ? "Active" : "No Key",
-                    color: hasApiKey ? TerminalColors.green : TerminalColors.red
-                )
+                statusBadge(emotionStatusText, color: emotionStatusColor)
             }
 
-            // API Key input
-            HStack(spacing: 6) {
-                SecureField("", text: $apiKeyInput)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(TerminalColors.primaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(6)
-                    .onSubmit { saveApiKey() }
-                    .overlay(alignment: .leading) {
-                        if apiKeyInput.isEmpty {
-                            Text("API Key")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(TerminalColors.dimmedText)
-                                .padding(.leading, 8)
-                                .allowsHitTesting(false)
-                        }
+            HStack(spacing: 4) {
+                ForEach(EmotionAnalysisMode.allCases, id: \.self) { mode in
+                    Button(action: {
+                        selectedMode = mode
+                        AppSettings.emotionAnalysisMode = mode
+                    }) {
+                        Text(mode.displayName)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(selectedMode == mode
+                                ? TerminalColors.primaryText
+                                : TerminalColors.dimmedText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(selectedMode == mode
+                                ? Color.white.opacity(0.12)
+                                : Color.clear)
+                            .cornerRadius(4)
                     }
-
-                Button(action: saveApiKey) {
-                    Image(systemName: hasApiKey ? "checkmark.circle.fill" : "arrow.right.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(hasApiKey ? TerminalColors.green : TerminalColors.dimmedText)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.leading, 28)
 
-            // Base URL input
-            HStack(spacing: 6) {
-                TextField("", text: $baseURLInput)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(TerminalColors.primaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(6)
-                    .onSubmit { saveBaseURL() }
-                    .overlay(alignment: .leading) {
-                        if baseURLInput.isEmpty {
-                            Text("API Base URL (optional, e.g. https://api.yourservice.com)")
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundColor(TerminalColors.dimmedText)
-                                .padding(.leading, 8)
-                                .allowsHitTesting(false)
+            if selectedMode == .api {
+                HStack(spacing: 6) {
+                    SecureField("", text: $apiKeyInput)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(TerminalColors.primaryText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06))
+                        .cornerRadius(6)
+                        .onSubmit { saveApiKey() }
+                        .overlay(alignment: .leading) {
+                            if apiKeyInput.isEmpty {
+                                Text("Anthropic API Key")
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(TerminalColors.dimmedText)
+                                    .padding(.leading, 8)
+                                    .allowsHitTesting(false)
+                            }
                         }
-                    }
 
-                Button(action: saveBaseURL) {
-                    Image(systemName: baseURLInput.isEmpty ? "arrow.right.circle" : "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(baseURLInput.isEmpty ? TerminalColors.dimmedText : TerminalColors.green)
+                    Button(action: saveApiKey) {
+                        Image(systemName: hasApiKey ? "checkmark.circle.fill" : "arrow.right.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(hasApiKey ? TerminalColors.green : TerminalColors.dimmedText)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.leading, 28)
+
+                HStack(spacing: 6) {
+                    TextField("", text: $baseURLInput)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(TerminalColors.primaryText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06))
+                        .cornerRadius(6)
+                        .onSubmit { saveBaseURL() }
+                        .overlay(alignment: .leading) {
+                            if baseURLInput.isEmpty {
+                                Text("API Base URL (optional, e.g. https://api.yourservice.com)")
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(TerminalColors.dimmedText)
+                                    .padding(.leading, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+
+                    Button(action: saveBaseURL) {
+                        Image(systemName: baseURLInput.isEmpty ? "arrow.right.circle" : "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(baseURLInput.isEmpty ? TerminalColors.dimmedText : TerminalColors.green)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 28)
             }
-            .padding(.leading, 28)
         }
     }
 
