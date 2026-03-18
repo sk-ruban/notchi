@@ -50,6 +50,17 @@ struct NotchContentView: View {
         isExpanded ? cornerRadiusInsets.opened.bottom : cornerRadiusInsets.closed.bottom
     }
 
+    /// Uses the exact system notch path when collapsed (if available), falls back to parametric NotchShape
+    private var notchClipShape: AnyShape {
+        if !isExpanded, let systemPath = panelManager.systemNotchPath {
+            return AnyShape(SystemNotchShape(cgPath: systemPath))
+        }
+        return AnyShape(NotchShape(
+            topCornerRadius: topCornerRadius,
+            bottomCornerRadius: bottomCornerRadius
+        ))
+    }
+
     private var grassHeight: CGFloat {
         let expandedPanelHeight = NotchConstants.expandedPanelSize.height - notchSize.height - 24
         return expandedPanelHeight * 0.3 + notchSize.height
@@ -112,10 +123,7 @@ struct NotchContentView: View {
                 .padding(.trailing, 30)
             }
         }
-        .clipShape(NotchShape(
-            topCornerRadius: topCornerRadius,
-            bottomCornerRadius: bottomCornerRadius
-        ))
+        .clipShape(notchClipShape)
         .shadow(
             color: isExpanded ? .black.opacity(0.7) : .clear,
             radius: 6
