@@ -6,6 +6,7 @@ struct PanelSettingsView: View {
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
+    @State private var baseURLInput = AppSettings.anthropicApiBaseURL ?? ""
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
@@ -77,11 +78,11 @@ struct PanelSettingsView: View {
             }
             .buttonStyle(.plain)
 
-            apiKeyRow
+            apiKeySection
         }
     }
 
-    private var apiKeyRow: some View {
+    private var apiKeySection: some View {
         VStack(alignment: .leading, spacing: 6) {
             SettingsRowView(icon: "brain", title: "Emotion Analysis") {
                 statusBadge(
@@ -90,6 +91,7 @@ struct PanelSettingsView: View {
                 )
             }
 
+            // API Key input
             HStack(spacing: 6) {
                 SecureField("", text: $apiKeyInput)
                     .textFieldStyle(.plain)
@@ -102,7 +104,7 @@ struct PanelSettingsView: View {
                     .onSubmit { saveApiKey() }
                     .overlay(alignment: .leading) {
                         if apiKeyInput.isEmpty {
-                            Text("Anthropic API Key")
+                            Text("API Key")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundColor(TerminalColors.dimmedText)
                                 .padding(.leading, 8)
@@ -118,12 +120,47 @@ struct PanelSettingsView: View {
                 .buttonStyle(.plain)
             }
             .padding(.leading, 28)
+
+            // Base URL input
+            HStack(spacing: 6) {
+                TextField("", text: $baseURLInput)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(TerminalColors.primaryText)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(6)
+                    .onSubmit { saveBaseURL() }
+                    .overlay(alignment: .leading) {
+                        if baseURLInput.isEmpty {
+                            Text("API Base URL (optional, e.g. https://api.yourservice.com)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(TerminalColors.dimmedText)
+                                .padding(.leading, 8)
+                                .allowsHitTesting(false)
+                        }
+                    }
+
+                Button(action: saveBaseURL) {
+                    Image(systemName: baseURLInput.isEmpty ? "arrow.right.circle" : "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(baseURLInput.isEmpty ? TerminalColors.dimmedText : TerminalColors.green)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 28)
         }
     }
 
     private func saveApiKey() {
         let trimmed = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         AppSettings.anthropicApiKey = trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func saveBaseURL() {
+        let trimmed = baseURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        AppSettings.anthropicApiBaseURL = trimmed.isEmpty ? nil : trimmed
     }
 
     private var actionsSection: some View {

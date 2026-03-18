@@ -20,7 +20,7 @@ private struct EmotionResponse: Decodable {
 final class EmotionAnalyzer {
     static let shared = EmotionAnalyzer()
 
-    private static let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
+    private static let defaultBaseURL = "https://api.anthropic.com"
     private static let model = "claude-haiku-4-5-20251001"
     private static let validEmotions: Set<String> = ["happy", "sad", "neutral"]
 
@@ -36,6 +36,12 @@ final class EmotionAnalyzer {
         """
 
     private init() {}
+
+    private static func getApiURL() -> URL {
+        let baseURL = AppSettings.anthropicApiBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let url = baseURL.isEmpty ? defaultBaseURL : baseURL
+        return URL(string: "\(url)/v1/messages")!
+    }
 
     func analyze(_ prompt: String) async -> (emotion: String, intensity: Double) {
         let start = ContinuousClock.now
@@ -83,7 +89,10 @@ final class EmotionAnalyzer {
     }
 
     private func callHaiku(prompt: String, apiKey: String) async throws -> (emotion: String, intensity: Double) {
-        var request = URLRequest(url: Self.apiURL)
+        let apiURL = Self.getApiURL()
+        logger.info("Using API URL: \(apiURL.absoluteString, privacy: .public)")
+        
+        var request = URLRequest(url: apiURL)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
