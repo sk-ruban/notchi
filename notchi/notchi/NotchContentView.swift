@@ -228,13 +228,21 @@ struct NotchContentView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack(spacing: 0) {
-            Color.clear
-                .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
+        if panelManager.hasNotch {
+            HStack(spacing: 0) {
+                Color.clear
+                    .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
+                headerSprites
+                    .offset(x: 15, y: -2)
+                    .frame(width: sideWidth)
+                    .opacity(isExpanded ? 0 : 1)
+                    .animation(.none, value: isExpanded)
+            }
+        } else {
             headerSprites
-                .offset(x: 15, y: -2)
-                .frame(width: sideWidth)
+                .offset(y: -2)
+                .frame(width: notchSize.width, height: notchSize.height)
                 .opacity(isExpanded ? 0 : 1)
                 .animation(.none, value: isExpanded)
         }
@@ -242,11 +250,27 @@ struct NotchContentView: View {
 
     @ViewBuilder
     private var headerSprites: some View {
-        let topSession = sessionStore.sortedSessions.first
-        SessionSpriteView(
-            state: topSession?.state ?? .idle,
-            isSelected: true
-        )
+        if panelManager.hasNotch {
+            let topSession = sessionStore.sortedSessions.first
+            SessionSpriteView(
+                state: topSession?.state ?? .idle,
+                isSelected: true
+            )
+        } else {
+            let sessions = Array(sessionStore.sortedSessions.prefix(5))
+            if sessions.isEmpty {
+                SessionSpriteView(state: .idle, isSelected: true)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(sessions) { session in
+                        SessionSpriteView(
+                            state: session.state,
+                            isSelected: session.id == sessionStore.effectiveSession?.id
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private func openSettings() {

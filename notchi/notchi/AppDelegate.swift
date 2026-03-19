@@ -59,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let screen = ScreenSelector.shared.selectedScreen else { return }
         NotchPanelManager.shared.updateGeometry(for: screen)
 
-        let panel = NotchPanel(frame: windowFrame(for: screen))
+        let panel = NotchPanel(frame: windowFrame(for: screen), hasNotch: screen.hasNotch)
 
         let contentView = NotchContentView()
         let hostingView = NSHostingView(rootView: contentView)

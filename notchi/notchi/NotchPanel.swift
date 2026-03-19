@@ -2,7 +2,7 @@ import AppKit
 
 /// A borderless, transparent panel positioned at the MacBook notch area
 final class NotchPanel: NSPanel {
-    init(frame: CGRect) {
+    init(frame: CGRect, hasNotch: Bool = true) {
         super.init(
             contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -13,13 +13,22 @@ final class NotchPanel: NSPanel {
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
 
-        level = .mainMenu + 3
-        collectionBehavior = [
-            .fullScreenAuxiliary,
-            .stationary,
-            .canJoinAllSpaces,
-            .ignoresCycle
-        ]
+        if hasNotch {
+            level = .mainMenu + 3
+            collectionBehavior = [
+                .fullScreenAuxiliary,
+                .stationary,
+                .canJoinAllSpaces,
+                .ignoresCycle
+            ]
+        } else {
+            level = .statusBar
+            collectionBehavior = [
+                .fullScreenAuxiliary,
+                .canJoinAllSpaces,
+                .ignoresCycle
+            ]
+        }
 
         isOpaque = false
         backgroundColor = .clear
