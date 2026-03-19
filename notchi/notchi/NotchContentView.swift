@@ -23,6 +23,7 @@ struct NotchContentView: View {
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
     @State private var hoveredSessionId: String?
+    @State private var walkAnimator = WalkAnimator()
 
     private var sessionStore: SessionStore {
         stateMachine.sessionStore
@@ -47,6 +48,17 @@ struct NotchContentView: View {
 
     private var bottomCornerRadius: CGFloat {
         isExpanded ? cornerRadiusInsets.opened.bottom : cornerRadiusInsets.closed.bottom
+    }
+
+    /// Uses the exact system notch path when collapsed (if available), falls back to parametric NotchShape
+    private var notchClipShape: AnyShape {
+        if !isExpanded, let systemPath = panelManager.systemNotchPath {
+            return AnyShape(SystemNotchShape(cgPath: systemPath))
+        }
+        return AnyShape(NotchShape(
+            topCornerRadius: topCornerRadius,
+            bottomCornerRadius: bottomCornerRadius
+        ))
     }
 
     private var grassHeight: CGFloat {
@@ -111,10 +123,7 @@ struct NotchContentView: View {
                 .padding(.trailing, 30)
             }
         }
-        .clipShape(NotchShape(
-            topCornerRadius: topCornerRadius,
-            bottomCornerRadius: bottomCornerRadius
-        ))
+        .clipShape(notchClipShape)
         .shadow(
             color: isExpanded ? .black.opacity(0.7) : .clear,
             radius: 6
@@ -233,18 +242,42 @@ struct NotchContentView: View {
                 .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
             headerSprites
-                .offset(x: 15, y: -2)
+                .offset(x: 15 + walkAnimator.xOffset, y: -2)
                 .frame(width: sideWidth)
                 .opacity(isExpanded ? 0 : 1)
                 .animation(.none, value: isExpanded)
         }
+        .onChange(of: currentHeaderState) { _, newState in
+            walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
+            if newState.canWalk {
+                walkAnimator.start(state: newState)
+            } else {
+                walkAnimator.returnHome()
+            }
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            if expanded {
+                walkAnimator.stop()
+            } else if currentHeaderState.canWalk {
+                walkAnimator.start(state: currentHeaderState)
+            }
+        }
+        .onAppear {
+            walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
+            if currentHeaderState.canWalk {
+                walkAnimator.start(state: currentHeaderState)
+            }
+        }
+    }
+
+    private var currentHeaderState: NotchiState {
+        sessionStore.sortedSessions.first?.state ?? .idle
     }
 
     @ViewBuilder
     private var headerSprites: some View {
-        let topSession = sessionStore.sortedSessions.first
         SessionSpriteView(
-            state: topSession?.state ?? .idle,
+            state: currentHeaderState,
             isSelected: true
         )
     }

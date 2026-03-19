@@ -1,7 +1,27 @@
+import Accelerate
 import Foundation
+import NaturalLanguage
 import os.log
 
 private let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
+
+enum EmotionAnalysisMode: String, CaseIterable {
+    case simple = "simple"
+    case api = "api"
+    case disabled = "disabled"
+
+    var displayName: String {
+        switch self {
+        case .simple: return "Simple"
+        case .api: return "Anthropic API"
+        case .disabled: return "Disabled"
+        }
+    }
+}
+
+private struct ClaudeSettings: Decodable {
+    let env: [String: String]
+}
 
 private struct HaikuResponse: Decodable {
     let content: [ContentBlock]
@@ -20,9 +40,12 @@ private struct EmotionResponse: Decodable {
 final class EmotionAnalyzer {
     static let shared = EmotionAnalyzer()
 
-    private static let apiURL = URL(string: "https://api.anthropic.com/v1/messages")!
-    private static let model = "claude-haiku-4-5-20251001"
-    private static let validEmotions: Set<String> = ["happy", "sad", "neutral"]
+    private static let defaultBaseURL = "https://api.anthropic.com"
+    private static let defaultAPIURL = URL(string: "https://api.anthropic.com/v1/messages")!
+    private static let defaultModel = "claude-haiku-4-5-20251001"
+    private static let validEmotions: Set<String> = Set(
+        NotchiEmotion.allCases.filter { $0 != .sob }.map(\.rawValue)
+    )
 
     private static let systemPrompt = """
         Classify the emotional tone of the user's message into exactly one emotion and an intensity score.
@@ -35,18 +58,166 @@ final class EmotionAnalyzer {
         Reply with ONLY valid JSON: {"emotion": "...", "intensity": ...}
         """
 
+    // MARK: - On-Device Embedding Classification
+
+    private static let ambiguityMargin = 0.05
+
+    private static let happyAnchorStrings = [
+        "great work thank you", "amazing I love it", "looks perfect now",
+        "that works thanks", "this is so fun and exciting", "you did it congrats",
+        "finally it works", "you're doing a great job",
+    ]
+
+    private static let sadAnchorStrings = [
+        "bruh what did you do this is broken", "this is terrible and ugly",
+        "why does it still not work", "I'm so frustrated it keeps failing",
+        "we took steps back this is worse now", "it doesn't fucking work",
+        "still not doing what I want", "back to a broken state again",
+    ]
+
+    private static let neutralAnchorStrings = [
+        "fix this and deploy it", "commit and push the changes",
+        "refactor the database module", "can you explain how this works",
+        "continue please keep going", "build and run it", "try again ultrathink",
+        "merge into main", "my codebase is confusing",
+        "sorry that was wrong let me clarify", "use this other approach instead",
+        "it works but it's not ideal", "what is the value for this",
+    ]
+
+    private struct AnchorSet {
+        let vectors: [[Double]]
+        let norms: [Double]
+    }
+
+    private static var _embedding: NLEmbedding?
+    private static var _happyAnchors: AnchorSet?
+    private static var _sadAnchors: AnchorSet?
+    private static var _neutralAnchors: AnchorSet?
+    private static var _initialized = false
+
+    private static func ensureEmbedding() -> Bool {
+        guard !_initialized else { return _embedding != nil }
+        _initialized = true
+        guard let embedding = NLEmbedding.sentenceEmbedding(for: .english) else {
+            logger.warning("NLEmbedding.sentenceEmbedding unavailable")
+            return false
+        }
+        _embedding = embedding
+        _happyAnchors = makeAnchorSet(happyAnchorStrings, embedding: embedding)
+        _sadAnchors = makeAnchorSet(sadAnchorStrings, embedding: embedding)
+        _neutralAnchors = makeAnchorSet(neutralAnchorStrings, embedding: embedding)
+        let total = (_happyAnchors?.vectors.count ?? 0) + (_sadAnchors?.vectors.count ?? 0) + (_neutralAnchors?.vectors.count ?? 0)
+        logger.info("Loaded sentence embedding with \(total) anchor vectors")
+        return true
+    }
+
+    private static func makeAnchorSet(_ strings: [String], embedding: NLEmbedding) -> AnchorSet {
+        let vectors = strings.compactMap { embedding.vector(for: $0) }
+        let norms = vectors.map { vec -> Double in
+            var norm = 0.0
+            vDSP_dotprD(vec, 1, vec, 1, &norm, vDSP_Length(vec.count))
+            return sqrt(norm)
+        }
+        return AnchorSet(vectors: vectors, norms: norms)
+    }
+
+    private static func minDistance(_ vec: [Double], vecNorm: Double, _ anchors: AnchorSet) -> Double {
+        anchors.vectors.enumerated().reduce(999.0) { best, pair in
+            let (i, anchor) = pair
+            var dot = 0.0
+            vDSP_dotprD(vec, 1, anchor, 1, &dot, vDSP_Length(vec.count))
+            let denom = vecNorm * anchors.norms[i]
+            guard denom > 0 else { return best }
+            return min(best, 1.0 - (dot / denom))
+        }
+    }
+
     private init() {}
 
+    private static func getApiURL() -> URL {
+        let baseURL = AppSettings.anthropicApiBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let url = baseURL.isEmpty ? defaultBaseURL : baseURL
+        return URL(string: "\(url)/v1/messages")!
+    }
+
     func analyze(_ prompt: String) async -> (emotion: String, intensity: Double) {
+        switch AppSettings.emotionAnalysisMode {
+        case .simple:
+            return analyzeLocally(prompt)
+        case .api:
+            return await analyzeWithAPI(prompt)
+        case .disabled:
+            return ("neutral", 0.0)
+        }
+    }
+
+    // MARK: - On-Device (NLEmbedding)
+
+    private static let maxPromptLength = 200
+
+    private func analyzeLocally(_ prompt: String) -> (emotion: String, intensity: Double) {
         let start = ContinuousClock.now
 
-        guard let apiKey = AppSettings.anthropicApiKey, !apiKey.isEmpty else {
-            logger.info("No Anthropic API key configured, skipping emotion analysis")
+        guard prompt.count <= Self.maxPromptLength else {
+            return ("neutral", 0.0)
+        }
+
+        guard Self.ensureEmbedding(),
+              let embedding = Self._embedding,
+              let happyAnchors = Self._happyAnchors,
+              let sadAnchors = Self._sadAnchors,
+              let neutralAnchors = Self._neutralAnchors,
+              let promptVec = embedding.vector(for: prompt.lowercased())
+        else {
+            logger.info("Embedding unavailable, defaulting to neutral")
+            return ("neutral", 0.0)
+        }
+
+        var promptNorm = 0.0
+        vDSP_dotprD(promptVec, 1, promptVec, 1, &promptNorm, vDSP_Length(promptVec.count))
+        promptNorm = sqrt(promptNorm)
+
+        let categories: [(String, Double)] = [
+            ("happy", Self.minDistance(promptVec, vecNorm: promptNorm, happyAnchors)),
+            ("sad", Self.minDistance(promptVec, vecNorm: promptNorm, sadAnchors)),
+            ("neutral", Self.minDistance(promptVec, vecNorm: promptNorm, neutralAnchors)),
+        ]
+        let sorted = categories.sorted { $0.1 < $1.1 }
+        let margin = sorted[1].1 - sorted[0].1
+
+        let result: (emotion: String, intensity: Double)
+
+        if margin < Self.ambiguityMargin {
+            result = ("neutral", 0.0)
+        } else if sorted[0].0 == "neutral" {
+            result = ("neutral", 0.0)
+        } else {
+            result = (sorted[0].0, min(max(1.0 - sorted[0].1, 0.0), 1.0))
+        }
+
+        let elapsed = ContinuousClock.now - start
+        logger.info("Local analysis took \(elapsed, privacy: .public): h=\(String(format: "%.3f", categories[0].1), privacy: .public) s=\(String(format: "%.3f", categories[1].1), privacy: .public) n=\(String(format: "%.3f", categories[2].1), privacy: .public) margin=\(String(format: "%.3f", margin), privacy: .public) -> \(result.emotion, privacy: .public) (\(String(format: "%.2f", result.intensity), privacy: .public))")
+
+        return result
+    }
+
+    // MARK: - Claude API
+
+    private func analyzeWithAPI(_ prompt: String) async -> (emotion: String, intensity: Double) {
+        let start = ContinuousClock.now
+
+        guard let config = resolveAPIConfig() else {
+            logger.info("No emotion analysis configuration available, using neutral fallback")
             return ("neutral", 0.0)
         }
 
         do {
-            let result = try await callHaiku(prompt: prompt, apiKey: apiKey)
+            let result = try await callHaiku(
+                prompt: prompt,
+                apiURL: config.apiURL,
+                apiKey: config.apiKey,
+                model: config.model
+            )
             let elapsed = ContinuousClock.now - start
             logger.info("Analysis took \(elapsed, privacy: .public)")
             return result
@@ -82,15 +253,81 @@ final class EmotionAnalyzer {
         return cleaned
     }
 
-    private func callHaiku(prompt: String, apiKey: String) async throws -> (emotion: String, intensity: Double) {
-        var request = URLRequest(url: Self.apiURL)
+    private func resolveAPIConfig() -> (apiURL: URL, apiKey: String, model: String)? {
+        guard let apiKey = AppSettings.anthropicApiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !apiKey.isEmpty else {
+            return loadClaudeSettingsConfig()
+        }
+
+        return (
+            apiURL: Self.getApiURL(),
+            apiKey: apiKey,
+            model: Self.defaultModel
+        )
+    }
+
+    private func loadClaudeSettingsConfig() -> (apiURL: URL, apiKey: String, model: String)? {
+        let settingsURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/settings.json")
+
+        guard let data = try? Data(contentsOf: settingsURL) else {
+            return nil
+        }
+
+        do {
+            let settings = try JSONDecoder().decode(ClaudeSettings.self, from: data)
+            guard let baseURL = settings.env["ANTHROPIC_BASE_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !baseURL.isEmpty,
+                  let authToken = settings.env["ANTHROPIC_AUTH_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !authToken.isEmpty,
+                  let apiURL = buildMessagesURL(from: baseURL) else {
+                logger.debug("Claude settings present but missing valid base URL or auth token")
+                return nil
+            }
+
+            let model = settings.env["ANTHROPIC_DEFAULT_HAIKU_MODEL"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (
+                apiURL: apiURL,
+                apiKey: authToken,
+                model: (model?.isEmpty == false) ? model! : Self.defaultModel
+            )
+        } catch {
+            logger.error("Failed to parse Claude settings.json: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func buildMessagesURL(from baseURL: String) -> URL? {
+        guard var components = URLComponents(string: baseURL) else {
+            logger.error("Invalid ANTHROPIC_BASE_URL: \(baseURL, privacy: .public)")
+            return nil
+        }
+
+        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        switch true {
+        case normalizedPath.isEmpty:
+            components.path = "/v1/messages"
+        case normalizedPath.hasSuffix("/v1/messages") || normalizedPath == "v1/messages":
+            components.path = "/\(normalizedPath)"
+        case normalizedPath.hasSuffix("/v1") || normalizedPath == "v1":
+            components.path = "/\(normalizedPath)/messages"
+        default:
+            components.path = "/\(normalizedPath)/v1/messages"
+        }
+
+        return components.url
+    }
+
+    private func callHaiku(prompt: String, apiURL: URL, apiKey: String, model: String) async throws -> (emotion: String, intensity: Double) {
+        var request = URLRequest(url: apiURL)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
 
         let body: [String: Any] = [
-            "model": Self.model,
+            "model": model,
             "max_tokens": 50,
             "system": Self.systemPrompt,
             "messages": [

@@ -5,6 +5,21 @@ struct AppSettings {
     private static let isMutedKey = "isMuted"
     private static let previousSoundKey = "previousNotificationSound"
     private static let isUsageEnabledKey = "isUsageEnabled"
+    private static let anthropicApiBaseURLKey = "anthropicApiBaseURL"
+    private static let emotionAnalysisModeKey = "emotionAnalysisMode"
+
+    static var emotionAnalysisMode: EmotionAnalysisMode {
+        get {
+            guard let rawValue = UserDefaults.standard.string(forKey: emotionAnalysisModeKey),
+                  let mode = EmotionAnalysisMode(rawValue: rawValue) else {
+                return .simple
+            }
+            return mode
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: emotionAnalysisModeKey)
+        }
+    }
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
@@ -14,6 +29,11 @@ struct AppSettings {
     static var anthropicApiKey: String? {
         get { KeychainManager.getAnthropicApiKey() }
         set { KeychainManager.setAnthropicApiKey(newValue) }
+    }
+
+    static var anthropicApiBaseURL: String? {
+        get { UserDefaults.standard.string(forKey: anthropicApiBaseURLKey) }
+        set { UserDefaults.standard.set(newValue, forKey: anthropicApiBaseURLKey) }
     }
 
     static var notificationSound: NotificationSound {

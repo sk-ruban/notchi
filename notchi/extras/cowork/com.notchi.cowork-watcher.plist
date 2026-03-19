@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.notchi.cowork-watcher</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/YOUR_USERNAME/.claude/hooks/cowork-notchi-watcher.py</string>
+    </array>
+
+    <!-- Start automatically at login -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart if it crashes -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Don't restart more than once every 10 seconds -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/cowork-notchi-watcher.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/cowork-notchi-watcher.log</string>
+</dict>
+</plist>
