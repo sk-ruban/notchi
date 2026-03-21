@@ -6,6 +6,7 @@ struct PanelSettingsView: View {
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
+    @State private var remoteTCPEnabled = AppSettings.isRemoteTCPEnabled
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
@@ -78,6 +79,18 @@ struct PanelSettingsView: View {
             .buttonStyle(.plain)
 
             apiKeyRow
+
+            Button(action: toggleRemoteTCP) {
+                SettingsRowView(icon: "network", title: "Remote Sessions") {
+                    HStack(spacing: 4) {
+                        if remoteTCPEnabled {
+                            statusBadge("Port \(AppSettings.remoteTCPPort)", color: TerminalColors.green)
+                        }
+                        ToggleSwitch(isOn: remoteTCPEnabled)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -124,6 +137,16 @@ struct PanelSettingsView: View {
     private func saveApiKey() {
         let trimmed = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         AppSettings.anthropicApiKey = trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func toggleRemoteTCP() {
+        remoteTCPEnabled.toggle()
+        AppSettings.isRemoteTCPEnabled = remoteTCPEnabled
+        if remoteTCPEnabled {
+            SocketServer.shared.startTCPServer(port: AppSettings.remoteTCPPort)
+        } else {
+            SocketServer.shared.stopTCPServer()
+        }
     }
 
     private var actionsSection: some View {

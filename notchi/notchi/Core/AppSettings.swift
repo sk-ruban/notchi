@@ -6,6 +6,10 @@ struct AppSettings {
     private static let previousSoundKey = "previousNotificationSound"
     private static let isUsageEnabledKey = "isUsageEnabled"
     private static let claudeUsageRecoverySnapshotKey = "claudeUsageRecoverySnapshot"
+    private static let remoteTCPEnabledKey = "remoteTCPEnabled"
+    private static let remoteTCPPortKey = "remoteTCPPort"
+
+    static let defaultTCPPort: UInt16 = 9876
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
@@ -31,6 +35,19 @@ struct AppSettings {
     static var anthropicApiKey: String? {
         get { KeychainManager.getAnthropicApiKey() }
         set { KeychainManager.setAnthropicApiKey(newValue) }
+    }
+
+    static var isRemoteTCPEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: remoteTCPEnabledKey) }
+        set { UserDefaults.standard.set(newValue, forKey: remoteTCPEnabledKey) }
+    }
+
+    static var remoteTCPPort: UInt16 {
+        get {
+            let val = UserDefaults.standard.integer(forKey: remoteTCPPortKey)
+            return (val > 0 && val <= Int(UInt16.max)) ? UInt16(val) : defaultTCPPort
+        }
+        set { UserDefaults.standard.set(Int(newValue), forKey: remoteTCPPortKey) }
     }
 
     static var notificationSound: NotificationSound {
