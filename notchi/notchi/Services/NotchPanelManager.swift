@@ -10,6 +10,7 @@ final class NotchPanelManager {
     private(set) var notchSize: CGSize = .zero
     private(set) var notchRect: CGRect = .zero
     private(set) var panelRect: CGRect = .zero
+    private(set) var hasNotch: Bool = false
     private var screenHeight: CGFloat = 0
 
     private var mouseDownMonitor: EventMonitor?
@@ -23,6 +24,7 @@ final class NotchPanelManager {
         let screenFrame = screen.frame
 
         notchSize = newNotchSize
+        hasNotch = screen.hasNotch
 
         let notchCenterX = screenFrame.origin.x + screenFrame.width / 2
         let sideWidth = max(0, newNotchSize.height - 12) + 24
