@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve SPM dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project notchi/notchi.xcodeproj \
+            -scheme notchi
+
+      - name: Build
+        run: |
+          xcodebuild archive \
+            -project notchi/notchi.xcodeproj \
+            -scheme notchi \
+            -configuration Debug \
+            -archivePath $RUNNER_TEMP/notchi.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create ZIP
+        run: |
+          ditto -c -k --keepParent \
+            "$RUNNER_TEMP/notchi.xcarchive/Products/Applications/Notchi.app" \
+            "$RUNNER_TEMP/Notchi.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notchi
+          path: $RUNNER_TEMP/Notchi.zip
