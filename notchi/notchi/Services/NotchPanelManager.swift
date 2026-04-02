@@ -21,7 +21,9 @@ final class NotchPanelManager {
     }
 
     func updateGeometry(for screen: NSScreen) {
-        let newNotchSize = screen.notchSize
+        let rawNotchSize = screen.notchSize
+        let notchScale: CGFloat = 0.9
+        let newNotchSize = CGSize(width: rawNotchSize.width * notchScale, height: rawNotchSize.height * notchScale)
         let screenFrame = screen.frame
 
         notchSize = newNotchSize

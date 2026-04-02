@@ -6,6 +6,7 @@ struct PanelSettingsView: View {
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
+    @State private var selectedColor = AppSettings.spriteColor
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
@@ -48,6 +49,23 @@ struct PanelSettingsView: View {
             ScreenPickerRow(screenSelector: ScreenSelector.shared)
 
             SoundPickerView()
+
+            HStack {
+                Text("Sprite Color")
+                    .font(.system(size: 13))
+                    .foregroundColor(TerminalColors.primaryText)
+                Spacer()
+                Picker("Color", selection: $selectedColor) {
+                    ForEach(AppSettings.SpriteColor.allCases, id: \.self) { color in
+                        Text(color.displayName).tag(color)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: selectedColor) { _, newValue in
+                    AppSettings.spriteColor = newValue
+                }
+            }
+            .padding(.horizontal, 4)
         }
     }
 

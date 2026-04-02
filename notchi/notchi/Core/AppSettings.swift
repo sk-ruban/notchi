@@ -6,6 +6,7 @@ struct AppSettings {
     private static let previousSoundKey = "previousNotificationSound"
     private static let isUsageEnabledKey = "isUsageEnabled"
     private static let claudeUsageRecoverySnapshotKey = "claudeUsageRecoverySnapshot"
+    private static let spriteColorKey = "spriteColor"
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
@@ -71,6 +72,30 @@ struct AppSettings {
         }
         set {
             UserDefaults.standard.set(newValue?.rawValue, forKey: previousSoundKey)
+        }
+    }
+
+    enum SpriteColor: String, CaseIterable {
+        case orange
+        case purple
+        case blue
+        case green
+
+        var displayName: String {
+            rawValue.capitalized
+        }
+    }
+
+    static var spriteColor: SpriteColor {
+        get {
+            guard let rawValue = UserDefaults.standard.string(forKey: spriteColorKey),
+                  let color = SpriteColor(rawValue: rawValue) else {
+                return .orange
+            }
+            return color
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: spriteColorKey)
         }
     }
 }
