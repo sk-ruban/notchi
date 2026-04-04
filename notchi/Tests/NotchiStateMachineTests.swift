@@ -115,6 +115,31 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertTrue(receivedTriggers.isEmpty)
     }
 
+    func testConversationParserReadsAssistantMessagesFromTranscriptPath() async {
+        let sessionId = "transcript-\(UUID().uuidString)"
+        let transcriptPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).jsonl")
+            .path
+
+        let assistantLine = """
+        {"parentUuid":"parent","isSidechain":false,"userType":"external","cwd":"/tmp","sessionId":"\(sessionId)","version":"1","gitBranch":"","type":"assistant","message":{"id":"msg-1","type":"message","role":"assistant","model":"claude-sonnet","content":[{"type":"text","text":"Hello from a custom transcript path"}],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":1}},"uuid":"assistant-1","timestamp":"2026-04-04T09:00:00.000Z"}
+        """
+
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data(assistantLine.utf8))
+        defer {
+            try? FileManager.default.removeItem(atPath: transcriptPath)
+        }
+
+        let result = await ConversationParser.shared.parseIncremental(
+            sessionId: sessionId,
+            transcriptPath: transcriptPath
+        )
+        await ConversationParser.shared.resetState(for: sessionId)
+
+        XCTAssertEqual(result.messages.map(\.text), ["Hello from a custom transcript path"])
+        XCTAssertFalse(result.interrupted)
+    }
+
     private func makeInteractiveSession(sessionId: String) -> SessionData {
         SessionStore.shared.process(makeEvent(
             sessionId: sessionId,
@@ -137,6 +162,7 @@ final class NotchiStateMachineTests: XCTestCase {
     ) -> HookEvent {
         HookEvent(
             sessionId: sessionId,
+            transcriptPath: "/tmp/\(sessionId).jsonl",
             cwd: "/tmp",
             event: event,
             status: status,

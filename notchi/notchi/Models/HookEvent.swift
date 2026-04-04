@@ -2,6 +2,7 @@ import Foundation
 
 struct HookEvent: Decodable, Sendable {
     let sessionId: String
+    let transcriptPath: String
     let cwd: String
     let event: String
     let status: String
@@ -16,6 +17,7 @@ struct HookEvent: Decodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
+        case transcriptPath = "transcript_path"
         case cwd, event, status, pid, tty, tool
         case toolInput = "tool_input"
         case toolUseId = "tool_use_id"

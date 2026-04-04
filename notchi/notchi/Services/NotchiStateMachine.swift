@@ -38,11 +38,11 @@ final class NotchiStateMachine {
             pendingPositionMarks[event.sessionId] = Task {
                 await ConversationParser.shared.markCurrentPosition(
                     sessionId: event.sessionId,
-                    cwd: event.cwd
+                    transcriptPath: event.transcriptPath
                 )
             }
             if session.isInteractive {
-                startFileWatcher(sessionId: event.sessionId, cwd: event.cwd)
+                startFileWatcher(sessionId: event.sessionId, transcriptPath: event.transcriptPath)
             }
 
             if session.isInteractive, let prompt = event.userPrompt {
@@ -65,7 +65,7 @@ final class NotchiStateMachine {
             SoundService.shared.playNotificationSound(sessionId: event.sessionId, isInteractive: session.isInteractive)
 
         case "PostToolUse":
-            scheduleFileSync(sessionId: event.sessionId, cwd: event.cwd)
+            scheduleFileSync(sessionId: event.sessionId, transcriptPath: event.transcriptPath)
 
         case "SessionStart":
             handleClaudeUsageResumeTrigger(.sessionStart)
@@ -73,7 +73,7 @@ final class NotchiStateMachine {
         case "Stop":
             SoundService.shared.playNotificationSound(sessionId: event.sessionId, isInteractive: session.isInteractive)
             stopFileWatcher(sessionId: event.sessionId)
-            scheduleFileSync(sessionId: event.sessionId, cwd: event.cwd)
+            scheduleFileSync(sessionId: event.sessionId, transcriptPath: event.transcriptPath)
 
         case "SessionEnd":
             stopFileWatcher(sessionId: event.sessionId)
@@ -95,7 +95,7 @@ final class NotchiStateMachine {
         session.resetSleepTimer()
     }
 
-    private func scheduleFileSync(sessionId: String, cwd: String) {
+    private func scheduleFileSync(sessionId: String, transcriptPath: String) {
         pendingSyncTasks[sessionId]?.cancel()
         pendingSyncTasks[sessionId] = Task {
             // Wait for position marking to complete first
@@ -106,7 +106,7 @@ final class NotchiStateMachine {
 
             let result = await ConversationParser.shared.parseIncremental(
                 sessionId: sessionId,
-                cwd: cwd
+                transcriptPath: transcriptPath
             )
 
             if !result.messages.isEmpty {
@@ -144,14 +144,12 @@ final class NotchiStateMachine {
         }
     }
 
-    private func startFileWatcher(sessionId: String, cwd: String) {
+    private func startFileWatcher(sessionId: String, transcriptPath: String) {
         stopFileWatcher(sessionId: sessionId)
 
-        let sessionFile = ConversationParser.sessionFilePath(sessionId: sessionId, cwd: cwd)
-
-        let fd = open(sessionFile, O_EVTONLY)
+        let fd = open(transcriptPath, O_EVTONLY)
         guard fd >= 0 else {
-            logger.warning("Could not open file for watching: \(sessionFile)")
+            logger.warning("Could not open file for watching: \(transcriptPath)")
             return
         }
 
@@ -162,7 +160,7 @@ final class NotchiStateMachine {
         )
 
         source.setEventHandler { [weak self] in
-            self?.scheduleFileSync(sessionId: sessionId, cwd: cwd)
+            self?.scheduleFileSync(sessionId: sessionId, transcriptPath: transcriptPath)
         }
 
         source.setCancelHandler {

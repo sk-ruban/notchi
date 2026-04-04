@@ -190,6 +190,7 @@ final class SocketServerTests: XCTestCase {
     private func makeEventPayload(sessionId: String) throws -> Data {
         let payload: [String: Any] = [
             "session_id": sessionId,
+            "transcript_path": "/tmp/\(sessionId).jsonl",
             "cwd": "/tmp",
             "event": "SessionStart",
             "status": "waiting_for_input",
