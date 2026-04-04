@@ -188,9 +188,12 @@ struct ExpandedPanelView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         if let session = effectiveSession {
-                            Text("\(session.projectName) #\(session.sessionNumber)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(TerminalColors.secondaryText)
+                            HStack(spacing: 6) {
+                                ProviderBadgeView(provider: session.provider)
+                                Text("\(session.projectName) #\(session.sessionNumber)")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(TerminalColors.secondaryText)
+                            }
                         }
 
                         Spacer()
@@ -259,11 +262,17 @@ struct ExpandedPanelView: View {
     }
 
     private var emptyState: some View {
-        let hooksInstalled = HookInstaller.isInstalled()
-        let title = hooksInstalled ? "Waiting for activity" : "Hooks not installed"
-        let subtitle = hooksInstalled
-            ? "Send a message in Claude Code to start tracking"
-            : "Open settings to set up Claude Code integration"
+        let claudeHooksInstalled = HookInstaller.isInstalled()
+        let hasCodexHome = FileManager.default.fileExists(atPath: "\(NSHomeDirectory())/.codex")
+        let title = (claudeHooksInstalled || hasCodexHome) ? "Waiting for activity" : "Claude hooks not installed"
+        let subtitle: String
+        if claudeHooksInstalled {
+            subtitle = "Send a message in Claude Code or Codex to start tracking"
+        } else if hasCodexHome {
+            subtitle = "Send a message in Codex or install Claude hooks in Settings"
+        } else {
+            subtitle = "Open settings to set up Claude Code hooks or connect Codex"
+        }
 
         return VStack(spacing: 8) {
             Text(title)
@@ -274,6 +283,29 @@ struct ExpandedPanelView: View {
                 .foregroundColor(TerminalColors.dimmedText)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+struct ProviderBadgeView: View {
+    let provider: SessionProvider
+
+    private var accentColor: Color {
+        switch provider {
+        case .claude:
+            return TerminalColors.claudeOrange
+        case .codex:
+            return TerminalColors.codexTeal
+        }
+    }
+
+    var body: some View {
+        Text(provider.displayName)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundColor(accentColor)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(accentColor.opacity(0.15))
+            .cornerRadius(4)
     }
 }
 

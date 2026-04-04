@@ -13,6 +13,7 @@ struct PendingQuestion {
 @Observable
 final class SessionData: Identifiable {
     let id: String
+    let provider: SessionProvider
     let cwd: String
     let sessionNumber: Int
     let sessionStartTime: Date
@@ -23,7 +24,11 @@ final class SessionData: Identifiable {
     private(set) var task: NotchiTask = .idle
     let emotionState = EmotionState()
     var state: NotchiState {
-        NotchiState(task: task, emotion: emotionState.currentEmotion)
+        NotchiState(
+            task: task,
+            emotion: emotionState.currentEmotion,
+            creature: provider.spriteCreature
+        )
     }
     private(set) var isProcessing: Bool = false
     private(set) var lastActivity: Date
@@ -84,8 +89,16 @@ final class SessionData: Identifiable {
     private static let yOffsetBase: CGFloat = -5.0
     private static let yOffsetRange: UInt = 51
 
-    init(sessionId: String, cwd: String, sessionNumber: Int, isInteractive: Bool = true, existingXPositions: [CGFloat] = []) {
+    init(
+        sessionId: String,
+        provider: SessionProvider,
+        cwd: String,
+        sessionNumber: Int,
+        isInteractive: Bool = true,
+        existingXPositions: [CGFloat] = []
+    ) {
         self.id = sessionId
+        self.provider = provider
         self.cwd = cwd
         self.sessionNumber = sessionNumber
         self.isInteractive = isInteractive

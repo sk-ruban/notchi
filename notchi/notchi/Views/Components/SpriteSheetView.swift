@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SpriteSheetView: View {
-    let spriteSheet: String
+    let spriteSheet: SpriteSheetSource
     var frameCount: Int = 6
     var columns: Int = 6
     var fps: Double = 10
@@ -26,7 +26,7 @@ struct SpriteSheetView: View {
 }
 
 private struct SpriteFrameView: View {
-    let spriteSheet: String
+    let spriteSheet: SpriteSheetSource
     let frameCount: Int
     let columns: Int
     let currentFrame: Int
@@ -40,13 +40,17 @@ private struct SpriteFrameView: View {
             let col = currentFrame % columns
             let row = currentFrame / columns
 
-            Image(spriteSheet)
-                .interpolation(.none)
-                .resizable()
-                .frame(width: frameWidth * CGFloat(columns),
-                       height: frameHeight * CGFloat(rows))
-                .offset(x: -frameWidth * CGFloat(col),
-                        y: -frameHeight * CGFloat(row))
+            if let image = SpriteImageRegistry.shared.image(for: spriteSheet) {
+                Image(nsImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .frame(width: frameWidth * CGFloat(columns),
+                           height: frameHeight * CGFloat(rows))
+                    .offset(x: -frameWidth * CGFloat(col),
+                            y: -frameHeight * CGFloat(row))
+            } else {
+                Color.clear
+            }
         }
         .clipped()
     }

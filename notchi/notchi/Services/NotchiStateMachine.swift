@@ -29,16 +29,19 @@ final class NotchiStateMachine {
     func handleEvent(_ event: HookEvent) {
         let session = sessionStore.process(event)
         let isDone = event.status == "waiting_for_input"
+        let usesClaudeConversationFiles = event.provider == .claude
 
         switch event.event {
         case "UserPromptSubmit":
-            pendingPositionMarks[event.sessionId] = Task {
-                await ConversationParser.shared.markCurrentPosition(
-                    sessionId: event.sessionId,
-                    cwd: event.cwd
-                )
+            if usesClaudeConversationFiles {
+                pendingPositionMarks[event.sessionId] = Task {
+                    await ConversationParser.shared.markCurrentPosition(
+                        sessionId: event.sessionId,
+                        cwd: event.cwd
+                    )
+                }
             }
-            if session.isInteractive {
+            if usesClaudeConversationFiles, session.isInteractive {
                 startFileWatcher(sessionId: event.sessionId, cwd: event.cwd)
             }
 
@@ -58,19 +61,25 @@ final class NotchiStateMachine {
             SoundService.shared.playNotificationSound(sessionId: event.sessionId, isInteractive: session.isInteractive)
 
         case "PostToolUse":
-            scheduleFileSync(sessionId: event.sessionId, cwd: event.cwd)
+            if usesClaudeConversationFiles {
+                scheduleFileSync(sessionId: event.sessionId, cwd: event.cwd)
+            }
 
         case "Stop":
             SoundService.shared.playNotificationSound(sessionId: event.sessionId, isInteractive: session.isInteractive)
-            stopFileWatcher(sessionId: event.sessionId)
-            scheduleFileSync(sessionId: event.sessionId, cwd: event.cwd)
+            if usesClaudeConversationFiles {
+                stopFileWatcher(sessionId: event.sessionId)
+                scheduleFileSync(sessionId: event.sessionId, cwd: event.cwd)
+            }
 
         case "SessionEnd":
-            stopFileWatcher(sessionId: event.sessionId)
+            if usesClaudeConversationFiles {
+                stopFileWatcher(sessionId: event.sessionId)
+                Task { await ConversationParser.shared.resetState(for: event.sessionId) }
+            }
             pendingSyncTasks.removeValue(forKey: event.sessionId)?.cancel()
             pendingPositionMarks.removeValue(forKey: event.sessionId)?.cancel()
             SoundService.shared.clearCooldown(for: event.sessionId)
-            Task { await ConversationParser.shared.resetState(for: event.sessionId) }
             if sessionStore.activeSessionCount == 0 {
                 logger.info("Global state: idle")
             }

@@ -2,13 +2,24 @@ import ServiceManagement
 import SwiftUI
 
 struct PanelSettingsView: View {
+    private let usageService = ClaudeUsageService.shared
+    private let codexAuthService = CodexAuthService.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
+    @State private var customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
     @ObservedObject private var updateManager = UpdateManager.shared
-    private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
+    private var usageConnected: Bool { usageService.isConnected }
+    private var codexConnected: Bool { codexAuthService.isConnected }
+    private var codexStatusText: String { codexAuthService.statusText }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
+    private var customSpriteStatusText: String {
+        customSpriteOverrideCount > 0 ? "\(customSpriteOverrideCount) Loaded" : "Defaults"
+    }
+    private var customSpriteStatusColor: Color {
+        customSpriteOverrideCount > 0 ? TerminalColors.green : TerminalColors.dimmedText
+    }
 
     private var hookStatusText: String {
         if hooksError { return "Error" }
@@ -41,6 +52,9 @@ struct PanelSettingsView: View {
         .padding(.horizontal, 12)
         .padding(.top, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
+        }
     }
 
     private var displaySection: some View {
@@ -48,6 +62,13 @@ struct PanelSettingsView: View {
             ScreenPickerRow(screenSelector: ScreenSelector.shared)
 
             SoundPickerView()
+
+            Button(action: openCustomSpriteFolder) {
+                SettingsRowView(icon: "photo.stack", title: "Custom Sprites") {
+                    statusBadge(customSpriteStatusText, color: customSpriteStatusColor)
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -61,7 +82,7 @@ struct PanelSettingsView: View {
             .buttonStyle(.plain)
 
             Button(action: installHooksIfNeeded) {
-                SettingsRowView(icon: "terminal", title: "Hooks") {
+                SettingsRowView(icon: "terminal", title: "Claude Hooks") {
                     statusBadge(hookStatusText, color: hookStatusColor)
                 }
             }
@@ -72,6 +93,16 @@ struct PanelSettingsView: View {
                     statusBadge(
                         usageConnected ? "Connected" : "Not Connected",
                         color: usageConnected ? TerminalColors.green : TerminalColors.red
+                    )
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: connectCodex) {
+                SettingsRowView(icon: "sparkles.rectangle.stack", title: "Codex Auth") {
+                    statusBadge(
+                        codexStatusText,
+                        color: codexConnected ? TerminalColors.green : TerminalColors.red
                     )
                 }
             }
@@ -154,6 +185,11 @@ struct PanelSettingsView: View {
         NSWorkspace.shared.open(URL(string: "https://github.com/sk-ruban/notchi/releases/latest")!)
     }
 
+    private func openCustomSpriteFolder() {
+        SpriteOverrideStore.openDirectoryInFinder()
+        customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
+    }
+
     private var quitSection: some View {
         Button(action: {
             NSApplication.shared.terminate(nil)
@@ -190,7 +226,11 @@ struct PanelSettingsView: View {
     }
 
     private func connectUsage() {
-        ClaudeUsageService.shared.connectAndStartPolling()
+        usageService.connectAndStartPolling()
+    }
+
+    private func connectCodex() {
+        codexAuthService.handleAction()
     }
 
     private func handleUpdatesAction() {

@@ -61,6 +61,26 @@ extension SessionEvent {
             if let desc = input["description"] as? String {
                 return desc
             }
+        case "exec_command":
+            if let command = input["cmd"] as? String {
+                return command
+            }
+        case "write_stdin":
+            if let chars = input["chars"] as? String, !chars.isEmpty {
+                return "Sending input to running command"
+            }
+            return "Polling running command"
+        case "read_thread_terminal":
+            return "Reading thread terminal"
+        case "update_plan":
+            return "Updating plan"
+        case "view_image":
+            if let path = input["path"] as? String {
+                return "Viewing \(path)"
+            }
+            return "Viewing image"
+        case "apply_patch":
+            return "Applying patch"
         default:
             break
         }

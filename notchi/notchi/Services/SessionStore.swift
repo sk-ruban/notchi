@@ -52,7 +52,12 @@ final class SessionStore {
 
     func process(_ event: HookEvent) -> SessionData {
         let isInteractive = event.interactive ?? true
-        let session = getOrCreateSession(sessionId: event.sessionId, cwd: event.cwd, isInteractive: isInteractive)
+        let session = getOrCreateSession(
+            sessionId: event.sessionId,
+            provider: event.provider,
+            cwd: event.cwd,
+            isInteractive: isInteractive
+        )
         let isProcessing = event.status != "waiting_for_input"
         session.updateProcessingState(isProcessing: isProcessing)
 
@@ -125,7 +130,12 @@ final class SessionStore {
         session.recordAssistantMessages(messages)
     }
 
-    private func getOrCreateSession(sessionId: String, cwd: String, isInteractive: Bool) -> SessionData {
+    private func getOrCreateSession(
+        sessionId: String,
+        provider: SessionProvider,
+        cwd: String,
+        isInteractive: Bool
+    ) -> SessionData {
         if let existing = sessions[sessionId] {
             return existing
         }
@@ -134,9 +144,18 @@ final class SessionStore {
         let sessionNumber = nextSessionNumberByProject[projectName, default: 0] + 1
         nextSessionNumberByProject[projectName] = sessionNumber
         let existingXPositions = sessions.values.map(\.spriteXPosition)
-        let session = SessionData(sessionId: sessionId, cwd: cwd, sessionNumber: sessionNumber, isInteractive: isInteractive, existingXPositions: existingXPositions)
+        let session = SessionData(
+            sessionId: sessionId,
+            provider: provider,
+            cwd: cwd,
+            sessionNumber: sessionNumber,
+            isInteractive: isInteractive,
+            existingXPositions: existingXPositions
+        )
         sessions[sessionId] = session
-        logger.info("Created session #\(sessionNumber): \(sessionId, privacy: .public) at \(cwd, privacy: .public)")
+        logger.info(
+            "Created \(provider.displayName, privacy: .public) session #\(sessionNumber): \(sessionId, privacy: .public) at \(cwd, privacy: .public)"
+        )
 
         if activeSessionCount == 1 {
             selectedSessionId = sessionId

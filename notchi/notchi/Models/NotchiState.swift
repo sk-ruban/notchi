@@ -88,19 +88,65 @@ enum NotchiEmotion: String, CaseIterable {
     }
 }
 
+enum SpriteCreature: String, CaseIterable {
+    case claude
+    case codex
+
+    var assetPrefix: String {
+        switch self {
+        case .claude:
+            return ""
+        case .codex:
+            return "codex_"
+        }
+    }
+
+    func spriteSheetSource(task: NotchiTask, emotion: NotchiEmotion) -> SpriteSheetSource {
+        for assetName in candidateAssetNames(task: task, emotion: emotion) {
+            if let customURL = SpriteOverrideStore.overrideURL(forAssetName: assetName, creature: self) {
+                return .file(customURL)
+            }
+
+            if NSImage(named: assetName) != nil {
+                return .asset(assetName)
+            }
+        }
+
+        return .asset("\(task.spritePrefix)_neutral")
+    }
+
+    func bundledAssetName(task: NotchiTask, emotion: NotchiEmotion) -> String {
+        "\(assetPrefix)\(task.spritePrefix)_\(emotion.rawValue)"
+    }
+
+    func localOverrideBaseName(forAssetName assetName: String) -> String {
+        guard !assetPrefix.isEmpty, assetName.hasPrefix(assetPrefix) else { return assetName }
+        return String(assetName.dropFirst(assetPrefix.count))
+    }
+
+    private func candidateAssetNames(task: NotchiTask, emotion: NotchiEmotion) -> [String] {
+        var names = [bundledAssetName(task: task, emotion: emotion)]
+        if emotion == .sob {
+            names.append(bundledAssetName(task: task, emotion: .sad))
+        }
+        names.append(bundledAssetName(task: task, emotion: .neutral))
+        names.append("\(task.spritePrefix)_neutral")
+
+        var deduplicated: [String] = []
+        for name in names where !deduplicated.contains(name) {
+            deduplicated.append(name)
+        }
+        return deduplicated
+    }
+}
+
 struct NotchiState: Equatable {
     var task: NotchiTask
     var emotion: NotchiEmotion = .neutral
+    var creature: SpriteCreature = .claude
 
-    /// Resolves the sprite sheet name with fallback chain: exact emotion -> sad (for sob) -> neutral.
-    var spriteSheetName: String {
-        let name = "\(task.spritePrefix)_\(emotion.rawValue)"
-        if NSImage(named: name) != nil { return name }
-        if emotion == .sob {
-            let sadName = "\(task.spritePrefix)_sad"
-            if NSImage(named: sadName) != nil { return sadName }
-        }
-        return "\(task.spritePrefix)_neutral"
+    var spriteSheetSource: SpriteSheetSource {
+        creature.spriteSheetSource(task: task, emotion: emotion)
     }
     var animationFPS: Double { task.animationFPS }
     var bobDuration: Double { task.bobDuration }
@@ -118,9 +164,9 @@ struct NotchiState: Equatable {
     var frameCount: Int { task.frameCount }
     var columns: Int { task.columns }
 
-    static let idle = NotchiState(task: .idle)
-    static let working = NotchiState(task: .working)
-    static let sleeping = NotchiState(task: .sleeping)
-    static let compacting = NotchiState(task: .compacting)
-    static let waiting = NotchiState(task: .waiting)
+    static let idle = NotchiState(task: .idle, creature: .claude)
+    static let working = NotchiState(task: .working, creature: .claude)
+    static let sleeping = NotchiState(task: .sleeping, creature: .claude)
+    static let compacting = NotchiState(task: .compacting, creature: .claude)
+    static let waiting = NotchiState(task: .waiting, creature: .claude)
 }
