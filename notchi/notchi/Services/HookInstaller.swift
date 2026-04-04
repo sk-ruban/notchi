@@ -4,20 +4,21 @@ import os.log
 private let logger = Logger(subsystem: "com.ruban.notchi", category: "HookInstaller")
 
 struct HookInstaller {
+    static let hookCommand = "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/notchi-hook.sh"
 
     @discardableResult
     static func installIfNeeded() -> Bool {
-        let claudeDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude")
+        let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
+        let claudeDir = claudeConfig.directoryURL
 
         guard FileManager.default.fileExists(atPath: claudeDir.path) else {
-            logger.warning("Claude Code not installed (~/.claude not found)")
+            logger.warning("Claude Code not installed (config dir not found at \(claudeDir.path, privacy: .public))")
             return false
         }
 
-        let hooksDir = claudeDir.appendingPathComponent("hooks")
-        let hookScript = hooksDir.appendingPathComponent("notchi-hook.sh")
-        let settings = claudeDir.appendingPathComponent("settings.json")
+        let hooksDir = claudeConfig.hooksDirectoryURL
+        let hookScript = claudeConfig.hookScriptURL
+        let settings = claudeConfig.settingsURL
 
         do {
             try FileManager.default.createDirectory(
@@ -47,17 +48,19 @@ struct HookInstaller {
             return false
         }
 
-        return updateSettings(at: settings)
+        return updateSettings(
+            at: settings,
+            command: hookCommand
+        )
     }
 
-    private static func updateSettings(at settingsURL: URL) -> Bool {
+    static func upsertHookSettings(from existingData: Data?, command: String) -> Data? {
         var json: [String: Any] = [:]
-        if let data = try? Data(contentsOf: settingsURL),
-           let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        if let existingData,
+           let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
             json = existing
         }
 
-        let command = "~/.claude/hooks/notchi-hook.sh"
         let hookEntry: [[String: Any]] = [["type": "command", "command": command]]
         let withMatcher: [[String: Any]] = [["matcher": "*", "hooks": hookEntry]]
         let withoutMatcher: [[String: Any]] = [["hooks": hookEntry]]
@@ -82,19 +85,34 @@ struct HookInstaller {
 
         for (event, config) in hookEvents {
             if var existingEvent = hooks[event] as? [[String: Any]] {
-                let hasOurHook = existingEvent.contains { entry in
-                    if let entryHooks = entry["hooks"] as? [[String: Any]] {
-                        return entryHooks.contains { h in
-                            let cmd = h["command"] as? String ?? ""
-                            return cmd.contains("notchi-hook.sh")
+                var foundExistingHook = false
+
+                for index in existingEvent.indices {
+                    guard var entryHooks = existingEvent[index]["hooks"] as? [[String: Any]] else { continue }
+
+                    var didUpdateEntry = false
+                    for hookIndex in entryHooks.indices {
+                        let cmd = entryHooks[hookIndex]["command"] as? String ?? ""
+                        guard cmd.contains("notchi-hook.sh") else { continue }
+
+                        foundExistingHook = true
+                        didUpdateEntry = true
+
+                        if cmd != command {
+                            entryHooks[hookIndex]["command"] = command
                         }
                     }
-                    return false
+
+                    if didUpdateEntry {
+                        existingEvent[index]["hooks"] = entryHooks
+                    }
                 }
-                if !hasOurHook {
+
+                if !foundExistingHook {
                     existingEvent.append(contentsOf: config)
-                    hooks[event] = existingEvent
                 }
+
+                hooks[event] = existingEvent
             } else {
                 hooks[event] = config
             }
@@ -102,10 +120,16 @@ struct HookInstaller {
 
         json["hooks"] = hooks
 
-        guard let data = try? JSONSerialization.data(
+        return try? JSONSerialization.data(
             withJSONObject: json,
             options: [.prettyPrinted, .sortedKeys]
-        ) else {
+        )
+    }
+
+    private static func updateSettings(at settingsURL: URL, command: String) -> Bool {
+        let existingData = try? Data(contentsOf: settingsURL)
+
+        guard let data = upsertHookSettings(from: existingData, command: command) else {
             logger.error("Failed to serialize settings JSON")
             return false
         }
@@ -120,12 +144,9 @@ struct HookInstaller {
         }
     }
 
-    static func isInstalled() -> Bool {
-        let settings = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
-
-        guard let data = try? Data(contentsOf: settings),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    static func isHookInstalled(in settingsData: Data?) -> Bool {
+        guard let settingsData,
+              let json = try? JSONSerialization.jsonObject(with: settingsData) as? [String: Any],
               let hooks = json["hooks"] as? [String: Any] else {
             return false
         }
@@ -141,12 +162,16 @@ struct HookInstaller {
         }
     }
 
+    static func isInstalled() -> Bool {
+        let settings = ClaudeConfigDirectoryResolver.resolve().settingsURL
+
+        return isHookInstalled(in: try? Data(contentsOf: settings))
+    }
+
     static func uninstall() {
-        let claudeDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude")
-        let hooksDir = claudeDir.appendingPathComponent("hooks")
-        let hookScript = hooksDir.appendingPathComponent("notchi-hook.sh")
-        let settings = claudeDir.appendingPathComponent("settings.json")
+        let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
+        let hookScript = claudeConfig.hookScriptURL
+        let settings = claudeConfig.settingsURL
 
         try? FileManager.default.removeItem(at: hookScript)
 

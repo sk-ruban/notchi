@@ -159,9 +159,10 @@ final class EmotionAnalyzer {
     }
 
     private func loadClaudeSettingsConfig() -> (apiURL: URL, apiKey: String, model: String)? {
-        let settingsURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
+        Self.loadClaudeSettingsConfig(from: ClaudeConfigDirectoryResolver.resolve().settingsURL)
+    }
 
+    static func loadClaudeSettingsConfig(from settingsURL: URL) -> (apiURL: URL, apiKey: String, model: String)? {
         guard let data = try? Data(contentsOf: settingsURL) else {
             return nil
         }

@@ -6,6 +6,7 @@ struct PanelSettingsView: View {
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
+    private let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
@@ -18,6 +19,14 @@ struct PanelSettingsView: View {
 
     private var hookStatusColor: Color {
         hooksInstalled && !hooksError ? TerminalColors.green : TerminalColors.red
+    }
+
+    var claudeConfigDisplayPath: String {
+        claudeConfig.displayPath
+    }
+
+    var claudeConfigSourceLabel: String {
+        claudeConfig.source.rawValue
     }
 
     var body: some View {
@@ -76,6 +85,20 @@ struct PanelSettingsView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            SettingsRowView(icon: "folder", title: "Claude Config") {
+                HStack(spacing: 6) {
+                    Text(claudeConfigDisplayPath)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(TerminalColors.dimmedText)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    statusBadge(claudeConfigSourceLabel, color: TerminalColors.dimmedText)
+                        .fixedSize()
+                }
+                .frame(maxWidth: 180, alignment: .trailing)
+            }
 
             apiKeyRow
         }
@@ -222,7 +245,6 @@ struct PanelSettingsView: View {
             .padding(.vertical, 2)
             .background(color.opacity(0.15))
             .cornerRadius(4)
-            .frame(maxWidth: 160, alignment: .trailing)
     }
 
     @ViewBuilder

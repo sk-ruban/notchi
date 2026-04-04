@@ -3,6 +3,11 @@ import XCTest
 @testable import notchi
 
 final class EmotionAnalyzerTests: XCTestCase {
+    override func tearDown() {
+        ClaudeConfigDirectoryResolver.resetTestingHooks()
+        super.tearDown()
+    }
+
     func testParseClaudeSettingsDefaultsBaseURLWhenMissing() throws {
         let data = try makeSettingsJSON(env: [
             "ANTHROPIC_AUTH_TOKEN": "token-123",
@@ -52,6 +57,26 @@ final class EmotionAnalyzerTests: XCTestCase {
             ClaudeSettingsConfig.buildMessagesURL(from: "https://example.com/proxy/"),
             URL(string: "https://example.com/proxy/v1/messages")
         )
+    }
+
+    func testLoadClaudeSettingsConfigReadsCustomResolvedSettingsFile() throws {
+        let settingsURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString)-settings.json")
+        let data = try makeSettingsJSON(env: [
+            "ANTHROPIC_BASE_URL": "https://example.com/proxy",
+            "ANTHROPIC_AUTH_TOKEN": "token-xyz",
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": "haiku-custom",
+        ])
+        try data.write(to: settingsURL)
+        defer {
+            try? FileManager.default.removeItem(at: settingsURL)
+        }
+
+        let config = EmotionAnalyzer.loadClaudeSettingsConfig(from: settingsURL)
+
+        XCTAssertEqual(config?.apiURL, URL(string: "https://example.com/proxy/v1/messages"))
+        XCTAssertEqual(config?.apiKey, "token-xyz")
+        XCTAssertEqual(config?.model, "haiku-custom")
     }
 
     private func makeSettingsJSON(env: [String: String]) throws -> Data {

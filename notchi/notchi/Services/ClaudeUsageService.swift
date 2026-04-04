@@ -66,6 +66,193 @@ private struct AnthropicErrorDetail: Decodable {
     let message: String?
 }
 
+private func runProcessWithTimeout(
+    executablePath: String,
+    arguments: [String],
+    environment: [String: String]? = nil,
+    commandTimeout: TimeInterval
+) -> String? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executablePath)
+    process.arguments = arguments
+    process.environment = environment
+
+    let stdoutPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = Pipe()
+
+    let completion = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in
+        completion.signal()
+    }
+
+    do {
+        try process.run()
+    } catch {
+        return nil
+    }
+
+    if completion.wait(timeout: .now() + commandTimeout) == .timedOut {
+        process.terminate()
+        return nil
+    }
+
+    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+    guard let output = String(data: data, encoding: .utf8) else { return nil }
+    return output
+}
+
+private func extractAbsolutePath(from output: String) -> String? {
+    output
+        .split(separator: "\n")
+        .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { $0.hasPrefix("/") || $0.hasPrefix("~") }
+}
+
+enum ClaudeConfigDirectorySource: String {
+    case environment = "env"
+    case shell = "shell"
+    case fallback = "default"
+}
+
+struct ClaudeConfigDirectoryResolution {
+    let path: String
+    let source: ClaudeConfigDirectorySource
+
+    var directoryURL: URL {
+        URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    var settingsURL: URL {
+        directoryURL.appendingPathComponent("settings.json")
+    }
+
+    var hooksDirectoryURL: URL {
+        directoryURL.appendingPathComponent("hooks", isDirectory: true)
+    }
+
+    var hookScriptURL: URL {
+        hooksDirectoryURL.appendingPathComponent("notchi-hook.sh")
+    }
+
+    var claudeBinaryPath: String {
+        directoryURL.appendingPathComponent("bin/claude").path
+    }
+
+    var displayPath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        guard path.hasPrefix(home) else { return path }
+        return "~" + String(path.dropFirst(home.count))
+    }
+}
+
+enum ClaudeConfigDirectoryResolver {
+    struct TestHooks {
+        var environment: () -> [String: String]
+        var isExecutableFile: (String) -> Bool
+        var runProcess: (
+            _ executablePath: String,
+            _ arguments: [String],
+            _ environment: [String: String]?
+        ) -> String?
+    }
+
+    private static let commandTimeout: TimeInterval = 2
+    private static var cachedResolution: ClaudeConfigDirectoryResolution?
+    static var testHooks = makeDefaultTestHooks()
+
+    static func resolve() -> ClaudeConfigDirectoryResolution {
+        if let cachedResolution {
+            return cachedResolution
+        }
+
+        let environment = testHooks.environment()
+        let resolved: ClaudeConfigDirectoryResolution
+
+        if let path = normalize(path: environment["CLAUDE_CONFIG_DIR"]) {
+            resolved = ClaudeConfigDirectoryResolution(path: path, source: .environment)
+        } else if let path = resolveViaShell(environment: environment) {
+            resolved = ClaudeConfigDirectoryResolution(path: path, source: .shell)
+        } else {
+            let fallback = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".claude", isDirectory: true)
+                .path
+            resolved = ClaudeConfigDirectoryResolution(path: fallback, source: .fallback)
+        }
+
+        cachedResolution = resolved
+        return resolved
+    }
+
+    static func resetTestingHooks() {
+        testHooks = makeDefaultTestHooks()
+        cachedResolution = nil
+    }
+
+    private static func makeDefaultTestHooks() -> TestHooks {
+        TestHooks(
+            environment: { ProcessInfo.processInfo.environment },
+            isExecutableFile: { path in
+                FileManager.default.isExecutableFile(atPath: path)
+            },
+            runProcess: { executablePath, arguments, environment in
+                runProcessWithTimeout(
+                    executablePath: executablePath,
+                    arguments: arguments,
+                    environment: environment,
+                    commandTimeout: commandTimeout
+                )
+            }
+        )
+    }
+
+    private static func resolveViaShell(environment: [String: String]) -> String? {
+        let probeCommand = "printf '%s' \"$CLAUDE_CONFIG_DIR\""
+
+        for shellPath in shellCandidates(from: environment) {
+            guard testHooks.isExecutableFile(shellPath) else { continue }
+
+            if let path = runShellProbe(executablePath: shellPath, arguments: ["-lc", probeCommand]) {
+                return path
+            }
+
+            if let path = runShellProbe(executablePath: shellPath, arguments: ["-ic", probeCommand]) {
+                return path
+            }
+        }
+
+        return nil
+    }
+
+    private static func runShellProbe(executablePath: String, arguments: [String]) -> String? {
+        guard let output = testHooks.runProcess(executablePath, arguments, nil) else {
+            return nil
+        }
+
+        return normalize(path: extractAbsolutePath(from: output))
+    }
+
+    private static func normalize(path rawPath: String?) -> String? {
+        guard let rawPath else { return nil }
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let expanded = (trimmed as NSString).expandingTildeInPath
+        guard expanded.hasPrefix("/") else { return nil }
+
+        return URL(fileURLWithPath: expanded, isDirectory: true)
+            .standardizedFileURL
+            .path
+    }
+
+    private static func shellCandidates(from environment: [String: String]) -> [String] {
+        var seenShells: Set<String> = []
+        return [environment["SHELL"], "/bin/zsh", "/bin/bash"]
+            .compactMap { $0 }
+            .filter { seenShells.insert($0).inserted }
+    }
+}
+
 enum ClaudeCLIResolver {
     struct TestHooks {
         var environment: () -> [String: String]
@@ -100,10 +287,11 @@ enum ClaudeCLIResolver {
                 FileManager.default.isExecutableFile(atPath: path)
             },
             runProcess: { executablePath, arguments, environment in
-                defaultRunProcess(
+                runProcessWithTimeout(
                     executablePath: executablePath,
                     arguments: arguments,
-                    environment: environment
+                    environment: environment,
+                    commandTimeout: commandTimeout
                 )
             }
         )
@@ -114,7 +302,7 @@ enum ClaudeCLIResolver {
         let environment = testHooks.environment()
         let explicitPaths = [
             "\(home)/.local/bin/claude",
-            "\(home)/.claude/bin/claude",
+            ClaudeConfigDirectoryResolver.resolve().claudeBinaryPath,
             "/opt/homebrew/bin/claude",
             "/usr/local/bin/claude",
         ]
@@ -179,10 +367,7 @@ enum ClaudeCLIResolver {
     }
 
     static func extractExecutablePath(from output: String) -> String? {
-        output
-            .split(separator: "\n")
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { $0.hasPrefix("/") }
+        extractAbsolutePath(from: output)
     }
 
     static func resolveVersion(at path: String) -> String? {
@@ -270,40 +455,6 @@ enum ClaudeCLIResolver {
         return extractVersion(from: output)
     }
 
-    private static func defaultRunProcess(
-        executablePath: String,
-        arguments: [String],
-        environment: [String: String]? = nil
-    ) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        process.environment = environment
-
-        let stdoutPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = Pipe()
-
-        let completion = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            completion.signal()
-        }
-
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-
-        if completion.wait(timeout: .now() + commandTimeout) == .timedOut {
-            process.terminate()
-            return nil
-        }
-
-        let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else { return nil }
-        return output
-    }
 }
 
 private enum ClaudeUsageAccessTokenSource {
