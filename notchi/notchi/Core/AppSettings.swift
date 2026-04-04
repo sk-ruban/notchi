@@ -6,6 +6,7 @@ struct AppSettings {
     private static let previousSoundKey = "previousNotificationSound"
     private static let isUsageEnabledKey = "isUsageEnabled"
     private static let claudeUsageRecoverySnapshotKey = "claudeUsageRecoverySnapshot"
+    private static let isEmotionAnalysisEnabledKey = "isEmotionAnalysisEnabled"
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
@@ -31,6 +32,18 @@ struct AppSettings {
     static var anthropicApiKey: String? {
         get { KeychainManager.getAnthropicApiKey(allowInteraction: true) }
         set { KeychainManager.setAnthropicApiKey(newValue) }
+    }
+
+    static var isEmotionAnalysisEnabled: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: isEmotionAnalysisEnabledKey) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: isEmotionAnalysisEnabledKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: isEmotionAnalysisEnabledKey)
+        }
     }
 
     static var notificationSound: NotificationSound {

@@ -24,6 +24,7 @@ struct NotchContentView: View {
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
     @State private var hoveredSessionId: String?
+    @State private var walkAnimator = WalkAnimator()
 
     private var sessionStore: SessionStore {
         stateMachine.sessionStore
@@ -246,20 +247,43 @@ struct NotchContentView: View {
                 .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
             headerSprites
-                .offset(x: 15, y: -2)
+                .offset(x: 15 + walkAnimator.xOffset, y: -2)
                 .frame(width: sideWidth)
                 .opacity(isExpanded ? 0 : 1)
                 .animation(.none, value: isExpanded)
         }
+        .onChange(of: currentHeaderState) { _, newState in
+            walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
+            if newState.canWalk {
+                walkAnimator.start(state: newState)
+            } else {
+                walkAnimator.returnHome()
+            }
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            if expanded {
+                walkAnimator.stop()
+            } else if currentHeaderState.canWalk {
+                walkAnimator.start(state: currentHeaderState)
+            }
+        }
+        .onAppear {
+            walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
+            if currentHeaderState.canWalk {
+                walkAnimator.start(state: currentHeaderState)
+            }
+        }
+        .onDisappear {
+            walkAnimator.stop()
+        }
     }
 
-    @ViewBuilder
+    private var currentHeaderState: NotchiState {
+        sessionStore.sortedSessions.first?.state ?? .idle
+    }
+
     private var headerSprites: some View {
-        let topSession = sessionStore.sortedSessions.first
-        SessionSpriteView(
-            state: topSession?.state ?? .idle,
-            isSelected: true
-        )
+        SessionSpriteView(state: currentHeaderState, isSelected: true)
     }
 
     private func toggleMute() {

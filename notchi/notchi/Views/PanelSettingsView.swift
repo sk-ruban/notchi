@@ -7,6 +7,7 @@ struct PanelSettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
+    @State private var emotionAnalysisEnabled = AppSettings.isEmotionAnalysisEnabled
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
     @State private var customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
     @ObservedObject private var updateManager = UpdateManager.shared
@@ -14,6 +15,18 @@ struct PanelSettingsView: View {
     private var codexConnected: Bool { codexAuthService.isConnected }
     private var codexStatusText: String { codexAuthService.statusText }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
+    private var emotionAnalysisStatusText: String {
+        guard emotionAnalysisEnabled else { return "Off" }
+        if codexConnected && hasApiKey { return "Codex + Claude" }
+        if codexConnected { return "Codex" }
+        if hasApiKey { return "Claude" }
+        return "Auto"
+    }
+    private var emotionAnalysisStatusColor: Color {
+        guard emotionAnalysisEnabled else { return TerminalColors.dimmedText }
+        if codexConnected || hasApiKey { return TerminalColors.green }
+        return TerminalColors.amber
+    }
     private var customSpriteStatusText: String {
         customSpriteOverrideCount > 0 ? "\(customSpriteOverrideCount) Loaded" : "Defaults"
     }
@@ -53,6 +66,7 @@ struct PanelSettingsView: View {
         .padding(.top, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            emotionAnalysisEnabled = AppSettings.isEmotionAnalysisEnabled
             customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
         }
     }
@@ -114,12 +128,18 @@ struct PanelSettingsView: View {
 
     private var apiKeyRow: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SettingsRowView(icon: "brain", title: "Emotion Analysis") {
-                statusBadge(
-                    hasApiKey ? "Active" : "No Key",
-                    color: hasApiKey ? TerminalColors.green : TerminalColors.red
-                )
+            Button(action: toggleEmotionAnalysis) {
+                SettingsRowView(icon: "brain", title: "Emotion Analysis") {
+                    HStack(spacing: 8) {
+                        statusBadge(
+                            emotionAnalysisStatusText,
+                            color: emotionAnalysisStatusColor
+                        )
+                        ToggleSwitch(isOn: emotionAnalysisEnabled)
+                    }
+                }
             }
+            .buttonStyle(.plain)
 
             HStack(spacing: 6) {
                 SecureField("", text: $apiKeyInput)
@@ -133,7 +153,7 @@ struct PanelSettingsView: View {
                     .onSubmit { saveApiKey() }
                     .overlay(alignment: .leading) {
                         if apiKeyInput.isEmpty {
-                            Text("Anthropic API Key")
+                            Text("Anthropic API Key (Claude only)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundColor(TerminalColors.dimmedText)
                                 .padding(.leading, 8)
@@ -149,12 +169,22 @@ struct PanelSettingsView: View {
                 .buttonStyle(.plain)
             }
             .padding(.leading, 28)
+
+            Text("Codex sessions use local Codex auth. Claude sessions use this key or `~/.claude/settings.json`.")
+                .font(.system(size: 10))
+                .foregroundColor(TerminalColors.dimmedText)
+                .padding(.leading, 28)
         }
     }
 
     private func saveApiKey() {
         let trimmed = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         AppSettings.anthropicApiKey = trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func toggleEmotionAnalysis() {
+        emotionAnalysisEnabled.toggle()
+        AppSettings.isEmotionAnalysisEnabled = emotionAnalysisEnabled
     }
 
     private var actionsSection: some View {

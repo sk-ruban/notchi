@@ -16,6 +16,55 @@ private enum SpriteLayout {
     }
 }
 
+private enum SpriteMotion {
+    static func displayedXPosition(for session: SessionData, among sessions: [SessionData], at date: Date) -> CGFloat {
+        let base = session.spriteXPosition
+        guard session.state.canWalk else { return clamped(base) }
+
+        let t = date.timeIntervalSinceReferenceDate
+        let phase = phaseOffset(for: session.id)
+        let cadence = session.task == .working ? 1.35 : 0.75
+
+        switch session.provider {
+        case .claude:
+            guard let target = nearestCodexSession(to: session, in: sessions) else {
+                return clamped(base + CGFloat(sin(t * 0.45 + phase) * 0.012))
+            }
+
+            let delta = target.spriteXPosition - base
+            guard abs(delta) > 0.01 else {
+                return clamped(base + CGFloat(sin(t * 0.55 + phase) * 0.006))
+            }
+
+            let direction: CGFloat = delta >= 0 ? 1 : -1
+            let stride = 0.5 + 0.5 * sin(t * cadence + phase)
+            let pursuit = min(max(abs(delta) * 0.45, 0.02), 0.08)
+            let idleSway = CGFloat(sin(t * 0.55 + phase) * 0.006)
+            return clamped(base + direction * pursuit * CGFloat(stride) + idleSway)
+
+        case .codex:
+            let drift = CGFloat(cos(t * 0.5 + phase) * 0.015)
+            let nudge = CGFloat((0.5 + 0.5 * sin(t * 0.9 + phase * 0.7)) * 0.01)
+            return clamped(base + drift + nudge)
+        }
+    }
+
+    private static func nearestCodexSession(to session: SessionData, in sessions: [SessionData]) -> SessionData? {
+        sessions
+            .filter { $0.provider == .codex }
+            .min(by: { abs($0.spriteXPosition - session.spriteXPosition) < abs($1.spriteXPosition - session.spriteXPosition) })
+    }
+
+    private static func phaseOffset(for sessionID: String) -> Double {
+        let seed = Int(UInt(bitPattern: sessionID.hashValue) % 2_048)
+        return Double(seed) / 2_048.0 * .pi * 2
+    }
+
+    private static func clamped(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0.02), 0.98)
+    }
+}
+
 // MARK: - Visual layer (placed in .background, no interaction)
 
 struct GrassIslandView: View {
@@ -26,35 +75,37 @@ struct GrassIslandView: View {
     private let patchWidth: CGFloat = 80
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                HStack(spacing: 0) {
-                    ForEach(0..<patchCount(for: geometry.size.width), id: \.self) { _ in
-                        Image("GrassIsland")
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: patchWidth, height: geometry.size.height)
-                            .clipped()
+        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: sessions.isEmpty)) { timeline in
+            GeometryReader { geometry in
+                ZStack(alignment: .bottom) {
+                    HStack(spacing: 0) {
+                        ForEach(0..<patchCount(for: geometry.size.width), id: \.self) { _ in
+                            Image("GrassIsland")
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: patchWidth, height: geometry.size.height)
+                                .clipped()
+                        }
                     }
-                }
-                .frame(width: geometry.size.width, alignment: .leading)
-                .drawingGroup()
+                    .frame(width: geometry.size.width, alignment: .leading)
+                    .drawingGroup()
 
-                if sessions.isEmpty {
-                    GrassSpriteView(state: .idle, xPosition: 0.5, yOffset: -15, totalWidth: geometry.size.width, glowOpacity: 0)
-                } else {
-                    ForEach(SpriteLayout.depthSorted(sessions)) { session in
-                        GrassSpriteView(
-                            state: session.state,
-                            xPosition: session.spriteXPosition,
-                            yOffset: session.spriteYOffset,
-                            totalWidth: geometry.size.width,
-                            glowOpacity: glowOpacity(for: session.id)
-                        )
+                    if sessions.isEmpty {
+                        GrassSpriteView(state: .idle, xPosition: 0.5, yOffset: -15, totalWidth: geometry.size.width, glowOpacity: 0)
+                    } else {
+                        ForEach(SpriteLayout.depthSorted(sessions)) { session in
+                            GrassSpriteView(
+                                state: session.state,
+                                xPosition: SpriteMotion.displayedXPosition(for: session, among: sessions, at: timeline.date),
+                                yOffset: session.spriteYOffset,
+                                totalWidth: geometry.size.width,
+                                glowOpacity: glowOpacity(for: session.id)
+                            )
+                        }
                     }
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
         }
         .clipped()
         .allowsHitTesting(false)
@@ -80,24 +131,26 @@ struct GrassTapOverlay: View {
     var onSelectSession: ((String) -> Void)?
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                Color.clear
+        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: sessions.isEmpty)) { timeline in
+            GeometryReader { geometry in
+                ZStack(alignment: .bottom) {
+                    Color.clear
 
-                if !sessions.isEmpty {
-                    ForEach(SpriteLayout.depthSorted(sessions)) { session in
-                        SpriteTapTarget(
-                            sessionId: session.id,
-                            xPosition: session.spriteXPosition,
-                            yOffset: session.spriteYOffset,
-                            totalWidth: geometry.size.width,
-                            hoveredSessionId: $hoveredSessionId,
-                            onTap: { onSelectSession?(session.id) }
-                        )
+                    if !sessions.isEmpty {
+                        ForEach(SpriteLayout.depthSorted(sessions)) { session in
+                            SpriteTapTarget(
+                                sessionId: session.id,
+                                xPosition: SpriteMotion.displayedXPosition(for: session, among: sessions, at: timeline.date),
+                                yOffset: session.spriteYOffset,
+                                totalWidth: geometry.size.width,
+                                hoveredSessionId: $hoveredSessionId,
+                                onTap: { onSelectSession?(session.id) }
+                            )
+                        }
                     }
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
         }
     }
 }

@@ -47,7 +47,7 @@ final class NotchiStateMachine {
 
             if session.isInteractive, let prompt = event.userPrompt {
                 Task {
-                    let result = await EmotionAnalyzer.shared.analyze(prompt)
+                    let result = await EmotionAnalyzer.shared.analyze(prompt, provider: event.provider)
                     session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
                 }
             }
