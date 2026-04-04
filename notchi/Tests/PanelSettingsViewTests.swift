@@ -2,6 +2,11 @@ import XCTest
 @testable import notchi
 
 final class PanelSettingsViewTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        ClaudeConfigDirectoryResolver.resetTestingHooks()
+    }
+
     override func tearDown() {
         ClaudeConfigDirectoryResolver.resetTestingHooks()
         super.tearDown()
