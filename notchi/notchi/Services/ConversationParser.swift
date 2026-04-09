@@ -11,6 +11,7 @@ import Foundation
 struct ParseResult {
     let messages: [AssistantMessage]
     let interrupted: Bool
+    let newTokenCount: Int
 }
 
 actor ConversationParser {
@@ -19,7 +20,7 @@ actor ConversationParser {
     private var lastFileOffset: [String: UInt64] = [:]
     private var seenMessageIds: [String: Set<String>] = [:]
 
-    private static let emptyResult = ParseResult(messages: [], interrupted: false)
+    private static let emptyResult = ParseResult(messages: [], interrupted: false, newTokenCount: 0)
 
     /// Parse only NEW assistant text messages since last call
     func parseIncremental(sessionId: String, cwd: String) -> ParseResult {
@@ -67,6 +68,7 @@ actor ConversationParser {
 
         var messages: [AssistantMessage] = []
         var interrupted = false
+        var newTokenCount = 0
         var seen = seenMessageIds[sessionId] ?? []
         let lines = newContent.components(separatedBy: "\n")
 
@@ -93,6 +95,15 @@ actor ConversationParser {
             if json["isMeta"] as? Bool == true { continue }
 
             guard let messageDict = json["message"] as? [String: Any] else { continue }
+
+            // Extract token usage (input + output + cache_creation, excluding cache_read
+            // since cache reads are served from cache and do not represent new AI work)
+            if let usage = messageDict["usage"] as? [String: Any] {
+                let input = usage["input_tokens"] as? Int ?? 0
+                let output = usage["output_tokens"] as? Int ?? 0
+                let cacheCreation = usage["cache_creation_input_tokens"] as? Int ?? 0
+                newTokenCount += input + output + cacheCreation
+            }
 
             // Parse timestamp
             let timestamp: Date
@@ -144,7 +155,7 @@ actor ConversationParser {
         lastFileOffset[sessionId] = fileSize
         seenMessageIds[sessionId] = seen
 
-        return ParseResult(messages: messages, interrupted: interrupted)
+        return ParseResult(messages: messages, interrupted: interrupted, newTokenCount: newTokenCount)
     }
 
     /// Reset parsing state for a session
