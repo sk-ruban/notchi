@@ -22,6 +22,12 @@ actor ConversationParser {
     private var seenMessageIds: [String: Set<String>] = [:]
 
     private static let emptyResult = ParseResult(messages: [], interrupted: false, newTokenCount: 0)
+    private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoBasic = ISO8601DateFormatter()
 
     /// Parse only NEW assistant text messages since last call
     func parseIncremental(sessionId: String, cwd: String) -> ParseResult {
@@ -100,6 +106,10 @@ actor ConversationParser {
             // Skip CLI-generated transcript entries that are not real model replies.
             if messageDict["model"] as? String == "<synthetic>" { continue }
 
+            // Mark as seen before any early-exit guards so tokens are never
+            // double-counted if resetState clears seenMessageIds mid-session.
+            seen.insert(uuid)
+
             // Extract token usage (input + output + cache_creation, excluding cache_read
             // since cache reads are served from cache and do not represent new AI work)
             if let usage = messageDict["usage"] as? [String: Any] {
@@ -112,9 +122,9 @@ actor ConversationParser {
             // Parse timestamp
             let timestamp: Date
             if let timestampStr = json["timestamp"] as? String {
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                timestamp = formatter.date(from: timestampStr) ?? Date()
+                timestamp = Self.isoFractional.date(from: timestampStr)
+                    ?? Self.isoBasic.date(from: timestampStr)
+                    ?? Date()
             } else {
                 timestamp = Date()
             }
@@ -147,8 +157,6 @@ actor ConversationParser {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !fullText.isEmpty else { continue }
 
-            // Only mark as seen AFTER passing all filters
-            seen.insert(uuid)
             messages.append(AssistantMessage(
                 id: uuid,
                 text: fullText,
