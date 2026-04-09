@@ -187,7 +187,13 @@ struct ExpandedPanelView: View {
 
                         sharedUsageBar
                             .padding(.horizontal, 12)
-                            .padding(.bottom, 5)
+
+                        GrowthIndicatorView(
+                            service: TokenGrowthService.shared,
+                            compact: !shouldShowSessionPicker && isActivityCollapsed
+                        )
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 5)
                     }
                 }
 

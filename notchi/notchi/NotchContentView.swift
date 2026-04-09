@@ -203,7 +203,7 @@ struct NotchContentView: View {
 
     private var expandedPanelHeight: CGFloat {
         let fullHeight = NotchConstants.expandedPanelSize.height - notchSize.height - 24
-        let collapsedHeight: CGFloat = 155
+        let collapsedHeight: CGFloat = 195
         return isActivityCollapsed ? collapsedHeight : fullHeight
     }
 
