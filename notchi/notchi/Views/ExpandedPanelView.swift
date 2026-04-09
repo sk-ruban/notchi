@@ -231,6 +231,9 @@ struct ExpandedPanelView: View {
 
                     SessionListView(
                         sessions: sessionStore.sortedSessions,
+                        titleForSession: { session in
+                            sessionStore.displayTitle(for: session)
+                        },
                         selectedSessionId: sessionStore.selectedSessionId,
                         onSelectSession: { sessionId in
                             sessionStore.selectSession(sessionId)
@@ -305,7 +308,7 @@ struct ExpandedPanelView: View {
                     HStack {
                         if let session = effectiveSession {
                             MorphingText(
-                                text: "\(session.projectName) #\(session.sessionNumber)",
+                                text: sessionStore.displaySessionLabel(for: session),
                                 font: .system(size: 11, weight: .medium),
                                 color: TerminalColors.secondaryText
                             )
@@ -335,7 +338,13 @@ struct ExpandedPanelView: View {
                                         ActivityRowView(event: event)
                                             .id(item.id)
                                     case .assistant(let message):
-                                        AssistantTextRowView(message: message)
+                                        AssistantTextRowView(message: message) { isExpanded in
+                                            scrollActivityItem(
+                                                item.id,
+                                                expanded: isExpanded,
+                                                proxy: proxy
+                                            )
+                                        }
                                             .id(item.id)
                                     }
                                 }
@@ -399,6 +408,16 @@ struct ExpandedPanelView: View {
             )
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func scrollActivityItem(_ id: String, expanded: Bool, proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            await Task.yield()
+            let anchor: UnitPoint = expanded ? .top : .bottom
+            withAnimation(.easeInOut(duration: 0.22)) {
+                proxy.scrollTo(id, anchor: anchor)
+            }
+        }
     }
 }
 

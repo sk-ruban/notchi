@@ -16,6 +16,7 @@ struct ParseResult {
 
 actor ConversationParser {
     static let shared = ConversationParser()
+    static var projectsRootPath = "\(NSHomeDirectory())/.claude/projects"
 
     private var lastFileOffset: [String: UInt64] = [:]
     private var seenMessageIds: [String: Set<String>] = [:]
@@ -95,6 +96,9 @@ actor ConversationParser {
             if json["isMeta"] as? Bool == true { continue }
 
             guard let messageDict = json["message"] as? [String: Any] else { continue }
+
+            // Skip CLI-generated transcript entries that are not real model replies.
+            if messageDict["model"] as? String == "<synthetic>" { continue }
 
             // Extract token usage (input + output + cache_creation, excluding cache_read
             // since cache reads are served from cache and do not represent new AI work)
@@ -183,6 +187,6 @@ actor ConversationParser {
 
     static func sessionFilePath(sessionId: String, cwd: String) -> String {
         let projectDir = cwd.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ".", with: "-")
-        return "\(NSHomeDirectory())/.claude/projects/\(projectDir)/\(sessionId).jsonl"
+        return "\(projectsRootPath)/\(projectDir)/\(sessionId).jsonl"
     }
 }

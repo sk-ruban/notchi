@@ -28,7 +28,7 @@ final class SessionDataTests: XCTestCase {
     }
 
     func testSpinnerVerbOnlyAdvancesWhenReplyCycleAdvances() {
-        let session = SessionData(sessionId: "session-1", cwd: "/tmp/project", sessionNumber: 1)
+        let session = SessionData(sessionId: "session-1", cwd: "/tmp/project")
         let initialVerb = session.currentSpinnerVerb
 
         session.recordPreToolUse(tool: "Read", toolInput: ["file_path": "README.md"], toolUseId: "tool-1")

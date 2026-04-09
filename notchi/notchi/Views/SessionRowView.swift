@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionRowView: View {
     let session: SessionData
+    let title: String
     let isSelected: Bool
     let onTap: () -> Void
     let onDelete: () -> Void
@@ -16,7 +17,7 @@ struct SessionRowView: View {
                     .frame(width: 5, height: 5)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.displayTitle)
+                    Text(title)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(TerminalColors.primaryText)
                         .lineLimit(1)

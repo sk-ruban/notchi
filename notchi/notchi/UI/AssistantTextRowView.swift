@@ -9,6 +9,7 @@ import SwiftUI
 
 struct AssistantTextRowView: View {
     let message: AssistantMessage
+    var onExpansionChange: ((Bool) -> Void)? = nil
 
     @State private var isExpanded = false
     private static let maxDisplayLength = 120
@@ -39,9 +40,11 @@ struct AssistantTextRowView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             guard isTruncatable else { return }
+            let nextExpandedState = !isExpanded
             withAnimation(.easeInOut(duration: 0.2)) {
-                isExpanded.toggle()
+                isExpanded = nextExpandedState
             }
+            onExpansionChange?(nextExpandedState)
         }
     }
 

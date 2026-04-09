@@ -14,7 +14,6 @@ struct PendingQuestion {
 final class SessionData: Identifiable {
     let id: String
     let cwd: String
-    let sessionNumber: Int
     let sessionStartTime: Date
     let spriteXPosition: CGFloat
     let spriteYOffset: CGFloat
@@ -57,14 +56,6 @@ final class SessionData: Identifiable {
         }
     }
 
-    var displayTitle: String {
-        let title = "\(projectName) #\(sessionNumber)"
-        if let prompt = lastUserPrompt {
-            return "\(title) - \(prompt)"
-        }
-        return title
-    }
-
     var activityPreview: String? {
         if let lastEvent = recentEvents.last {
             return lastEvent.description ?? lastEvent.tool ?? lastEvent.type
@@ -85,10 +76,9 @@ final class SessionData: Identifiable {
     private static let yOffsetBase: CGFloat = -5.0
     private static let yOffsetRange: UInt = 51
 
-    init(sessionId: String, cwd: String, sessionNumber: Int, isInteractive: Bool = true, existingXPositions: [CGFloat] = []) {
+    init(sessionId: String, cwd: String, isInteractive: Bool = true, existingXPositions: [CGFloat] = []) {
         self.id = sessionId
         self.cwd = cwd
-        self.sessionNumber = sessionNumber
         self.isInteractive = isInteractive
         self.sessionStartTime = Date()
         self.lastActivity = Date()
@@ -224,6 +214,10 @@ final class SessionData: Identifiable {
 
     func clearAssistantMessages() {
         recentAssistantMessages = []
+    }
+
+    func clearRecentEvents() {
+        recentEvents = []
     }
 
     func resetSleepTimer() {
