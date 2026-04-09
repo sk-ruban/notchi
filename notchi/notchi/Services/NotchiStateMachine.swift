@@ -113,6 +113,10 @@ final class NotchiStateMachine {
                 sessionStore.recordAssistantMessages(result.messages, for: sessionId)
             }
 
+            if result.newTokenCount > 0 {
+                TokenGrowthService.shared.addTokens(result.newTokenCount)
+            }
+
             reconcileFileSyncResult(
                 result,
                 for: sessionId,
