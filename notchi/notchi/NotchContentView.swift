@@ -50,6 +50,7 @@ struct NotchContentView: View {
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
     @State private var hoveredSessionId: String?
+    @State private var walkAnimator = WalkAnimator()
     @State private var spriteHandoff: SpriteHandoff?
     @State private var spriteHandoffProgress: CGFloat = 0
     @State private var spriteHandoffGeneration = 0
@@ -384,24 +385,45 @@ struct NotchContentView: View {
         showingSessionActivity = true
     }
 
-    @ViewBuilder
     private var headerRow: some View {
-        if isCompactIdle {
-            Color.clear
-                .frame(width: compactContentWidth)
-        } else {
-            HStack(spacing: 0) {
+        Group {
+            if isCompactIdle {
                 Color.clear
-                    .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
+                    .frame(width: compactContentWidth)
+            } else {
+                HStack(spacing: 0) {
+                    Color.clear
+                        .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
-                headerSprites
-                    .offset(x: collapsedHeaderSpriteOffsetX, y: collapsedHeaderSpriteOffsetY)
-                    .frame(width: sideWidth)
-                    .opacity(collapsedHeaderSpriteVisuals.opacity)
-                    .blur(radius: collapsedHeaderSpriteVisuals.blur)
-                    .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
+                    headerSprites
+                        .offset(x: collapsedHeaderSpriteOffsetX + walkAnimator.xOffset, y: collapsedHeaderSpriteOffsetY)
+                        .frame(width: sideWidth)
+                        .opacity(collapsedHeaderSpriteVisuals.opacity)
+                        .blur(radius: collapsedHeaderSpriteVisuals.blur)
+                        .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
+                }
             }
         }
+        .onChange(of: currentHeaderState) { _, newState in
+            updateHeaderWalk(for: newState)
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            if expanded {
+                walkAnimator.returnHome()
+            } else {
+                updateHeaderWalk(for: currentHeaderState)
+            }
+        }
+        .onAppear {
+            updateHeaderWalk(for: currentHeaderState)
+        }
+        .onDisappear {
+            walkAnimator.stop()
+        }
+    }
+
+    private var currentHeaderState: NotchiState? {
+        collapsedHeaderState
     }
 
     @ViewBuilder
@@ -418,6 +440,15 @@ struct NotchContentView: View {
     static func collapsedHeaderState(activeSessionState: NotchiState?, isCompactIdle: Bool) -> NotchiState? {
         guard !isCompactIdle else { return nil }
         return activeSessionState ?? .idle
+    }
+
+    private func updateHeaderWalk(for state: NotchiState?) {
+        walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
+        guard !isExpanded, let state, state.canWalk else {
+            walkAnimator.returnHome()
+            return
+        }
+        walkAnimator.start(state: state)
     }
 
     private func startSpriteHandoff(for expanded: Bool) {

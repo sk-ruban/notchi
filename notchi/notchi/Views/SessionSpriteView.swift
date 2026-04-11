@@ -14,7 +14,7 @@ struct SessionSpriteView: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: bobAmplitude == 0 && state.emotion != .sob)) { timeline in
             SpriteSheetView(
-                spriteSheet: state.spriteSheetName,
+                spriteSheet: state.spriteSheetSource,
                 frameCount: state.frameCount,
                 columns: state.columns,
                 fps: state.animationFPS,

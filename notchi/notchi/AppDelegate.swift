@@ -55,6 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
                 NotchiStateMachine.shared.handleEvent(event)
             }
         }
+        Task {
+            await CodexSessionMonitor.shared.start()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -141,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
 
     @MainActor private func startUsageService() {
         ClaudeUsageService.shared.startPolling()
+        CodexAuthService.shared.start()
     }
 
     private func startUpdater() {

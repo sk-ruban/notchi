@@ -1,6 +1,7 @@
 import Foundation
 
 struct HookEvent: Decodable, Sendable {
+    let provider: SessionProvider
     let sessionId: String
     let transcriptPath: String?
     let cwd: String
@@ -16,6 +17,7 @@ struct HookEvent: Decodable, Sendable {
     let interactive: Bool?
 
     enum CodingKeys: String, CodingKey {
+        case provider
         case sessionId = "session_id"
         case transcriptPath = "transcript_path"
         case cwd, event, status, pid, tty, tool
@@ -25,10 +27,64 @@ struct HookEvent: Decodable, Sendable {
         case permissionMode = "permission_mode"
         case interactive
     }
+
+    init(
+        provider: SessionProvider = .claude,
+        sessionId: String,
+        transcriptPath: String? = nil,
+        cwd: String,
+        event: String,
+        status: String,
+        pid: Int? = nil,
+        tty: String? = nil,
+        tool: String? = nil,
+        toolInput: [String: AnyCodable]? = nil,
+        toolUseId: String? = nil,
+        userPrompt: String? = nil,
+        permissionMode: String? = nil,
+        interactive: Bool? = nil
+    ) {
+        self.provider = provider
+        self.sessionId = sessionId
+        self.transcriptPath = transcriptPath
+        self.cwd = cwd
+        self.event = event
+        self.status = status
+        self.pid = pid
+        self.tty = tty
+        self.tool = tool
+        self.toolInput = toolInput
+        self.toolUseId = toolUseId
+        self.userPrompt = userPrompt
+        self.permissionMode = permissionMode
+        self.interactive = interactive
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try container.decodeIfPresent(SessionProvider.self, forKey: .provider) ?? .claude
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
+        cwd = try container.decode(String.self, forKey: .cwd)
+        event = try container.decode(String.self, forKey: .event)
+        status = try container.decode(String.self, forKey: .status)
+        pid = try container.decodeIfPresent(Int.self, forKey: .pid)
+        tty = try container.decodeIfPresent(String.self, forKey: .tty)
+        tool = try container.decodeIfPresent(String.self, forKey: .tool)
+        toolInput = try container.decodeIfPresent([String: AnyCodable].self, forKey: .toolInput)
+        toolUseId = try container.decodeIfPresent(String.self, forKey: .toolUseId)
+        userPrompt = try container.decodeIfPresent(String.self, forKey: .userPrompt)
+        permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        interactive = try container.decodeIfPresent(Bool.self, forKey: .interactive)
+    }
 }
 
 struct AnyCodable: Decodable, @unchecked Sendable {
     nonisolated(unsafe) let value: Any
+
+    nonisolated init(_ value: Any) {
+        self.value = value
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()

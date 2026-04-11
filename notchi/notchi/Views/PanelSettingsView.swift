@@ -2,14 +2,41 @@ import ServiceManagement
 import SwiftUI
 
 struct PanelSettingsView: View {
+    private let usageService = ClaudeUsageService.shared
+    private let codexAuthService = CodexAuthService.shared
+
     @AppStorage(AppSettings.hideSpriteWhenIdleKey) private var hideSpriteWhenIdle = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var hooksInstalled = HookInstaller.isInstalled()
     @State private var hooksError = false
+    @State private var emotionAnalysisEnabled = AppSettings.isEmotionAnalysisEnabled
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
+    @State private var customSpriteOverrideCount = 0
+    @State private var customSpriteOverrideCountTask: Task<Void, Never>?
     @ObservedObject private var updateManager = UpdateManager.shared
-    private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
+
+    private var usageConnected: Bool { usageService.isConnected }
+    private var codexConnected: Bool { codexAuthService.isConnected }
+    private var codexStatusText: String { codexAuthService.statusText }
     private var hasApiKey: Bool { !apiKeyInput.isEmpty }
+    private var emotionAnalysisStatusText: String {
+        guard emotionAnalysisEnabled else { return "Off" }
+        if codexConnected && hasApiKey { return "Codex + Claude" }
+        if codexConnected { return "Codex" }
+        if hasApiKey { return "Claude" }
+        return "Auto"
+    }
+    private var emotionAnalysisStatusColor: Color {
+        guard emotionAnalysisEnabled else { return TerminalColors.dimmedText }
+        if codexConnected || hasApiKey { return TerminalColors.green }
+        return TerminalColors.amber
+    }
+    private var customSpriteStatusText: String {
+        customSpriteOverrideCount > 0 ? "\(customSpriteOverrideCount) Loaded" : "Defaults"
+    }
+    private var customSpriteStatusColor: Color {
+        customSpriteOverrideCount > 0 ? TerminalColors.green : TerminalColors.dimmedText
+    }
 
     private var hookStatusText: String {
         if hooksError { return "Error" }
@@ -42,6 +69,13 @@ struct PanelSettingsView: View {
         .padding(.horizontal, SettingsLayout.panelHorizontalPadding)
         .padding(.top, SettingsLayout.topPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            emotionAnalysisEnabled = AppSettings.isEmotionAnalysisEnabled
+            refreshCustomSpriteOverrideCount()
+        }
+        .onDisappear {
+            customSpriteOverrideCountTask?.cancel()
+        }
     }
 
     private var systemSection: some View {
@@ -49,6 +83,13 @@ struct PanelSettingsView: View {
             ScreenPickerRow(screenSelector: ScreenSelector.shared)
 
             SoundPickerView()
+
+            Button(action: openCustomSpriteFolder) {
+                SettingsRowView(icon: "photo.stack", title: "Custom Sprites") {
+                    statusBadge(customSpriteStatusText, color: customSpriteStatusColor)
+                }
+            }
+            .buttonStyle(.plain)
 
             Button(action: toggleLaunchAtLogin) {
                 SettingsRowView(icon: "power", title: "Launch at Login") {
@@ -69,7 +110,7 @@ struct PanelSettingsView: View {
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
             Button(action: installHooksIfNeeded) {
-                SettingsRowView(icon: "terminal", title: "Hooks") {
+                SettingsRowView(icon: "terminal", title: "Claude Hooks") {
                     statusBadge(hookStatusText, color: hookStatusColor)
                 }
             }
@@ -85,18 +126,34 @@ struct PanelSettingsView: View {
             }
             .buttonStyle(.plain)
 
+            Button(action: connectCodex) {
+                SettingsRowView(icon: "sparkles.rectangle.stack", title: "Codex Auth") {
+                    statusBadge(
+                        codexStatusText,
+                        color: codexConnected ? TerminalColors.green : TerminalColors.red
+                    )
+                }
+            }
+            .buttonStyle(.plain)
+
             apiKeyRow
         }
     }
 
     private var apiKeyRow: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.apiKeySpacing) {
-            SettingsRowView(icon: "brain", title: "Emotion Analysis") {
-                statusBadge(
-                    hasApiKey ? "Active" : "No Key",
-                    color: hasApiKey ? TerminalColors.green : TerminalColors.red
-                )
+            Button(action: toggleEmotionAnalysis) {
+                SettingsRowView(icon: "brain", title: "Emotion Analysis") {
+                    HStack(spacing: 8) {
+                        statusBadge(
+                            emotionAnalysisStatusText,
+                            color: emotionAnalysisStatusColor
+                        )
+                        ToggleSwitch(isOn: emotionAnalysisEnabled)
+                    }
+                }
             }
+            .buttonStyle(.plain)
 
             HStack(spacing: 6) {
                 SecureField("", text: $apiKeyInput)
@@ -110,7 +167,7 @@ struct PanelSettingsView: View {
                     .onSubmit { saveApiKey() }
                     .overlay(alignment: .leading) {
                         if apiKeyInput.isEmpty {
-                            Text("Anthropic API Key")
+                            Text("Anthropic API Key (Claude only)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundColor(TerminalColors.dimmedText)
                                 .padding(.leading, SettingsLayout.fieldHorizontalPadding)
@@ -126,12 +183,22 @@ struct PanelSettingsView: View {
                 .buttonStyle(.plain)
             }
             .padding(.leading, SettingsLayout.fieldLeadingInset)
+
+            Text("Codex sessions use local Codex auth. Claude sessions use this key or `~/.claude/settings.json`.")
+                .font(.system(size: 10))
+                .foregroundColor(TerminalColors.dimmedText)
+                .padding(.leading, SettingsLayout.fieldLeadingInset)
         }
     }
 
     private func saveApiKey() {
         let trimmed = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         AppSettings.anthropicApiKey = trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func toggleEmotionAnalysis() {
+        emotionAnalysisEnabled.toggle()
+        AppSettings.isEmotionAnalysisEnabled = emotionAnalysisEnabled
     }
 
     private var aboutSection: some View {
@@ -160,6 +227,20 @@ struct PanelSettingsView: View {
 
     private func openLatestReleasePage() {
         NSWorkspace.shared.open(URL(string: "https://github.com/sk-ruban/notchi/releases/latest")!)
+    }
+
+    private func openCustomSpriteFolder() {
+        SpriteOverrideStore.openDirectoryInFinder()
+        refreshCustomSpriteOverrideCount()
+    }
+
+    private func refreshCustomSpriteOverrideCount() {
+        customSpriteOverrideCountTask?.cancel()
+        customSpriteOverrideCountTask = Task { @MainActor in
+            let overrideCount = await SpriteOverrideStore.installedOverrideCountAsync()
+            guard !Task.isCancelled else { return }
+            customSpriteOverrideCount = overrideCount
+        }
     }
 
     private var quitSection: some View {
@@ -200,7 +281,11 @@ struct PanelSettingsView: View {
     }
 
     private func connectUsage() {
-        ClaudeUsageService.shared.connectAndStartPolling()
+        usageService.connectAndStartPolling()
+    }
+
+    private func connectCodex() {
+        codexAuthService.handleAction()
     }
 
     private func toggleHideSpriteWhenIdle() {

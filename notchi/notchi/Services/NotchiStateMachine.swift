@@ -32,32 +32,39 @@ final class NotchiStateMachine {
     func handleEvent(_ event: HookEvent) {
         let session = sessionStore.process(event)
         let isDone = event.status == "waiting_for_input"
-        let transcriptPath = ConversationParser.resolvedTranscriptPath(
-            sessionId: event.sessionId,
-            cwd: event.cwd,
-            transcriptPath: event.transcriptPath
-        )
+        let usesClaudeConversationFiles = event.provider == .claude
+        let transcriptPath = usesClaudeConversationFiles
+            ? ConversationParser.resolvedTranscriptPath(
+                sessionId: event.sessionId,
+                cwd: event.cwd,
+                transcriptPath: event.transcriptPath
+            )
+            : nil
 
         switch event.event {
         case "UserPromptSubmit":
-            pendingPositionMarks[event.sessionId] = Task {
-                await ConversationParser.shared.markCurrentPosition(
-                    sessionId: event.sessionId,
-                    transcriptPath: transcriptPath
-                )
+            if let transcriptPath {
+                pendingPositionMarks[event.sessionId] = Task {
+                    await ConversationParser.shared.markCurrentPosition(
+                        sessionId: event.sessionId,
+                        transcriptPath: transcriptPath
+                    )
+                }
             }
-            if session.isInteractive {
+            if let transcriptPath, session.isInteractive {
                 startFileWatcher(sessionId: event.sessionId, transcriptPath: transcriptPath)
             }
 
             if session.isInteractive, let prompt = event.userPrompt {
                 Task {
-                    let result = await EmotionAnalyzer.shared.analyze(prompt)
+                    let result = await EmotionAnalyzer.shared.analyze(prompt, provider: event.provider)
                     session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
                 }
             }
 
-            if session.isInteractive, !SessionStore.isLocalSlashCommand(event.userPrompt) {
+            if event.provider == .claude,
+               session.isInteractive,
+               !SessionStore.isLocalSlashCommand(event.userPrompt) {
                 handleClaudeUsageResumeTrigger(.userPromptSubmit)
             }
 
@@ -70,22 +77,30 @@ final class NotchiStateMachine {
             SoundService.shared.playNotificationSound(sessionId: event.sessionId, isInteractive: session.isInteractive)
 
         case "PostToolUse":
-            scheduleFileSync(sessionId: event.sessionId, transcriptPath: transcriptPath)
+            if let transcriptPath {
+                scheduleFileSync(sessionId: event.sessionId, transcriptPath: transcriptPath)
+            }
 
         case "SessionStart":
-            handleClaudeUsageResumeTrigger(.sessionStart)
+            if event.provider == .claude {
+                handleClaudeUsageResumeTrigger(.sessionStart)
+            }
 
         case "Stop":
             SoundService.shared.playNotificationSound(sessionId: event.sessionId, isInteractive: session.isInteractive)
-            stopFileWatcher(sessionId: event.sessionId)
-            scheduleFileSync(sessionId: event.sessionId, transcriptPath: transcriptPath)
+            if let transcriptPath {
+                stopFileWatcher(sessionId: event.sessionId)
+                scheduleFileSync(sessionId: event.sessionId, transcriptPath: transcriptPath)
+            }
 
         case "SessionEnd":
-            stopFileWatcher(sessionId: event.sessionId)
+            if usesClaudeConversationFiles {
+                stopFileWatcher(sessionId: event.sessionId)
+                Task { await ConversationParser.shared.resetState(for: event.sessionId) }
+            }
             pendingSyncTasks.removeValue(forKey: event.sessionId)?.cancel()
             pendingPositionMarks.removeValue(forKey: event.sessionId)?.cancel()
             SoundService.shared.clearCooldown(for: event.sessionId)
-            Task { await ConversationParser.shared.resetState(for: event.sessionId) }
             if sessionStore.activeSessionCount == 0 {
                 logger.info("Global state: idle")
             }

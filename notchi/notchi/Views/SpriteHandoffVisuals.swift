@@ -5,7 +5,7 @@ enum SpriteHandoffVisuals {
     private static let sourcePhaseEnd: CGFloat = 0.35
     private static let destinationPhaseStart: CGFloat = sourcePhaseEnd
     private static let destinationPhaseDuration: CGFloat = 0.35
-    
+
     private static func clampedUnitProgress(_ value: CGFloat) -> CGFloat {
         min(1, max(0, value))
     }
