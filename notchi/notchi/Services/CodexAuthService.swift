@@ -171,40 +171,12 @@ nonisolated private final class ProcessLineBuffer {
     }
 }
 
-nonisolated private enum CodexCLIResolver {
-    nonisolated static func resolveExecutableURL() -> URL? {
-        for path in searchPaths() where FileManager.default.isExecutableFile(atPath: path) {
-            return URL(fileURLWithPath: path)
-        }
-        return nil
-    }
-
-    nonisolated private static func searchPaths() -> [String] {
-        let environmentPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        let pathEntries = environmentPath
-            .split(separator: ":")
-            .map { String($0) }
-            .map { ($0 as NSString).appendingPathComponent("codex") }
-
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let wellKnownPaths = [
-            "\(home)/.local/bin/codex",
-            "\(home)/bin/codex",
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex",
-            "/usr/bin/codex",
-        ]
-
-        return Array(NSOrderedSet(array: pathEntries + wellKnownPaths)) as? [String] ?? wellKnownPaths
-    }
-}
-
 nonisolated private enum CodexAuthProbe {
     nonisolated private static let refreshThreshold: TimeInterval = 8 * 24 * 60 * 60
     nonisolated private static let responseTimeout: TimeInterval = 2.0
 
     nonisolated static func loadSnapshot(forceTokenRefresh: Bool) -> CodexAuthSnapshot {
-        guard let executableURL = CodexCLIResolver.resolveExecutableURL() else {
+        guard let executableURL = CodexCLIFinder.resolveExecutableURL() else {
             return fileFallbackSnapshot()
         }
 
@@ -412,25 +384,6 @@ nonisolated private enum CodexAuthProbe {
         try handle.write(contentsOf: Data([0x0A]))
     }
 
-    nonisolated private static func readResponseLine(
-        from buffer: ProcessLineBuffer,
-        semaphore: DispatchSemaphore,
-        timeout: TimeInterval
-    ) -> String? {
-        if let line = buffer.popLine() {
-            return line
-        }
-
-        let deadline = DispatchTime.now() + timeout
-        while semaphore.wait(timeout: deadline) == .success {
-            if let line = buffer.popLine() {
-                return line
-            }
-        }
-
-        return buffer.popLine()
-    }
-
     nonisolated private static func readResponse<Result: Decodable>(
         expectedID: Int,
         from buffer: ProcessLineBuffer,
@@ -441,11 +394,13 @@ nonisolated private enum CodexAuthProbe {
         let deadline = DispatchTime.now() + timeout
 
         while true {
-            if let line = buffer.popLine(),
-               let data = line.data(using: .utf8),
-               let response = try? JSONDecoder().decode(CodexAppServerResponse<Result>.self, from: data),
-               response.id == expectedID,
-               let result = response.result {
+            while let line = buffer.popLine() {
+                guard let data = line.data(using: .utf8),
+                      let response = try? JSONDecoder().decode(CodexAppServerResponse<Result>.self, from: data),
+                      response.id == expectedID,
+                      let result = response.result else {
+                    continue
+                }
                 return result
             }
 
@@ -595,20 +550,25 @@ final class CodexAuthService {
     }
 
     private func openLoginInTerminal() -> Bool {
-        let codexCommand: String
-        if let executableURL = CodexCLIResolver.resolveExecutableURL() {
-            let escapedPath = executableURL.path.replacingOccurrences(of: "\"", with: "\\\"")
-            codexCommand = "\"\(escapedPath)\" login"
+        let script: String
+        if let executableURL = CodexCLIFinder.resolveExecutableURL() {
+            let appleScriptPath = executableURL.path
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            script = """
+            tell application "Terminal"
+                activate
+                do script (quoted form of "\(appleScriptPath)") & " login"
+            end tell
+            """
         } else {
-            codexCommand = "codex login"
+            script = """
+            tell application "Terminal"
+                activate
+                do script "codex login"
+            end tell
+            """
         }
-
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(codexCommand)"
-        end tell
-        """
 
         var error: NSDictionary?
         let result = NSAppleScript(source: script)?.executeAndReturnError(&error)

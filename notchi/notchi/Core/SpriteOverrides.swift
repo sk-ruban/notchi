@@ -36,21 +36,14 @@ enum SpriteOverrideStore {
     }
 
     static func installedOverrideCount() -> Int {
-        let allAssetNames = Set(
-            SpriteCreature.allCases.flatMap { creature in
-                NotchiTask.allCases.flatMap { task in
-                    NotchiEmotion.allCases.map { emotion in
-                        creature.bundledAssetName(task: task, emotion: emotion)
-                    }
-                }
-            }
-        )
+        countInstalledOverrides(in: overrideCandidateURLGroups(), fileManager: .default)
+    }
 
-        return allAssetNames.reduce(into: 0) { count, assetName in
-            if overrideURL(forAssetName: assetName, creature: creature(for: assetName)) != nil {
-                count += 1
-            }
-        }
+    static func installedOverrideCountAsync() async -> Int {
+        let candidateGroups = overrideCandidateURLGroups()
+        return await Task.detached(priority: .utility) {
+            countInstalledOverrides(in: candidateGroups, fileManager: .default)
+        }.value
     }
 
     static func overrideURL(forAssetName assetName: String, creature: SpriteCreature) -> URL? {
@@ -77,6 +70,32 @@ enum SpriteOverrideStore {
         candidates.append("\(creature.rawValue)/\(localBaseName).imageset/\(imageSetSpriteFilename)")
 
         return candidates
+    }
+
+    private static func overrideCandidateURLGroups() -> [[URL]] {
+        let allAssetNames = Set(
+            SpriteCreature.allCases.flatMap { creature in
+                NotchiTask.allCases.flatMap { task in
+                    NotchiEmotion.allCases.map { emotion in
+                        creature.bundledAssetName(task: task, emotion: emotion)
+                    }
+                }
+            }
+        )
+
+        return allAssetNames.map { assetName in
+            let creature = creature(for: assetName)
+            return candidateRelativePaths(forAssetName: assetName, creature: creature)
+                .map { directoryURL.appendingPathComponent($0) }
+        }
+    }
+
+    nonisolated private static func countInstalledOverrides(in candidateGroups: [[URL]], fileManager: FileManager) -> Int {
+        candidateGroups.reduce(into: 0) { count, candidates in
+            if candidates.contains(where: { fileManager.fileExists(atPath: $0.path) }) {
+                count += 1
+            }
+        }
     }
 
     private static func installReadmeIfNeeded() {

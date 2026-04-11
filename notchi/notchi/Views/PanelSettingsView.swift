@@ -11,7 +11,8 @@ struct PanelSettingsView: View {
     @State private var hooksError = false
     @State private var emotionAnalysisEnabled = AppSettings.isEmotionAnalysisEnabled
     @State private var apiKeyInput = AppSettings.anthropicApiKey ?? ""
-    @State private var customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
+    @State private var customSpriteOverrideCount = 0
+    @State private var customSpriteOverrideCountTask: Task<Void, Never>?
     @ObservedObject private var updateManager = UpdateManager.shared
 
     private var usageConnected: Bool { usageService.isConnected }
@@ -70,7 +71,10 @@ struct PanelSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             emotionAnalysisEnabled = AppSettings.isEmotionAnalysisEnabled
-            customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
+            refreshCustomSpriteOverrideCount()
+        }
+        .onDisappear {
+            customSpriteOverrideCountTask?.cancel()
         }
     }
 
@@ -227,7 +231,16 @@ struct PanelSettingsView: View {
 
     private func openCustomSpriteFolder() {
         SpriteOverrideStore.openDirectoryInFinder()
-        customSpriteOverrideCount = SpriteOverrideStore.installedOverrideCount()
+        refreshCustomSpriteOverrideCount()
+    }
+
+    private func refreshCustomSpriteOverrideCount() {
+        customSpriteOverrideCountTask?.cancel()
+        customSpriteOverrideCountTask = Task { @MainActor in
+            let overrideCount = await SpriteOverrideStore.installedOverrideCountAsync()
+            guard !Task.isCancelled else { return }
+            customSpriteOverrideCount = overrideCount
+        }
     }
 
     private var quitSection: some View {

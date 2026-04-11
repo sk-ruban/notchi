@@ -220,8 +220,17 @@ actor CodexSessionMonitor {
             return
         }
 
-        guard let newData = try? fileHandle.readToEnd(),
-              let newContent = String(data: newData, encoding: .utf8) else {
+        guard let newData = try? fileHandle.readToEnd() else {
+            return
+        }
+
+        guard let lastNewlineIndex = newData.lastIndex(of: 0x0A) else {
+            lastOffsets[sessionId] = currentOffset
+            return
+        }
+
+        let processableData = newData.prefix(through: lastNewlineIndex)
+        guard let newContent = String(data: processableData, encoding: .utf8) else {
             return
         }
 
@@ -229,7 +238,7 @@ actor CodexSessionMonitor {
             await processLine(String(line), trackedSessionID: sessionId)
         }
 
-        lastOffsets[sessionId] = fileSize
+        lastOffsets[sessionId] = currentOffset + UInt64(processableData.count)
     }
 
     private func processLine(_ line: String, trackedSessionID: String) async {
