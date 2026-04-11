@@ -8,11 +8,24 @@ struct AppSettings {
     private static let previousSoundKey = "previousNotificationSound"
     private static let isUsageEnabledKey = "isUsageEnabled"
     private static let claudeUsageRecoverySnapshotKey = "claudeUsageRecoverySnapshot"
+    private static let weeklyTokenCountKey = "weeklyTokenCount"
+    private static let weeklyTokenWeekKey = "weeklyTokenWeek"
     private static let claudeExtraUsageObservationKey = "claudeExtraUsageObservation"
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
         set { UserDefaults.standard.set(newValue, forKey: isUsageEnabledKey) }
+    }
+
+    static var weeklyTokenCount: Int {
+        get { UserDefaults.standard.integer(forKey: weeklyTokenCountKey) }
+        set { UserDefaults.standard.set(newValue, forKey: weeklyTokenCountKey) }
+    }
+
+    /// Stored as "YYYY-WNN" (ISO week), e.g. "2026-W15"
+    static var weeklyTokenWeek: String {
+        get { UserDefaults.standard.string(forKey: weeklyTokenWeekKey) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: weeklyTokenWeekKey) }
     }
 
     static var hideSpriteWhenIdle: Bool {
