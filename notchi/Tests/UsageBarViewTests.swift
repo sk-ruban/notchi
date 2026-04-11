@@ -131,4 +131,34 @@ final class UsageBarViewTests: XCTestCase {
         XCTAssertNil(view.actionHint)
         XCTAssertTrue(view.shouldAllowTapAction)
     }
+
+    func testExtraUsageIndicatorOnlyShowsWhenActivelyUsingExtraUsage() {
+        let view = UsageBarView(
+            usage: QuotaPeriod(utilization: 100, resetDate: Date(timeIntervalSince1970: 4_102_444_800)),
+            isUsingExtraUsage: true,
+            isLoading: false,
+            error: nil,
+            statusMessage: nil,
+            isStale: false,
+            recoveryAction: .none,
+            isEnabled: true
+        )
+
+        XCTAssertTrue(view.shouldShowExtraUsageIndicator)
+    }
+
+    func testExtraUsageIndicatorHidesWhenUsageIsStale() {
+        let view = UsageBarView(
+            usage: QuotaPeriod(utilization: 100, resetDate: Date(timeIntervalSince1970: 4_102_444_800)),
+            isUsingExtraUsage: true,
+            isLoading: false,
+            error: nil,
+            statusMessage: "Updating soon",
+            isStale: true,
+            recoveryAction: .none,
+            isEnabled: true
+        )
+
+        XCTAssertFalse(view.shouldShowExtraUsageIndicator)
+    }
 }

@@ -95,6 +95,7 @@ final class SessionStoreTests: XCTestCase {
     ) -> HookEvent {
         HookEvent(
             sessionId: sessionId,
+            transcriptPath: nil,
             cwd: cwd,
             event: event,
             status: status,

@@ -128,28 +128,16 @@ struct NotchContentView: View {
         !isExpanded && panelManager.isCollapsedHovered ? 1.08 : 1
     }
 
-    private var displayedCollapsedHeaderSpriteScale: CGFloat {
-        isExpanded ? 1.16 : collapsedHeaderSpriteScale
-    }
-
     private var collapsedHeaderSpriteOffsetX: CGFloat {
         let baseOffset: CGFloat = 15
         guard !isExpanded && panelManager.isCollapsedHovered else { return baseOffset }
         return baseOffset + 6
     }
 
-    private var displayedCollapsedHeaderSpriteOffsetX: CGFloat {
-        isExpanded ? collapsedHeaderSpriteOffsetX + 4 : collapsedHeaderSpriteOffsetX
-    }
-
     private var collapsedHeaderSpriteOffsetY: CGFloat {
         let baseOffset: CGFloat = -2
         guard !isExpanded && panelManager.isCollapsedHovered else { return baseOffset }
         return baseOffset + 3
-    }
-
-    private var displayedCollapsedHeaderSpriteOffsetY: CGFloat {
-        isExpanded ? collapsedHeaderSpriteOffsetY + 5 : collapsedHeaderSpriteOffsetY
     }
 
     private var collapsedHeaderSpriteVisuals: (opacity: Double, blur: CGFloat) {
@@ -298,7 +286,7 @@ struct NotchContentView: View {
     @ViewBuilder
     private var notchLayout: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .center, spacing: 0) {
                 headerRow
                     .frame(height: notchSize.height)
 
@@ -407,7 +395,7 @@ struct NotchContentView: View {
                     .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
 
                 headerSprites
-                    .offset(x: displayedCollapsedHeaderSpriteOffsetX, y: displayedCollapsedHeaderSpriteOffsetY)
+                    .offset(x: collapsedHeaderSpriteOffsetX, y: collapsedHeaderSpriteOffsetY)
                     .frame(width: sideWidth)
                     .opacity(collapsedHeaderSpriteVisuals.opacity)
                     .blur(radius: collapsedHeaderSpriteVisuals.blur)
@@ -423,7 +411,7 @@ struct NotchContentView: View {
                 state: collapsedHeaderState,
                 isSelected: true
             )
-            .scaleEffect(displayedCollapsedHeaderSpriteScale, anchor: .bottom)
+            .scaleEffect(collapsedHeaderSpriteScale, anchor: .bottom)
         }
     }
 

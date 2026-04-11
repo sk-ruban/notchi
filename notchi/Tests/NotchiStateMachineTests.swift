@@ -115,6 +115,20 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertTrue(receivedTriggers.isEmpty)
     }
 
+    func testHookEventAllowsMissingTranscriptPathForStaleHooks() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "session_id": "stale-hook",
+            "cwd": "/tmp",
+            "event": "SessionStart",
+            "status": "waiting_for_input",
+        ])
+
+        let event = try JSONDecoder().decode(HookEvent.self, from: data)
+
+        XCTAssertNil(event.transcriptPath)
+        XCTAssertEqual(event.sessionId, "stale-hook")
+    }
+
     private func makeInteractiveSession(sessionId: String) -> SessionData {
         SessionStore.shared.process(makeEvent(
             sessionId: sessionId,
@@ -137,6 +151,7 @@ final class NotchiStateMachineTests: XCTestCase {
     ) -> HookEvent {
         HookEvent(
             sessionId: sessionId,
+            transcriptPath: nil,
             cwd: "/tmp",
             event: event,
             status: status,

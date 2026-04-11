@@ -10,6 +10,7 @@ struct AppSettings {
     private static let claudeUsageRecoverySnapshotKey = "claudeUsageRecoverySnapshot"
     private static let weeklyTokenCountKey = "weeklyTokenCount"
     private static let weeklyTokenWeekKey = "weeklyTokenWeek"
+    private static let claudeExtraUsageObservationKey = "claudeExtraUsageObservation"
 
     static var isUsageEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: isUsageEnabledKey) }
@@ -44,6 +45,22 @@ struct AppSettings {
                 UserDefaults.standard.set(data, forKey: claudeUsageRecoverySnapshotKey)
             } else {
                 UserDefaults.standard.removeObject(forKey: claudeUsageRecoverySnapshotKey)
+            }
+        }
+    }
+
+    static var claudeExtraUsageObservation: ClaudeExtraUsageObservation? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: claudeExtraUsageObservationKey) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(ClaudeExtraUsageObservation.self, from: data)
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: claudeExtraUsageObservationKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: claudeExtraUsageObservationKey)
             }
         }
     }

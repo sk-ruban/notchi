@@ -38,6 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         guard !isRunningTests else { return }
 
         NSApplication.shared.setActivationPolicy(.accessory)
+        let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
+        ConversationParser.configureProjectsRootPath(using: claudeConfig)
         setupNotchWindow()
         observeScreenChanges()
         observeWakeNotifications()

@@ -161,6 +161,23 @@ final class SocketServerTests: XCTestCase {
         XCTAssertEqual(try socketPermissions(at: path), 0o600)
     }
 
+    func testPayloadWithTranscriptPathDecodesAndPreservesField() async throws {
+        let recorder = EventRecorder()
+        let (_, path) = try await makeServer(clientReadTimeout: 0.5, recorder: recorder)
+        let transcriptPath = "/tmp/custom-transcript.jsonl"
+
+        let client = try connectClient(to: path)
+        try client.send(makeEventPayload(sessionId: "with-transcript", transcriptPath: transcriptPath))
+        client.closeConnection()
+
+        let delivered = await waitUntil(timeout: 0.5) {
+            let events = await recorder.snapshot()
+            return events.count == 1 && events.first?.transcriptPath == transcriptPath
+        }
+
+        XCTAssertTrue(delivered)
+    }
+
     private func makeServer(
         at path: String? = nil,
         clientReadTimeout: TimeInterval,
@@ -194,8 +211,8 @@ final class SocketServerTests: XCTestCase {
         "/tmp/notchi-tests-\(UUID().uuidString).sock"
     }
 
-    private func makeEventPayload(sessionId: String) throws -> Data {
-        let payload: [String: Any] = [
+    private func makeEventPayload(sessionId: String, transcriptPath: String? = nil) throws -> Data {
+        var payload: [String: Any] = [
             "session_id": sessionId,
             "cwd": "/tmp",
             "event": "SessionStart",
@@ -203,6 +220,9 @@ final class SocketServerTests: XCTestCase {
             "pid": NSNull(),
             "tty": NSNull(),
         ]
+        if let transcriptPath {
+            payload["transcript_path"] = transcriptPath
+        }
         return try JSONSerialization.data(withJSONObject: payload)
     }
 
