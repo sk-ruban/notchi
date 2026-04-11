@@ -7,6 +7,7 @@ final class NotchiStateMachineTests: XCTestCase {
     override func tearDown() async throws {
         let sessionIds = Array(SessionStore.shared.sessions.keys)
         sessionIds.forEach { SessionStore.shared.dismissSession($0) }
+        NotchiStateMachine.shared.resetTestingHooks()
         try await super.tearDown()
     }
 
@@ -46,6 +47,88 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertFalse(session.isProcessing)
     }
 
+    func testSessionStartForwardsToClaudeUsageHandler() {
+        let stateMachine = NotchiStateMachine.shared
+        var receivedTriggers: [ClaudeUsageResumeTrigger] = []
+        stateMachine.handleClaudeUsageResumeTrigger = { trigger in
+            receivedTriggers.append(trigger)
+        }
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: "session-start-\(UUID().uuidString)",
+            event: "SessionStart",
+            status: "processing"
+        ))
+
+        XCTAssertEqual(receivedTriggers, [.sessionStart])
+    }
+
+    func testInteractiveUserPromptSubmitForwardsToClaudeUsageHandler() {
+        let stateMachine = NotchiStateMachine.shared
+        var receivedTriggers: [ClaudeUsageResumeTrigger] = []
+        stateMachine.handleClaudeUsageResumeTrigger = { trigger in
+            receivedTriggers.append(trigger)
+        }
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: "prompt-submit-\(UUID().uuidString)",
+            event: "UserPromptSubmit",
+            status: "processing",
+            userPrompt: "hello"
+        ))
+
+        XCTAssertEqual(receivedTriggers, [.userPromptSubmit])
+    }
+
+    func testLocalSlashUserPromptSubmitDoesNotForwardToClaudeUsageHandler() {
+        let stateMachine = NotchiStateMachine.shared
+        var receivedTriggers: [ClaudeUsageResumeTrigger] = []
+        stateMachine.handleClaudeUsageResumeTrigger = { trigger in
+            receivedTriggers.append(trigger)
+        }
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: "local-prompt-\(UUID().uuidString)",
+            event: "UserPromptSubmit",
+            status: "processing",
+            userPrompt: "/help"
+        ))
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    func testNonInteractiveUserPromptSubmitDoesNotForwardToClaudeUsageHandler() {
+        let stateMachine = NotchiStateMachine.shared
+        var receivedTriggers: [ClaudeUsageResumeTrigger] = []
+        stateMachine.handleClaudeUsageResumeTrigger = { trigger in
+            receivedTriggers.append(trigger)
+        }
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: "noninteractive-prompt-\(UUID().uuidString)",
+            event: "UserPromptSubmit",
+            status: "processing",
+            userPrompt: "hello",
+            interactive: false
+        ))
+
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    func testHookEventAllowsMissingTranscriptPathForStaleHooks() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "session_id": "stale-hook",
+            "cwd": "/tmp",
+            "event": "SessionStart",
+            "status": "waiting_for_input",
+        ])
+
+        let event = try JSONDecoder().decode(HookEvent.self, from: data)
+
+        XCTAssertNil(event.transcriptPath)
+        XCTAssertEqual(event.sessionId, "stale-hook")
+    }
+
     private func makeInteractiveSession(sessionId: String) -> SessionData {
         SessionStore.shared.process(makeEvent(
             sessionId: sessionId,
@@ -63,10 +146,12 @@ final class NotchiStateMachineTests: XCTestCase {
         sessionId: String,
         event: String,
         status: String,
-        userPrompt: String? = nil
+        userPrompt: String? = nil,
+        interactive: Bool = true
     ) -> HookEvent {
         HookEvent(
             sessionId: sessionId,
+            transcriptPath: nil,
             cwd: "/tmp",
             event: event,
             status: status,
@@ -77,7 +162,7 @@ final class NotchiStateMachineTests: XCTestCase {
             toolUseId: nil,
             userPrompt: userPrompt,
             permissionMode: nil,
-            interactive: true
+            interactive: interactive
         )
     }
 }

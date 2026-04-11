@@ -1,0 +1,30 @@
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
+-->
+# Notchi 1.0.3
+
+A patch release focused on Claude integration reliability, cleaner reconnect flows, and sturdier update delivery.
+
+## Claude Usage Reliability
+
+Notchi now handles expired Claude credentials and recovery states more gracefully, with clearer reconnect messaging and faster automatic refresh when Claude becomes active again.
+
+- Better recovery when cached tokens, headers, or OAuth state drift out of sync
+- Automatically retries usage refresh when Claude activity resumes
+- Clearer reconnect and retry states in the usage UI
+
+## Socket And Session Stability
+
+The Claude Code event listener is more defensive about existing sockets, stalled clients, and partial reads.
+
+- Avoids stealing an active socket listener during startup races
+- Handles slow or incomplete clients without starving later connections
+- Wakes sleeping sessions more reliably when new output arrives
+
+## Emotion Analysis And Updates
+
+Emotion analysis can now fall back to Claude provider settings, and manual update messaging is more consistent.
+
+- Supports Claude provider configuration from `~/.claude/settings.json` for emotion analysis
+- Shows more actionable inline update and reconnect messaging
+- Keeps Sparkle release notes delivery aligned with the signed `/sparkle-notes/` pipeline

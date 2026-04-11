@@ -39,7 +39,7 @@ struct ScreenPickerRow: View {
                         .foregroundColor(TerminalColors.dimmedText)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, SettingsLayout.rowVerticalPadding)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -70,10 +70,10 @@ struct ScreenPickerRow: View {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, SettingsLayout.pickerInset)
         .background(TerminalColors.subtleBackground)
         .cornerRadius(8)
-        .padding(.top, 8)
+        .padding(.top, SettingsLayout.pickerInset)
     }
 
     private func screenOptionRow(
@@ -108,8 +108,8 @@ struct ScreenPickerRow: View {
                         .foregroundColor(TerminalColors.green)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
+            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
             .background(isSelected ? TerminalColors.hoverBackground : Color.clear)
             .contentShape(Rectangle())
             .cornerRadius(4)

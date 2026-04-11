@@ -34,16 +34,6 @@ final class UpdateManagerTests: XCTestCase {
         XCTAssertEqual(failure.label, "Try again")
     }
 
-    func testUnknownErrorStillUsesRetryLabel() {
-        manager.updateError()
-
-        guard case .error(let failure) = manager.state else {
-            return XCTFail("Expected error state")
-        }
-
-        XCTAssertEqual(failure.label, "Try again")
-    }
-
     func testBeginCheckingReplacesPreviousFailureState() {
         manager.updateError()
 

@@ -30,9 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         userDriver: updateUserDriver,
         delegate: self
     )
+    private var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isRunningTests else { return }
+
         NSApplication.shared.setActivationPolicy(.accessory)
+        let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
+        ConversationParser.configureProjectsRootPath(using: claudeConfig)
         setupNotchWindow()
         observeScreenChanges()
         observeWakeNotifications()
@@ -55,6 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        SocketServer.shared.stop()
+        ClaudeUsageService.shared.stopPolling()
     }
 
     @MainActor private func setupNotchWindow() {
@@ -116,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
     @objc private func handleSystemWake() {
         MainActor.assumeIsolated {
             logger.info("System woke, restarting Claude usage polling")
-            ClaudeUsageService.shared.startPolling()
+            ClaudeUsageService.shared.startPolling(afterSystemWake: true)
         }
     }
 

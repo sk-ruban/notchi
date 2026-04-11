@@ -31,9 +31,18 @@ final class SocketServer {
     private func startServer(onEvent: @escaping HookEventHandler) {
         guard serverSocket < 0 else { return }
 
-        eventHandler = onEvent
+        switch prepareSocketPathForBinding() {
+        case .ready:
+            break
+        case .alreadyActive:
+            logger.warning("Socket listener already active at \(self.socketPath, privacy: .public); skipping duplicate startup")
+            return
+        case .failed(let errorCode):
+            logger.error("Failed to prepare socket path: \(errorCode)")
+            return
+        }
 
-        unlink(socketPath)
+        eventHandler = onEvent
 
         serverSocket = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverSocket >= 0 else {
@@ -67,7 +76,9 @@ final class SocketServer {
             return
         }
 
-        chmod(socketPath, 0o777)
+        if chmod(socketPath, 0o600) != 0 {
+            logger.warning("Failed to restrict socket permissions: \(errno)")
+        }
 
         guard listen(serverSocket, 10) == 0 else {
             logger.error("Failed to listen: \(errno)")
@@ -94,6 +105,62 @@ final class SocketServer {
     func stop() {
         serverQueue.async { [weak self] in
             self?.stopServer()
+        }
+    }
+
+    private func prepareSocketPathForBinding() -> SocketPathPreparation {
+        guard FileManager.default.fileExists(atPath: socketPath) else {
+            return .ready
+        }
+
+        switch existingSocketState(at: socketPath) {
+        case .activeListener:
+            return .alreadyActive
+        case .stale, .missing:
+            let unlinkResult = unlink(socketPath)
+            if unlinkResult == 0 || errno == ENOENT {
+                return .ready
+            }
+            return .failed(errno)
+        case .failed(let errorCode):
+            return .failed(errorCode)
+        }
+    }
+
+    private func existingSocketState(at path: String) -> ExistingSocketState {
+        let probeSocket = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard probeSocket >= 0 else {
+            return .failed(errno)
+        }
+        defer { close(probeSocket) }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        path.withCString { ptr in
+            withUnsafeMutablePointer(to: &addr.sun_path) { pathPtr in
+                let pathBufferPtr = UnsafeMutableRawPointer(pathPtr)
+                    .assumingMemoryBound(to: CChar.self)
+                strcpy(pathBufferPtr, ptr)
+            }
+        }
+
+        let connectResult = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                connect(probeSocket, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+
+        if connectResult == 0 {
+            return .activeListener
+        }
+
+        switch errno {
+        case ENOENT:
+            return .missing
+        case ECONNREFUSED:
+            return .stale
+        default:
+            return .failed(errno)
         }
     }
 
@@ -260,5 +327,18 @@ final class SocketServer {
 private enum SocketReadiness {
     case ready
     case timedOut
+    case failed(Int32)
+}
+
+private enum SocketPathPreparation {
+    case ready
+    case alreadyActive
+    case failed(Int32)
+}
+
+private enum ExistingSocketState {
+    case activeListener
+    case stale
+    case missing
     case failed(Int32)
 }

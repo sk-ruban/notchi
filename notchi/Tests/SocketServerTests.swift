@@ -121,11 +121,69 @@ final class SocketServerTests: XCTestCase {
         XCTAssertTrue(validEventDelivered, "Malformed payload should not prevent the next client from being processed")
     }
 
+    func testDuplicateServerStartPreservesExistingListener() async throws {
+        let firstRecorder = EventRecorder()
+        let secondRecorder = EventRecorder()
+        let path = uniqueSocketPath()
+        let (_, listeningPath) = try await makeServer(
+            at: path,
+            clientReadTimeout: 0.5,
+            recorder: firstRecorder
+        )
+
+        let duplicateServer = SocketServer(socketPath: listeningPath, clientReadTimeout: 0.5)
+        activeServers.append((duplicateServer, listeningPath))
+        duplicateServer.start { event in
+            Task {
+                await secondRecorder.record(event)
+            }
+        }
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let client = try connectClient(to: listeningPath)
+        try client.send(makeEventPayload(sessionId: "still-connected"))
+        client.closeConnection()
+
+        let originalServerReceivedEvent = await waitUntil(timeout: 0.5) {
+            await firstRecorder.snapshot().map(\.sessionId) == ["still-connected"]
+        }
+        let duplicateSnapshot = await secondRecorder.snapshot()
+
+        XCTAssertTrue(originalServerReceivedEvent, "Existing listener should remain connected after duplicate startup")
+        XCTAssertTrue(duplicateSnapshot.isEmpty, "Duplicate server should not steal the socket path")
+    }
+
+    func testSocketUsesUserOnlyPermissions() async throws {
+        let recorder = EventRecorder()
+        let (_, path) = try await makeServer(clientReadTimeout: 0.5, recorder: recorder)
+
+        XCTAssertEqual(try socketPermissions(at: path), 0o600)
+    }
+
+    func testPayloadWithTranscriptPathDecodesAndPreservesField() async throws {
+        let recorder = EventRecorder()
+        let (_, path) = try await makeServer(clientReadTimeout: 0.5, recorder: recorder)
+        let transcriptPath = "/tmp/custom-transcript.jsonl"
+
+        let client = try connectClient(to: path)
+        try client.send(makeEventPayload(sessionId: "with-transcript", transcriptPath: transcriptPath))
+        client.closeConnection()
+
+        let delivered = await waitUntil(timeout: 0.5) {
+            let events = await recorder.snapshot()
+            return events.count == 1 && events.first?.transcriptPath == transcriptPath
+        }
+
+        XCTAssertTrue(delivered)
+    }
+
     private func makeServer(
+        at path: String? = nil,
         clientReadTimeout: TimeInterval,
         recorder: EventRecorder
     ) async throws -> (SocketServer, String) {
-        let path = uniqueSocketPath()
+        let path = path ?? uniqueSocketPath()
         let server = SocketServer(socketPath: path, clientReadTimeout: clientReadTimeout)
         activeServers.append((server, path))
 
@@ -153,8 +211,8 @@ final class SocketServerTests: XCTestCase {
         "/tmp/notchi-tests-\(UUID().uuidString).sock"
     }
 
-    private func makeEventPayload(sessionId: String) throws -> Data {
-        let payload: [String: Any] = [
+    private func makeEventPayload(sessionId: String, transcriptPath: String? = nil) throws -> Data {
+        var payload: [String: Any] = [
             "session_id": sessionId,
             "cwd": "/tmp",
             "event": "SessionStart",
@@ -162,7 +220,23 @@ final class SocketServerTests: XCTestCase {
             "pid": NSNull(),
             "tty": NSNull(),
         ]
+        if let transcriptPath {
+            payload["transcript_path"] = transcriptPath
+        }
         return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    private func socketPermissions(at path: String) throws -> Int {
+        var fileStatus = stat()
+        let result = lstat(path, &fileStatus)
+        guard result == 0 else {
+            throw NSError(
+                domain: NSPOSIXErrorDomain,
+                code: Int(errno),
+                userInfo: [NSLocalizedDescriptionKey: "Failed to inspect socket permissions at \(path)"]
+            )
+        }
+        return Int(fileStatus.st_mode & 0o777)
     }
 
     private func waitUntil(

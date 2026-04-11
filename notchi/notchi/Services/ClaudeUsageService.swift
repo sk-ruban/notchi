@@ -7,6 +7,12 @@ enum ClaudeUsageRecoveryAction: Equatable {
     case none
     case retry
     case reconnect
+    case waitForClaudeCode
+}
+
+enum ClaudeUsageResumeTrigger: String, Sendable {
+    case sessionStart = "SessionStart"
+    case userPromptSubmit = "UserPromptSubmit"
 }
 
 struct ClaudeUsageRecoverySnapshot: Codable, Equatable {
@@ -14,6 +20,17 @@ struct ClaudeUsageRecoverySnapshot: Codable, Equatable {
     let oauthHeadersFallbackProbeUntil: Date?
     let isHeadersFallbackActive: Bool
     let lastGoodUsage: QuotaPeriod?
+    let lastGoodExtraUsage: ExtraUsage?
+    let lastObservedExtraUsageCredits: Double?
+    let extraUsageResetMarker: String?
+    let isUsingExtraUsage: Bool?
+}
+
+struct ClaudeExtraUsageObservation: Codable, Equatable {
+    let extraUsage: ExtraUsage?
+    let lastObservedExtraUsageCredits: Double?
+    let extraUsageResetMarker: String?
+    let isUsingExtraUsage: Bool
 }
 
 protocol ClaudeUsagePollTimer {
@@ -22,6 +39,7 @@ protocol ClaudeUsagePollTimer {
 
 struct ClaudeUsageServiceDependencies {
     var fetchUsage: (URLRequest) async throws -> (Data, URLResponse)
+    var getOAuthTokenFromEnvironment: () -> String?
     var getCachedOAuthToken: (_ allowInteraction: Bool) -> String?
     var getOAuthCredentials: (_ allowInteraction: Bool) -> ClaudeOAuthCredentials?
     var cacheOAuthToken: (_ token: String) -> Void
@@ -59,17 +77,256 @@ private struct AnthropicErrorDetail: Decodable {
     let message: String?
 }
 
-private enum ClaudeCLIResolver {
-    static func resolveUserAgent() -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let knownPaths = [
-            "\(home)/.local/bin/claude",
-            "\(home)/.claude/bin/claude",
-            "/opt/homebrew/bin/claude",
-            "/usr/local/bin/claude",
-        ]
+private func runProcessWithTimeout(
+    executablePath: String,
+    arguments: [String],
+    environment: [String: String]? = nil,
+    commandTimeout: TimeInterval
+) -> String? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executablePath)
+    process.arguments = arguments
+    process.environment = environment
 
-        for claudePath in knownPaths where FileManager.default.isExecutableFile(atPath: claudePath) {
+    let stdoutPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    process.standardError = Pipe()
+
+    let completion = DispatchSemaphore(value: 0)
+    process.terminationHandler = { _ in
+        completion.signal()
+    }
+
+    do {
+        try process.run()
+    } catch {
+        return nil
+    }
+
+    if completion.wait(timeout: .now() + commandTimeout) == .timedOut {
+        process.terminate()
+        return nil
+    }
+
+    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+    guard let output = String(data: data, encoding: .utf8) else { return nil }
+    return output
+}
+
+private func extractAbsolutePath(from output: String) -> String? {
+    output
+        .split(separator: "\n")
+        .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        .last { $0.hasPrefix("/") || $0.hasPrefix("~") }
+}
+
+enum ClaudeConfigDirectorySource: String {
+    case environment = "env"
+    case shell = "shell"
+    case fallback = "default"
+}
+
+struct ClaudeConfigDirectoryResolution {
+    let path: String
+    let source: ClaudeConfigDirectorySource
+    let shouldCache: Bool
+
+    var directoryURL: URL {
+        URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    var settingsURL: URL {
+        directoryURL.appendingPathComponent("settings.json")
+    }
+
+    var hooksDirectoryURL: URL {
+        directoryURL.appendingPathComponent("hooks", isDirectory: true)
+    }
+
+    var hookScriptURL: URL {
+        hooksDirectoryURL.appendingPathComponent("notchi-hook.sh")
+    }
+
+    var projectsDirectoryURL: URL {
+        directoryURL.appendingPathComponent("projects", isDirectory: true)
+    }
+
+    var claudeBinaryPath: String {
+        directoryURL.appendingPathComponent("bin/claude").path
+    }
+
+    var displayPath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        guard path.hasPrefix(home) else { return path }
+        return "~" + String(path.dropFirst(home.count))
+    }
+}
+
+enum ClaudeConfigDirectoryResolver {
+    struct TestHooks {
+        var environment: () -> [String: String]
+        var isExecutableFile: (String) -> Bool
+        var runProcess: (
+            _ executablePath: String,
+            _ arguments: [String],
+            _ environment: [String: String]?
+        ) -> String?
+    }
+
+    private static let commandTimeout: TimeInterval = 2
+    private static var cachedResolution: ClaudeConfigDirectoryResolution?
+    static var testHooks = makeDefaultTestHooks()
+
+    static func resolve() -> ClaudeConfigDirectoryResolution {
+        if let cachedResolution {
+            return cachedResolution
+        }
+
+        let environment = testHooks.environment()
+        let resolved: ClaudeConfigDirectoryResolution
+
+        if let path = normalize(path: environment["CLAUDE_CONFIG_DIR"]) {
+            resolved = ClaudeConfigDirectoryResolution(path: path, source: .environment, shouldCache: true)
+        } else {
+            switch resolveViaShell(environment: environment) {
+            case .resolved(let path):
+                resolved = ClaudeConfigDirectoryResolution(path: path, source: .shell, shouldCache: true)
+            case .unset:
+                let fallback = FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent(".claude", isDirectory: true)
+                    .path
+                resolved = ClaudeConfigDirectoryResolution(path: fallback, source: .fallback, shouldCache: true)
+            case .probeFailed:
+                let fallback = FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent(".claude", isDirectory: true)
+                    .path
+                resolved = ClaudeConfigDirectoryResolution(path: fallback, source: .fallback, shouldCache: false)
+            }
+        }
+
+        if resolved.shouldCache {
+            cachedResolution = resolved
+        }
+        return resolved
+    }
+
+    static func resetTestingHooks() {
+        testHooks = makeDefaultTestHooks()
+        cachedResolution = nil
+    }
+
+    private static func makeDefaultTestHooks() -> TestHooks {
+        TestHooks(
+            environment: { ProcessInfo.processInfo.environment },
+            isExecutableFile: { path in
+                FileManager.default.isExecutableFile(atPath: path)
+            },
+            runProcess: { executablePath, arguments, environment in
+                runProcessWithTimeout(
+                    executablePath: executablePath,
+                    arguments: arguments,
+                    environment: environment,
+                    commandTimeout: commandTimeout
+                )
+            }
+        )
+    }
+
+    private enum ShellResolution {
+        case resolved(String)
+        case unset
+        case probeFailed
+    }
+
+    private enum ShellProbeResult {
+        case resolved(String)
+        case unset
+        case failed
+    }
+
+    private static func resolveViaShell(environment: [String: String]) -> ShellResolution {
+        let probeCommand = "printf '%s' \"$CLAUDE_CONFIG_DIR\""
+        var sawSuccessfulProbe = false
+        var sawFailedProbe = false
+
+        for shellPath in shellCandidates(from: environment) {
+            guard testHooks.isExecutableFile(shellPath) else { continue }
+
+            switch runShellProbe(executablePath: shellPath, arguments: ["-lc", probeCommand]) {
+            case .resolved(let path):
+                return .resolved(path)
+            case .unset:
+                sawSuccessfulProbe = true
+            case .failed:
+                sawFailedProbe = true
+            }
+
+            switch runShellProbe(executablePath: shellPath, arguments: ["-ic", probeCommand]) {
+            case .resolved(let path):
+                return .resolved(path)
+            case .unset:
+                sawSuccessfulProbe = true
+            case .failed:
+                sawFailedProbe = true
+            }
+        }
+
+        if sawFailedProbe {
+            return .probeFailed
+        }
+
+        return sawSuccessfulProbe ? .unset : .probeFailed
+    }
+
+    private static func runShellProbe(executablePath: String, arguments: [String]) -> ShellProbeResult {
+        guard let output = testHooks.runProcess(executablePath, arguments, nil) else {
+            return .failed
+        }
+
+        guard let path = normalize(path: extractAbsolutePath(from: output)) else {
+            return .unset
+        }
+
+        return .resolved(path)
+    }
+
+    private static func normalize(path rawPath: String?) -> String? {
+        guard let rawPath else { return nil }
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let expanded = (trimmed as NSString).expandingTildeInPath
+        guard expanded.hasPrefix("/") else { return nil }
+
+        return URL(fileURLWithPath: expanded, isDirectory: true)
+            .standardizedFileURL
+            .path
+    }
+
+    private static func shellCandidates(from environment: [String: String]) -> [String] {
+        var seenShells: Set<String> = []
+        return [environment["SHELL"], "/bin/zsh", "/bin/bash"]
+            .compactMap { $0 }
+            .filter { seenShells.insert($0).inserted }
+    }
+}
+
+enum ClaudeCLIResolver {
+    struct TestHooks {
+        var environment: () -> [String: String]
+        var isExecutableFile: (String) -> Bool
+        var runProcess: (
+            _ executablePath: String,
+            _ arguments: [String],
+            _ environment: [String: String]?
+        ) -> String?
+    }
+
+    private static let commandTimeout: TimeInterval = 2
+    static var testHooks = makeDefaultTestHooks()
+
+    static func resolveUserAgent() -> String? {
+        for claudePath in knownExecutablePaths() {
             guard let version = resolveVersion(at: claudePath) else { continue }
             return "claude-code/\(version)"
         }
@@ -77,50 +334,217 @@ private enum ClaudeCLIResolver {
         return nil
     }
 
-    private static func resolveVersion(at path: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = ["--version"]
+    static func resetTestingHooks() {
+        testHooks = makeDefaultTestHooks()
+    }
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+    private static func makeDefaultTestHooks() -> TestHooks {
+        TestHooks(
+            environment: { ProcessInfo.processInfo.environment },
+            isExecutableFile: { path in
+                FileManager.default.isExecutableFile(atPath: path)
+            },
+            runProcess: { executablePath, arguments, environment in
+                runProcessWithTimeout(
+                    executablePath: executablePath,
+                    arguments: arguments,
+                    environment: environment,
+                    commandTimeout: commandTimeout
+                )
+            }
+        )
+    }
 
-        do {
-            try process.run()
-            let done = DispatchSemaphore(value: 0)
-            process.terminationHandler = { _ in done.signal() }
-            if done.wait(timeout: .now() + .seconds(2)) == .timedOut {
-                process.terminate()
-                return nil
+    private static func knownExecutablePaths() -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let environment = testHooks.environment()
+        let explicitPaths = [
+            "\(home)/.local/bin/claude",
+            ClaudeConfigDirectoryResolver.resolve().claudeBinaryPath,
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+        ]
+        let pathDerivedCandidates = (environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map { "\($0)/claude" }
+        let shellResolvedPath = resolveCommandPathViaShell(environment: environment).map { [$0] } ?? []
+
+        var resolvedPaths: [String] = []
+        var seenPaths: Set<String> = []
+
+        for path in explicitPaths + pathDerivedCandidates + shellResolvedPath {
+            guard path.hasPrefix("/") else { continue }
+            guard !seenPaths.contains(path) else { continue }
+            guard testHooks.isExecutableFile(path) else { continue }
+            seenPaths.insert(path)
+            resolvedPaths.append(path)
+        }
+
+        return resolvedPaths
+    }
+
+    static func resolveCommandPathViaShell(environment: [String: String]) -> String? {
+        for shellPath in shellCandidates(from: environment) {
+            guard testHooks.isExecutableFile(shellPath) else { continue }
+            if let resolvedPath = resolveCommandPathViaShell(
+                executablePath: shellPath,
+                arguments: ["-lc", "command -v claude"]
+            ) {
+                return resolvedPath
             }
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return nil }
-            let components = output.trimmingCharacters(in: .whitespacesAndNewlines)
-                .components(separatedBy: " ")
-            guard let version = components.first, !version.isEmpty else { return nil }
-            return version
-        } catch {
+            // nvm commonly exposes claude from interactive rc files like .zshrc, not login-only startup files.
+            if let resolvedPath = resolveCommandPathViaShell(
+                executablePath: shellPath,
+                arguments: ["-ic", "command -v claude"]
+            ) {
+                return resolvedPath
+            }
+        }
+
+        return nil
+    }
+
+    private static func resolveCommandPathViaShell(
+        executablePath: String,
+        arguments: [String]
+    ) -> String? {
+        guard let output = testHooks.runProcess(executablePath, arguments, nil) else {
             return nil
         }
+
+        guard let resolvedPath = extractExecutablePath(from: output) else {
+            return nil
+        }
+
+        guard testHooks.isExecutableFile(resolvedPath) else {
+            return nil
+        }
+
+        return resolvedPath
     }
+
+    static func extractExecutablePath(from output: String) -> String? {
+        extractAbsolutePath(from: output)
+    }
+
+    static func resolveVersion(at path: String) -> String? {
+        let environment = versionProbeEnvironment(for: path)
+        if let version = resolveVersion(
+            executablePath: path,
+            arguments: ["--version"],
+            environment: environment
+        ) {
+            return version
+        }
+
+        return resolveVersionViaShell(at: path, environment: environment)
+    }
+
+    static func extractVersion(from output: String) -> String? {
+        let versionLine = output
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.first?.isNumber == true }
+
+        guard let versionLine else { return nil }
+        guard let version = versionLine.split(whereSeparator: \.isWhitespace).first else { return nil }
+        return String(version)
+    }
+
+    private static func shellCandidates(from environment: [String: String]) -> [String] {
+        var seenShells: Set<String> = []
+        return [environment["SHELL"], "/bin/zsh", "/bin/bash"]
+            .compactMap { $0 }
+            .filter { seenShells.insert($0).inserted }
+    }
+
+    private static func versionProbeEnvironment(for path: String) -> [String: String] {
+        var environment = testHooks.environment()
+        let executableDirectory = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        let existingPath = environment["PATH"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let basePath: String
+        if let existingPath, !existingPath.isEmpty {
+            basePath = existingPath
+        } else {
+            basePath = "/usr/bin:/bin:/usr/sbin:/sbin"
+        }
+        environment["PATH"] = "\(executableDirectory):\(basePath)"
+        return environment
+    }
+
+    private static func resolveVersionViaShell(
+        at path: String,
+        environment: [String: String]
+    ) -> String? {
+        for shellPath in shellCandidates(from: environment) {
+            guard testHooks.isExecutableFile(shellPath) else { continue }
+
+            let shellArg0 = URL(fileURLWithPath: shellPath).lastPathComponent
+            if let version = resolveVersion(
+                executablePath: shellPath,
+                arguments: ["-lc", "\"$1\" --version", shellArg0, path],
+                environment: environment
+            ) {
+                return version
+            }
+
+            if let version = resolveVersion(
+                executablePath: shellPath,
+                arguments: ["-ic", "\"$1\" --version", shellArg0, path],
+                environment: environment
+            ) {
+                return version
+            }
+        }
+
+        return nil
+    }
+
+    private static func resolveVersion(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String]
+    ) -> String? {
+        guard let output = testHooks.runProcess(executablePath, arguments, environment) else {
+            return nil
+        }
+
+        return extractVersion(from: output)
+    }
+
 }
 
 private enum ClaudeUsageAccessTokenSource {
+    case environment
     case cached
     case recoveredFromCredentials
+}
+
+private enum ClaudeUsageAuthFailureResolution {
+    case retry(String)
+    case reconnect(String)
+    case waitForClaudeCode(String)
 }
 
 private struct ClaudeUsageAccessTokenResolution {
     let token: String
     let source: ClaudeUsageAccessTokenSource
+    let credentials: ClaudeOAuthCredentials?
 }
 
 extension ClaudeUsageServiceDependencies {
     static let live = Self(
         fetchUsage: { request in
             try await URLSession.shared.data(for: request)
+        },
+        getOAuthTokenFromEnvironment: {
+            let rawToken = ProcessInfo.processInfo.environment["CLAUDE_CODE_OAUTH_TOKEN"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let rawToken, !rawToken.isEmpty else {
+                return nil
+            }
+            return rawToken
         },
         getCachedOAuthToken: { allowInteraction in
             KeychainManager.getCachedOAuthToken(allowInteraction: allowInteraction)
@@ -169,6 +593,8 @@ final class ClaudeUsageService {
     static let shared = ClaudeUsageService()
 
     var currentUsage: QuotaPeriod?
+    var currentExtraUsage: ExtraUsage?
+    var isUsingExtraUsage = false
     var isLoading = false
     var error: String?
     var statusMessage: String?
@@ -182,11 +608,14 @@ final class ClaudeUsageService {
     private static let oauthRecheckPollCount = 10
     private static let headersFallbackOAuthProbeInterval: TimeInterval = 600
     private static let headersFallbackRefreshInterval: TimeInterval = 60
+    private static let resumeReconnectDelay: TimeInterval = 2
 
     private let dependencies: ClaudeUsageServiceDependencies
     private var resolvedUserAgent: String?
     private var pollTimer: (any ClaudeUsagePollTimer)?
+    private var pendingResumeReconnectTimer: (any ClaudeUsagePollTimer)?
     private let pollInterval: TimeInterval = 60
+    private var pollScheduleGeneration: UInt64 = 0
     private var consecutiveRateLimits = 0
     private var cachedToken: String?
     private var preferHeadersFallback = false
@@ -195,6 +624,8 @@ final class ClaudeUsageService {
     private var oauthHeadersFallbackProbeUntil: Date?
     private var isHeadersFallbackActive = false
     private var didAttemptHeadersFallbackInOAuthBackoff = false
+    private var lastObservedExtraUsageCredits: Double?
+    private var extraUsageResetMarker: String?
 
     init() {
         self.dependencies = .live
@@ -205,19 +636,20 @@ final class ClaudeUsageService {
     }
 
     func connectAndStartPolling() {
-        reconnectDiagnostic(
-            "connectAndStartPolling invoked: cachedTokenPresent=\(cachedToken != nil), currentUsagePresent=\(currentUsage != nil), recoveryAction=\(String(describing: recoveryAction))"
-        )
         AppSettings.isUsageEnabled = true
         clearTransientState()
         clearOAuthBackoffState()
+        restorePersistedExtraUsageObservationIfNeeded()
         preferHeadersFallback = false
         oauthRecheckCounter = 0
         stopPolling()
 
         Task {
-            guard let resolution = resolveStoredAccessToken() else {
-                presentReconnectRequired(noUsageMessage: "Claude authentication needs attention. Reconnect Claude Code.")
+            guard let resolution = resolveStoredAccessToken(
+                allowsCredentialRecovery: true,
+                prefersRecoveredCredentials: true
+            ) else {
+                presentReconnectRequired(message: "Claude authentication needs attention. Tap to reconnect.")
                 AppSettings.isUsageEnabled = false
                 return
             }
@@ -225,30 +657,69 @@ final class ClaudeUsageService {
             await performFetch(
                 with: resolution.token,
                 userInitiated: true,
-                consultCredentialMetadata: resolution.source == .recoveredFromCredentials
+                consultCredentialMetadata: true,
+                cachedCredentials: resolution.credentials
             )
         }
     }
 
-    func startPolling() {
-        reconnectDiagnostic(
-            "startPolling invoked: cachedTokenPresent=\(cachedToken != nil), persistedUsagePresent=\(currentUsage != nil)"
-        )
+    func handleClaudeResumeTrigger(_ trigger: ClaudeUsageResumeTrigger) {
+        guard AppSettings.isUsageEnabled else {
+            return
+        }
+
+        guard recoveryAction == .waitForClaudeCode else {
+            return
+        }
+
+        guard !isLoading else {
+            logger.info("Ignoring \(trigger.rawValue, privacy: .public) usage retry while a fetch is already in flight")
+            return
+        }
+
+        guard pendingResumeReconnectTimer == nil else {
+            logger.info("Ignoring \(trigger.rawValue, privacy: .public) while a Claude usage retry is already pending")
+            return
+        }
+
+        logger.info("Scheduling Claude usage reconnect 2s after \(trigger.rawValue, privacy: .public)")
+        pendingResumeReconnectTimer = dependencies.schedulePoll(Self.resumeReconnectDelay) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.performDelayedResumeReconnect(trigger: trigger)
+            }
+        }
+    }
+
+    func startPolling(afterSystemWake: Bool = false) {
         stopPolling()
 
         Task {
-            guard let resolution = resolveStoredAccessToken() else {
+            if afterSystemWake,
+               isHeadersFallbackActive,
+               let accessToken = cachedToken {
+                resetHeadersFallbackProbeWindowFromWake()
+                logger.info("System woke during active headers refresh mode; deferring OAuth re-probe for another \(Int(Self.headersFallbackOAuthProbeInterval))s")
+                await refreshActiveHeadersFallback(with: accessToken)
+                return
+            }
+
+            guard let resolution = resolveStoredAccessToken(allowsCredentialRecovery: true) else {
                 logger.info("No cached token, user must connect manually")
                 isConnected = false
                 AppSettings.isUsageEnabled = false
                 clearOAuthBackoffState()
-                clearTransientState()
+                if currentUsage != nil {
+                    presentReconnectRequired(message: "Claude authentication needs attention. Tap to reconnect.")
+                } else {
+                    clearTransientState()
+                }
                 return
             }
 
             AppSettings.isUsageEnabled = true
             cachedToken = resolution.token
 
+            restorePersistedExtraUsageObservationIfNeeded()
             restoreRecoverySnapshotIfNeeded()
 
             if isHeadersFallbackActive {
@@ -257,7 +728,8 @@ final class ClaudeUsageService {
                 } else {
                     await performFetch(
                         with: resolution.token,
-                        consultCredentialMetadata: resolution.source == .recoveredFromCredentials
+                        consultCredentialMetadata: resolution.source == .recoveredFromCredentials,
+                        cachedCredentials: resolution.credentials
                     )
                 }
                 return
@@ -271,26 +743,57 @@ final class ClaudeUsageService {
 
             await performFetch(
                 with: resolution.token,
-                consultCredentialMetadata: resolution.source == .recoveredFromCredentials
+                consultCredentialMetadata: resolution.source == .recoveredFromCredentials,
+                cachedCredentials: resolution.credentials
             )
         }
     }
 
-    private func resolveStoredAccessToken() -> ClaudeUsageAccessTokenResolution? {
-        if let cachedToken = dependencies.getCachedOAuthToken(false) {
-            reconnectDiagnostic("resolveStoredAccessToken using cached token without consulting Claude credentials")
-            return ClaudeUsageAccessTokenResolution(token: cachedToken, source: .cached)
+    private func resolveStoredAccessToken(
+        allowsCredentialRecovery: Bool,
+        prefersRecoveredCredentials: Bool = false
+    ) -> ClaudeUsageAccessTokenResolution? {
+        var recoveredCredentials: ClaudeOAuthCredentials?
+        var attemptedCredentialRecovery = false
+
+        // Trim here even though the live dependency trims too, because tests
+        // and custom dependencies may inject raw values.
+        if let environmentToken = dependencies.getOAuthTokenFromEnvironment()?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !environmentToken.isEmpty {
+            return ClaudeUsageAccessTokenResolution(token: environmentToken, source: .environment, credentials: nil)
         }
 
-        if let silentCredentials = dependencies.getOAuthCredentials(false) {
+        if prefersRecoveredCredentials, allowsCredentialRecovery {
+            attemptedCredentialRecovery = true
+            recoveredCredentials = dependencies.getOAuthCredentials(false)
+            if let silentCredentials = recoveredCredentials {
+                let recoveredToken = silentCredentials.accessToken
+                dependencies.cacheOAuthToken(recoveredToken)
+                logger.info("Recovered cached OAuth token from Claude Code credentials")
+                return ClaudeUsageAccessTokenResolution(token: recoveredToken, source: .recoveredFromCredentials, credentials: silentCredentials)
+            }
+        }
+
+        if let cachedToken = dependencies.getCachedOAuthToken(false) {
+            return ClaudeUsageAccessTokenResolution(token: cachedToken, source: .cached, credentials: nil)
+        }
+
+        guard allowsCredentialRecovery else {
+            return nil
+        }
+
+        if !attemptedCredentialRecovery {
+            recoveredCredentials = dependencies.getOAuthCredentials(false)
+        }
+
+        if let silentCredentials = recoveredCredentials {
             let recoveredToken = silentCredentials.accessToken
             dependencies.cacheOAuthToken(recoveredToken)
             logger.info("Recovered cached OAuth token from Claude Code credentials")
-            reconnectDiagnostic("resolveStoredAccessToken recovered token from Claude credentials because cache was empty")
-            return ClaudeUsageAccessTokenResolution(token: recoveredToken, source: .recoveredFromCredentials)
+            return ClaudeUsageAccessTokenResolution(token: recoveredToken, source: .recoveredFromCredentials, credentials: silentCredentials)
         }
 
-        reconnectDiagnostic("resolveStoredAccessToken found no cached token and no Claude credentials")
         return nil
     }
 
@@ -348,6 +851,8 @@ final class ClaudeUsageService {
     func stopPolling() {
         pollTimer?.invalidate()
         pollTimer = nil
+        pollScheduleGeneration &+= 1
+        clearPendingResumeReconnect()
     }
 
     private func schedulePollTimer(interval: TimeInterval? = nil, minimumInterval: TimeInterval? = nil) {
@@ -355,9 +860,12 @@ final class ClaudeUsageService {
         let baseInterval = interval ?? pollInterval
         let jitter = dependencies.pollJitter()
         let effectiveInterval = max(10, baseInterval + jitter, minimumInterval ?? 0)
+        pollScheduleGeneration &+= 1
+        let generation = pollScheduleGeneration
         pollTimer = dependencies.schedulePoll(effectiveInterval) { [weak self] in
             Task { @MainActor [weak self] in
-                await self?.fetchUsage()
+                guard let self, self.pollScheduleGeneration == generation else { return }
+                await self.fetchUsage()
             }
         }
         logger.info("Next usage poll in \(Int(effectiveInterval))s")
@@ -420,23 +928,19 @@ final class ClaudeUsageService {
         with accessToken: String,
         userInitiated: Bool = false,
         consultCredentialMetadata: Bool = true,
+        cachedCredentials: ClaudeOAuthCredentials? = nil,
         allow403EmptyHeadersRecovery: Bool = true,
-        allowPreflightRefreshRecovery: Bool = true,
-        allow401RefreshRecovery: Bool = true
+        allowPreflightRefreshRecovery: Bool = true
     ) async {
         if userInitiated { isLoading = true }
 
         defer { if userInitiated { isLoading = false } }
 
         guard let userAgent = resolveUserAgent() else {
-            presentReconnectRequired(noUsageMessage: "Claude CLI not found")
+            presentReconnectRequired(message: "Install Claude Code CLI to continue")
             stopPolling()
             return
         }
-
-        reconnectDiagnostic(
-            "performFetch starting: userInitiated=\(userInitiated), consultCredentialMetadata=\(consultCredentialMetadata), allow401RefreshRecovery=\(allow401RefreshRecovery), allowPreflightRefreshRecovery=\(allowPreflightRefreshRecovery)"
-        )
 
         let effectiveAccessToken: String
         if consultCredentialMetadata {
@@ -444,7 +948,7 @@ final class ClaudeUsageService {
                 for: accessToken,
                 userInitiated: userInitiated,
                 allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-                allow401RefreshRecovery: allow401RefreshRecovery
+                cachedCredentials: cachedCredentials
             )
             switch preflight {
             case let .proceed(token):
@@ -460,8 +964,7 @@ final class ClaudeUsageService {
             with: effectiveAccessToken,
             userAgent: userAgent,
             userInitiated: userInitiated,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-            allow401RefreshRecovery: allow401RefreshRecovery
+            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
         ) {
             return
         }
@@ -470,8 +973,7 @@ final class ClaudeUsageService {
             with: effectiveAccessToken,
             userAgent: userAgent,
             userInitiated: userInitiated,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-            allow401RefreshRecovery: allow401RefreshRecovery
+            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
         )
 
         if case .enterprise403 = result {
@@ -480,8 +982,7 @@ final class ClaudeUsageService {
                 userAgent: userAgent,
                 userInitiated: userInitiated,
                 allow403EmptyHeadersRecovery: allow403EmptyHeadersRecovery,
-                allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-                allow401RefreshRecovery: allow401RefreshRecovery
+                allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
             )
         }
     }
@@ -490,8 +991,7 @@ final class ClaudeUsageService {
         with accessToken: String,
         userAgent: String,
         userInitiated: Bool,
-        allowPreflightRefreshRecovery: Bool,
-        allow401RefreshRecovery: Bool
+        allowPreflightRefreshRecovery: Bool
     ) async -> Bool {
         guard preferHeadersFallback else {
             return false
@@ -508,8 +1008,7 @@ final class ClaudeUsageService {
             userAgent: userAgent,
             userInitiated: userInitiated,
             context: .normalRetrying,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-            allow401RefreshRecovery: allow401RefreshRecovery
+            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
         )
         return true
     }
@@ -519,8 +1018,7 @@ final class ClaudeUsageService {
         userAgent: String,
         userInitiated: Bool,
         allow403EmptyHeadersRecovery: Bool,
-        allowPreflightRefreshRecovery: Bool,
-        allow401RefreshRecovery: Bool
+        allowPreflightRefreshRecovery: Bool
     ) async {
         preferHeadersFallback = true
         oauthRecheckCounter = 0
@@ -529,15 +1027,14 @@ final class ClaudeUsageService {
             userAgent: userAgent,
             userInitiated: userInitiated,
             context: .normalNoRetry,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-            allow401RefreshRecovery: allow401RefreshRecovery
+            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
         )
         if case .noHeadersFallback = fallbackResult {
             preferHeadersFallback = false
             if allow403EmptyHeadersRecovery {
                 await recoverFromEmptyHeadersFallback(afterOAuth403With: accessToken, userInitiated: userInitiated)
             } else {
-                presentReconnectRequired(noUsageMessage: "Claude authentication needs attention. Reconnect Claude Code.")
+                presentReconnectRequired(message: "Claude authentication needs attention. Tap to reconnect.")
                 stopPolling()
             }
         }
@@ -547,8 +1044,7 @@ final class ClaudeUsageService {
         with accessToken: String,
         userAgent: String,
         userInitiated: Bool,
-        allowPreflightRefreshRecovery: Bool,
-        allow401RefreshRecovery: Bool
+        allowPreflightRefreshRecovery: Bool
     ) async -> FetchResult {
         var request = URLRequest(url: Self.usageURL)
         request.timeoutInterval = 30
@@ -607,8 +1103,7 @@ final class ClaudeUsageService {
                             userAgent: userAgent,
                             userInitiated: userInitiated,
                             context: .oauthBackoffEntry,
-                            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-                            allow401RefreshRecovery: allow401RefreshRecovery
+                            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
                         )
                         if case .success = fallbackResult {
                             logger.info(
@@ -640,9 +1135,7 @@ final class ClaudeUsageService {
                 if httpResponse.statusCode == 401 {
                     await handleAuthFailure(
                         currentToken: accessToken,
-                        userInitiated: userInitiated,
-                        allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-                        allow401RefreshRecovery: allow401RefreshRecovery
+                        userInitiated: userInitiated
                     )
                     return .handled
                 }
@@ -664,6 +1157,10 @@ final class ClaudeUsageService {
             preferHeadersFallback = false
             clearTransientState()
             currentUsage = usageResponse.fiveHour
+            reconcileExtraUsageState(
+                with: usageResponse.extraUsage,
+                usage: usageResponse.fiveHour
+            )
             logger.info("Usage fetched via OAuth: \(self.currentUsage?.usagePercentage ?? 0)%")
             schedulePollTimer()
             return .success
@@ -685,8 +1182,7 @@ final class ClaudeUsageService {
         userAgent: String,
         userInitiated: Bool,
         context: HeadersFetchContext = .normalRetrying,
-        allowPreflightRefreshRecovery: Bool = true,
-        allow401RefreshRecovery: Bool = true
+        allowPreflightRefreshRecovery: Bool = true
     ) async -> FetchResult {
         var request = URLRequest(url: Self.messagesURL)
         request.httpMethod = "POST"
@@ -729,9 +1225,7 @@ final class ClaudeUsageService {
             if httpResponse.statusCode == 401 {
                 await handleAuthFailure(
                     currentToken: accessToken,
-                    userInitiated: userInitiated,
-                    allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-                    allow401RefreshRecovery: allow401RefreshRecovery
+                    userInitiated: userInitiated
                 )
                 return .handled
             }
@@ -757,6 +1251,7 @@ final class ClaudeUsageService {
             let usage = QuotaPeriod(utilization: (utilization * 100).rounded(), resetDate: resetDate)
             isConnected = true
             currentUsage = usage
+            reconcileExtraUsageStateForHeaders(using: usage)
 
             switch context {
             case .activeFallbackRefresh:
@@ -801,7 +1296,7 @@ final class ClaudeUsageService {
 
     private func refreshActiveHeadersFallback(with accessToken: String) async {
         guard let userAgent = resolveUserAgent() else {
-            presentReconnectRequired(noUsageMessage: "Claude CLI not found")
+            presentReconnectRequired(message: "Install Claude Code CLI to continue")
             stopPolling()
             return
         }
@@ -816,48 +1311,42 @@ final class ClaudeUsageService {
 
     private func handleAuthFailure(
         currentToken: String,
-        userInitiated: Bool,
-        allowPreflightRefreshRecovery: Bool,
-        allow401RefreshRecovery: Bool
+        userInitiated: Bool
     ) async {
-        reconnectDiagnostic(
-            "handleAuthFailure entered after 401: userInitiated=\(userInitiated), allow401RefreshRecovery=\(allow401RefreshRecovery)"
-        )
         cachedToken = nil
         clearOAuthBackoffState()
         preferHeadersFallback = false
         oauthRecheckCounter = 0
         dependencies.clearCachedOAuthToken()
 
-        if allow401RefreshRecovery,
-           let freshToken = dependencies.refreshAccessTokenSilently(),
-           freshToken != currentToken {
-            consecutiveRateLimits = 0
+        switch resolveAuthFailureResolution(after401With: currentToken) {
+        case let .retry(freshToken):
             cachedToken = freshToken
-            logger.info("Token refreshed silently from Claude Code keychain")
-            reconnectDiagnostic("handleAuthFailure recovered with a silent Claude credential refresh")
+            consecutiveRateLimits = 0
             await performFetch(
                 with: freshToken,
                 userInitiated: userInitiated,
                 consultCredentialMetadata: false,
-                allowPreflightRefreshRecovery: allowPreflightRefreshRecovery,
-                allow401RefreshRecovery: false
+                allowPreflightRefreshRecovery: false
             )
-            return
-        }
 
-        presentReconnectRequired(noUsageMessage: "Token expired")
-        stopPolling()
+        case let .reconnect(message):
+            presentReconnectRequired(message: message)
+            stopPolling()
+
+        case let .waitForClaudeCode(message):
+            presentWaitForClaudeCode(message: message)
+            stopPolling()
+        }
     }
 
     private func preflightCredentials(
         for accessToken: String,
         userInitiated: Bool,
         allowPreflightRefreshRecovery: Bool,
-        allow401RefreshRecovery: Bool
+        cachedCredentials: ClaudeOAuthCredentials?
     ) async -> PreflightResult {
-        guard let credentials = dependencies.getOAuthCredentials(false) else {
-            reconnectDiagnostic("preflightCredentials found no Claude credential metadata")
+        guard let credentials = cachedCredentials ?? dependencies.getOAuthCredentials(false) else {
             return .proceed(accessToken)
         }
 
@@ -877,18 +1366,12 @@ final class ClaudeUsageService {
             usesCredentialMetadata = false
             effectiveAccessToken = accessToken
             logger.info("Silent OAuth credential metadata token mismatch; using cached token")
-            reconnectDiagnostic("preflightCredentials ignored mismatched Claude credential metadata and kept cached token")
         }
-
-        reconnectDiagnostic(
-            "preflightCredentials loaded Claude credential metadata: usesCredentialMetadata=\(usesCredentialMetadata), hasExpiry=\(credentials.expiresAt != nil), scopeCount=\(credentials.scopes.count)"
-        )
 
         if usesCredentialMetadata,
            !credentials.scopes.isEmpty,
            !credentials.scopes.contains("user:profile") {
-            reconnectDiagnostic("preflightCredentials is forcing reconnect because Claude credential scopes are missing user:profile")
-            presentReconnectRequired(noUsageMessage: "Claude OAuth permissions missing. Reconnect Claude Code.")
+            presentReconnectRequired(message: "Claude authentication needs attention. Tap to reconnect.")
             stopPolling()
             return .handled
         }
@@ -897,7 +1380,10 @@ final class ClaudeUsageService {
            let expiresAt = credentials.expiresAt,
            expiresAt <= dependencies.now() {
             logger.info("Local OAuth credential metadata shows expired token before request")
-            reconnectDiagnostic("preflightCredentials saw expired Claude credential metadata before the request")
+
+            if userInitiated {
+                return .proceed(effectiveAccessToken)
+            }
 
             if allowPreflightRefreshRecovery,
                let freshToken = dependencies.refreshAccessTokenSilently(),
@@ -905,23 +1391,45 @@ final class ClaudeUsageService {
                 cachedToken = freshToken
                 consecutiveRateLimits = 0
                 logger.info("Token refreshed silently from local credential preflight")
-                reconnectDiagnostic("preflightCredentials recovered with a silent Claude credential refresh")
                 await performFetch(
                     with: freshToken,
                     userInitiated: userInitiated,
                     consultCredentialMetadata: false,
-                    allowPreflightRefreshRecovery: false,
-                    allow401RefreshRecovery: allow401RefreshRecovery
+                    allowPreflightRefreshRecovery: false
                 )
                 return .handled
             }
 
-            presentReconnectRequired(noUsageMessage: "Token expired")
+            presentWaitForClaudeCode(message: "Start a Claude Code session to track usage")
             stopPolling()
             return .handled
         }
 
         return .proceed(effectiveAccessToken)
+    }
+
+    private func resolveAuthFailureResolution(after401With currentToken: String) -> ClaudeUsageAuthFailureResolution {
+        guard let credentials = dependencies.getOAuthCredentials(false) else {
+            return .reconnect("Token expired. Tap to reconnect.")
+        }
+
+        if credentialsRequireReconnect(credentials) {
+            return .reconnect("Claude authentication needs attention. Tap to reconnect.")
+        }
+
+        let credentialToken = credentials.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !credentialToken.isEmpty, credentialToken != currentToken {
+            dependencies.cacheOAuthToken(credentialToken)
+            logger.info("Recovered newer Claude Code credentials after OAuth 401")
+            return .retry(credentialToken)
+        }
+
+        if let expiresAt = credentials.expiresAt,
+           expiresAt <= dependencies.now() {
+            logger.info("Claude Code credential metadata is still expired after OAuth 401")
+        }
+
+        return .waitForClaudeCode("Start a Claude Code session to track usage")
     }
 
     private func recoverFromEmptyHeadersFallback(afterOAuth403With currentToken: String, userInitiated: Bool) async {
@@ -943,7 +1451,7 @@ final class ClaudeUsageService {
             return
         }
 
-        presentReconnectRequired(noUsageMessage: "Claude authentication needs attention. Reconnect Claude Code.")
+        presentReconnectRequired(message: "Claude authentication needs attention. Tap to reconnect.")
         stopPolling()
     }
 
@@ -957,7 +1465,7 @@ final class ClaudeUsageService {
             logger.warning(
                 "OAuth 403 requires reconnect - errorType: \(errorTypeLog, privacy: .public), requestID: \(requestIDLog, privacy: .public), message: \(rawMessage, privacy: .public)"
             )
-            presentReconnectRequired(noUsageMessage: "Claude OAuth permissions missing. Reconnect Claude Code.")
+            presentReconnectRequired(message: "Claude authentication needs attention. Tap to reconnect.")
             stopPolling()
             return .handled
 
@@ -1005,6 +1513,10 @@ final class ClaudeUsageService {
             || (normalized.contains("oauth") && normalized.contains("scope"))
     }
 
+    private func credentialsRequireReconnect(_ credentials: ClaudeOAuthCredentials) -> Bool {
+        !credentials.scopes.isEmpty && !credentials.scopes.contains("user:profile")
+    }
+
     private func parseHeaderUtilization(from response: HTTPURLResponse) -> Double? {
         guard let value = response.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-utilization") else {
             return nil
@@ -1045,10 +1557,98 @@ final class ClaudeUsageService {
     }
 
     private func clearTransientState() {
+        clearPendingResumeReconnect()
         error = nil
         statusMessage = nil
         isUsageStale = false
         recoveryAction = .none
+    }
+
+    private func reconcileExtraUsageState(
+        with extraUsage: ExtraUsage?,
+        usage: QuotaPeriod?
+    ) {
+        synchronizeExtraUsageWindow(with: usage)
+        currentExtraUsage = extraUsage
+        let isAtQuota = (usage?.usagePercentage ?? 0) >= 100
+
+        guard let extraUsage else {
+            if !isAtQuota {
+                isUsingExtraUsage = false
+            }
+            lastObservedExtraUsageCredits = nil
+            persistExtraUsageObservationIfNeeded()
+            return
+        }
+
+        guard extraUsage.isEnabled else {
+            isUsingExtraUsage = false
+            lastObservedExtraUsageCredits = extraUsage.usedCredits
+            persistExtraUsageObservationIfNeeded()
+            return
+        }
+
+        if !isAtQuota {
+            isUsingExtraUsage = false
+        } else {
+            // OAuth responses expose extra_usage directly, so a 100% window
+            // with extra usage enabled should present the same state as the
+            // headers fallback path.
+            isUsingExtraUsage = true
+        }
+
+        lastObservedExtraUsageCredits = extraUsage.usedCredits
+
+        persistExtraUsageObservationIfNeeded()
+    }
+
+    private func reconcileExtraUsageStateForHeaders(using usage: QuotaPeriod?) {
+        synchronizeExtraUsageWindow(with: usage)
+        let isAtQuota = (usage?.usagePercentage ?? 0) >= 100
+
+        // Headers fallback does not expose the extra_usage object, so once
+        // we're limited to unified rate-limit headers we treat 100% usage as
+        // extra usage to match Claude Code's visible state more closely.
+        isUsingExtraUsage = isAtQuota
+
+        persistExtraUsageObservationIfNeeded()
+    }
+
+    private func synchronizeExtraUsageWindow(with usage: QuotaPeriod?) {
+        let nextResetMarker = usage?.resetsAt
+        if let previousResetMarker = extraUsageResetMarker,
+           let nextResetMarker,
+           previousResetMarker != nextResetMarker {
+            isUsingExtraUsage = false
+        }
+        extraUsageResetMarker = nextResetMarker
+    }
+
+    private func clearPendingResumeReconnect() {
+        pendingResumeReconnectTimer?.invalidate()
+        pendingResumeReconnectTimer = nil
+    }
+
+    private func performDelayedResumeReconnect(trigger: ClaudeUsageResumeTrigger) {
+        pendingResumeReconnectTimer = nil
+
+        guard AppSettings.isUsageEnabled else {
+            logger.info("Skipping \(trigger.rawValue, privacy: .public) usage retry because Claude usage is disabled")
+            return
+        }
+
+        guard recoveryAction == .waitForClaudeCode else {
+            logger.info("Skipping \(trigger.rawValue, privacy: .public) usage retry because Claude usage no longer waits for Claude Code")
+            return
+        }
+
+        guard !isLoading else {
+            logger.info("Skipping \(trigger.rawValue, privacy: .public) usage retry because a fetch is already in flight")
+            return
+        }
+
+        logger.info("Retrying Claude usage after \(trigger.rawValue, privacy: .public)")
+        connectAndStartPolling()
     }
 
     private func activeOAuthBackoffRemaining() -> TimeInterval? {
@@ -1111,6 +1711,12 @@ final class ClaudeUsageService {
         persistRecoverySnapshotIfNeeded()
     }
 
+    private func resetHeadersFallbackProbeWindowFromWake() {
+        guard isHeadersFallbackActive else { return }
+        oauthHeadersFallbackProbeUntil = dependencies.now().addingTimeInterval(Self.headersFallbackOAuthProbeInterval)
+        persistRecoverySnapshotIfNeeded()
+    }
+
     private func scheduleBackoffTimer(remaining: TimeInterval) {
         let baseInterval = max(remaining, pollInterval)
         schedulePollTimer(interval: baseInterval, minimumInterval: remaining)
@@ -1128,6 +1734,7 @@ final class ClaudeUsageService {
     }
 
     private func presentOAuthBackoffState(remaining: TimeInterval) {
+        clearPendingResumeReconnect()
         recoveryAction = .retry
         let roundedDelay = Int(ceil(remaining))
 
@@ -1146,7 +1753,7 @@ final class ClaudeUsageService {
     private func handleRetryDuringOAuthBackoff(with accessToken: String, remaining: TimeInterval) async {
         if !didAttemptHeadersFallbackInOAuthBackoff {
             guard let userAgent = resolveUserAgent() else {
-                presentReconnectRequired(noUsageMessage: "Claude CLI not found")
+                presentReconnectRequired(message: "Install Claude Code CLI to continue")
                 stopPolling()
                 return
             }
@@ -1204,6 +1811,10 @@ final class ClaudeUsageService {
         }
 
         currentUsage = isUsageStillValid(snapshot.lastGoodUsage, now: now) ? snapshot.lastGoodUsage : nil
+        currentExtraUsage = snapshot.lastGoodExtraUsage
+        lastObservedExtraUsageCredits = snapshot.lastObservedExtraUsageCredits
+        extraUsageResetMarker = snapshot.extraUsageResetMarker
+        isUsingExtraUsage = snapshot.isUsingExtraUsage ?? false
         oauthBackoffUntil = hasActiveOAuthBackoff ? snapshot.oauthBackoffUntil : nil
         oauthHeadersFallbackProbeUntil = hasActiveHeadersFallback ? snapshot.oauthHeadersFallbackProbeUntil : nil
         isHeadersFallbackActive = hasActiveHeadersFallback
@@ -1216,6 +1827,22 @@ final class ClaudeUsageService {
         } else if hasActiveOAuthBackoff {
             logger.info("Restored OAuth recovery window from persistence")
         }
+    }
+
+    private func restorePersistedExtraUsageObservationIfNeeded() {
+        guard let observation = AppSettings.claudeExtraUsageObservation else {
+            return
+        }
+
+        guard isExtraUsageWindowStillValid(resetMarker: observation.extraUsageResetMarker, now: dependencies.now()) else {
+            AppSettings.claudeExtraUsageObservation = nil
+            return
+        }
+
+        currentExtraUsage = observation.extraUsage
+        lastObservedExtraUsageCredits = observation.lastObservedExtraUsageCredits
+        extraUsageResetMarker = observation.extraUsageResetMarker
+        isUsingExtraUsage = observation.isUsingExtraUsage
     }
 
     private func persistRecoverySnapshotIfNeeded() {
@@ -1237,8 +1864,44 @@ final class ClaudeUsageService {
             oauthBackoffUntil: oauthBackoffUntil,
             oauthHeadersFallbackProbeUntil: oauthHeadersFallbackProbeUntil,
             isHeadersFallbackActive: isHeadersFallbackActive,
-            lastGoodUsage: usageToPersist
+            lastGoodUsage: usageToPersist,
+            lastGoodExtraUsage: currentExtraUsage,
+            lastObservedExtraUsageCredits: lastObservedExtraUsageCredits,
+            extraUsageResetMarker: extraUsageResetMarker,
+            isUsingExtraUsage: isUsingExtraUsage
         )
+    }
+
+    private func persistExtraUsageObservationIfNeeded() {
+        guard let observation = makeExtraUsageObservation() else {
+            AppSettings.claudeExtraUsageObservation = nil
+            return
+        }
+
+        AppSettings.claudeExtraUsageObservation = observation
+    }
+
+    private func makeExtraUsageObservation() -> ClaudeExtraUsageObservation? {
+        guard isExtraUsageWindowStillValid(resetMarker: extraUsageResetMarker, now: dependencies.now()),
+              currentExtraUsage != nil || lastObservedExtraUsageCredits != nil || isUsingExtraUsage else {
+            return nil
+        }
+
+        return ClaudeExtraUsageObservation(
+            extraUsage: currentExtraUsage,
+            lastObservedExtraUsageCredits: lastObservedExtraUsageCredits,
+            extraUsageResetMarker: extraUsageResetMarker,
+            isUsingExtraUsage: isUsingExtraUsage
+        )
+    }
+
+    private func isExtraUsageWindowStillValid(resetMarker: String?, now: Date) -> Bool {
+        guard let resetMarker else {
+            return false
+        }
+
+        let resetDate = Self.isoFractional.date(from: resetMarker) ?? Self.isoBasic.date(from: resetMarker)
+        return resetDate.map { $0 > now } ?? false
     }
 
     private func isUsageStillValid(_ usage: QuotaPeriod?, now: Date) -> Bool {
@@ -1249,6 +1912,7 @@ final class ClaudeUsageService {
     }
 
     private func presentRetryableIssue(noUsageMessage: String, staleMessage: String) {
+        clearPendingResumeReconnect()
         recoveryAction = .retry
         if currentUsage == nil {
             error = noUsageMessage
@@ -1261,23 +1925,32 @@ final class ClaudeUsageService {
         }
     }
 
-    private func reconnectDiagnostic(_ message: String) {
-        logger.info("[TEMP reconnect diagnostics] \(message, privacy: .public)")
-    }
-
-    private func presentReconnectRequired(noUsageMessage: String) {
-        reconnectDiagnostic(
-            "presentReconnectRequired: noUsageMessage=\(noUsageMessage), currentUsagePresent=\(currentUsage != nil), statusMessageWillBecomeTapHint=\(currentUsage != nil)"
-        )
+    private func presentReconnectRequired(message: String) {
+        clearPendingResumeReconnect()
         recoveryAction = .reconnect
         isConnected = false
         if currentUsage == nil {
-            error = noUsageMessage
+            error = message
             statusMessage = nil
             isUsageStale = false
         } else {
             error = nil
-            statusMessage = "Tap to reconnect Claude Code"
+            statusMessage = message
+            isUsageStale = true
+        }
+    }
+
+    private func presentWaitForClaudeCode(message: String) {
+        clearPendingResumeReconnect()
+        recoveryAction = .waitForClaudeCode
+        isConnected = false
+        if currentUsage == nil {
+            error = message
+            statusMessage = nil
+            isUsageStale = false
+        } else {
+            error = nil
+            statusMessage = message
             isUsageStale = true
         }
     }

@@ -176,10 +176,10 @@ struct QuestionPromptView: View {
 
 struct WorkingIndicatorView: View {
     let state: NotchiState
+    let workingVerb: String
     @State private var dotCount = 1
     @State private var symbolPhase = 0
 
-    private let symbols = ["·", "✢", "✳", "∗", "✻", "✽"]
     private let dotsTimer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
     private let symbolTimer = Timer.publish(every: 0.15, on: .main, in: .common).autoconnect()
 
@@ -187,21 +187,21 @@ struct WorkingIndicatorView: View {
         String(repeating: ".", count: dotCount)
     }
 
-    private var statusText: String {
-        switch state.task {
-        case .compacting: return "Compacting"
-        case .waiting:    return "Waiting"
-        default:          return "Clanking"
-        }
+    private var displaySymbol: String {
+        WorkingIndicatorPresentation.symbol(for: state.task, phase: symbolPhase)
+    }
+
+    private var displayText: String {
+        WorkingIndicatorPresentation.text(for: state.task, workingVerb: workingVerb, dots: dots)
     }
 
     var body: some View {
         HStack(spacing: 3) {
-            Text(symbols[symbolPhase])
+            Text(displaySymbol)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(TerminalColors.claudeOrange)
                 .frame(width: 14, alignment: .center)
-            Text("\(statusText)\(dots)")
+            Text(displayText)
                 .font(.system(size: 12, weight: .medium).italic())
                 .foregroundColor(TerminalColors.claudeOrange)
         }
@@ -210,7 +210,31 @@ struct WorkingIndicatorView: View {
             dotCount = (dotCount % 3) + 1
         }
         .onReceive(symbolTimer) { _ in
-            symbolPhase = (symbolPhase + 1) % symbols.count
+            guard state.task != .waiting else { return }
+            symbolPhase = (symbolPhase + 1) % WorkingIndicatorPresentation.animatedSymbols.count
+        }
+    }
+}
+
+enum WorkingIndicatorPresentation {
+    static let animatedSymbols = ["·", "✢", "✳", "∗", "✻", "✽"]
+    static let waitingSymbol = "✳"
+
+    static func symbol(for task: NotchiTask, phase: Int) -> String {
+        if task == .waiting {
+            return waitingSymbol
+        }
+        return animatedSymbols[phase % animatedSymbols.count]
+    }
+
+    static func text(for task: NotchiTask, workingVerb: String, dots: String) -> String {
+        switch task {
+        case .compacting:
+            return "Compacting\(dots)"
+        case .waiting:
+            return "Waiting\(dots)"
+        default:
+            return "\(workingVerb)\(dots)"
         }
     }
 }

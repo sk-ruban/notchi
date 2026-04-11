@@ -39,7 +39,7 @@ struct SoundPickerView: View {
                         .foregroundColor(TerminalColors.dimmedText)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, SettingsLayout.rowVerticalPadding)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -52,12 +52,12 @@ struct SoundPickerView: View {
                     soundRow(sound)
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, SettingsLayout.pickerInset)
         }
         .frame(height: selector.expandedHeight)
         .background(TerminalColors.subtleBackground)
         .cornerRadius(8)
-        .padding(.top, 8)
+        .padding(.top, SettingsLayout.pickerInset)
     }
 
     private func soundRow(_ sound: NotificationSound) -> some View {
@@ -81,8 +81,8 @@ struct SoundPickerView: View {
                         .foregroundColor(TerminalColors.dimmedText)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
+            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
             .background(selectedSound == sound ? TerminalColors.hoverBackground : Color.clear)
             .contentShape(Rectangle())
             .cornerRadius(4)

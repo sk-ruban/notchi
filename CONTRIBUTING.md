@@ -45,4 +45,4 @@ Rebuild and relaunch the app to apply hook changes.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under GPL-3.0-only.

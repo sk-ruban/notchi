@@ -2,6 +2,7 @@ import SwiftUI
 
 struct UsageBarView: View {
     let usage: QuotaPeriod?
+    let isUsingExtraUsage: Bool
     let isLoading: Bool
     let error: String?
     let statusMessage: String?
@@ -12,13 +13,37 @@ struct UsageBarView: View {
     var onConnect: (() -> Void)?
     var onRetry: (() -> Void)?
 
+    init(
+        usage: QuotaPeriod?,
+        isUsingExtraUsage: Bool = false,
+        isLoading: Bool,
+        error: String?,
+        statusMessage: String?,
+        isStale: Bool,
+        recoveryAction: ClaudeUsageRecoveryAction,
+        compact: Bool = false,
+        isEnabled: Bool = AppSettings.isUsageEnabled,
+        onConnect: (() -> Void)? = nil,
+        onRetry: (() -> Void)? = nil
+    ) {
+        self.usage = usage
+        self.isUsingExtraUsage = isUsingExtraUsage
+        self.isLoading = isLoading
+        self.error = error
+        self.statusMessage = statusMessage
+        self.isStale = isStale
+        self.recoveryAction = recoveryAction
+        self.compact = compact
+        self.isEnabled = isEnabled
+        self.onConnect = onConnect
+        self.onRetry = onRetry
+    }
+
     var actionHint: String? {
         switch recoveryAction {
         case .retry:
             return "(tap to retry)"
-        case .reconnect:
-            return "(tap to reconnect)"
-        case .none:
+        case .reconnect, .waitForClaudeCode, .none:
             return nil
         }
     }
@@ -38,6 +63,10 @@ struct UsageBarView: View {
         }
     }
 
+    var shouldShowExtraUsageIndicator: Bool {
+        usage != nil && isUsingExtraUsage && !isStale
+    }
+
     var shouldShowConnectPlaceholder: Bool {
         !isEnabled
             && usage == nil
@@ -50,7 +79,7 @@ struct UsageBarView: View {
 
     var shouldAllowTapAction: Bool {
         switch recoveryAction {
-        case .reconnect:
+        case .reconnect, .waitForClaudeCode:
             return true
         case .retry:
             return usage == nil
@@ -95,7 +124,7 @@ struct UsageBarView: View {
                         }
                     }
                 } else if let usage, let resetTime = usage.formattedResetTime {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    HStack(alignment: .center, spacing: 4) {
                         Text("Resets in \(resetTime)")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(TerminalColors.secondaryText)
@@ -122,9 +151,18 @@ struct UsageBarView: View {
                     ProgressView()
                         .controlSize(.mini)
                 } else if usage != nil {
-                    Text("\(effectivePercentage)%")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundColor(usageColor)
+                    HStack(alignment: .center, spacing: 6) {
+                        if shouldShowExtraUsageIndicator {
+                            Text("Extra Usage")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(TerminalColors.red.opacity(0.85))
+                                .lineLimit(1)
+                        }
+                        Text("\(effectivePercentage)%")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(usageColor)
+                    }
+                    .padding(.bottom, 1)
                 }
             }
 
@@ -136,7 +174,7 @@ struct UsageBarView: View {
             switch recoveryAction {
             case .retry:
                 onRetry?()
-            case .reconnect:
+            case .reconnect, .waitForClaudeCode:
                 onConnect?()
             case .none:
                 break

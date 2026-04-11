@@ -1,0 +1,30 @@
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
+-->
+# Notchi 1.0.4
+
+A polish-focused patch release with a calmer idle notch, smoother panel transitions, and more reliable Claude CLI detection.
+
+## Notch And Panel Polish
+
+Notchi feels more refined when idle and during expand/collapse transitions, with a tighter collapsed footprint and smoother motion throughout the panel.
+
+- Adds a Hide Sprite When Idle option that tucks the sprite away when no Claude sessions are active
+- Smooths expand/collapse with sprite handoff crossfades, blur transitions, and morphing panel text
+- Improves collapsed hover behavior so the notch previews expansion before opening
+
+## Claude Integration Reliability
+
+Claude usage detection is more dependable for local installs that do not live in the usual hardcoded paths.
+
+- Detects Claude CLI from `PATH`, including `nvm`-managed installs
+- Improves CLI version probing for shell-managed Node setups
+- Reduces false "Install Claude Code CLI" states when Claude is already available
+
+## Settings And Feedback
+
+The settings panel is a bit cleaner, and interactions now feel more tactile.
+
+- Reorganizes settings into clearer sections with shared spacing/layout tokens
+- Adds haptic feedback for hover, the settings button, pin toggle, mute, and session selection
+- Expands focused coverage for compact idle and sprite handoff behavior

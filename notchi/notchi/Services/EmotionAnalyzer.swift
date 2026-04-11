@@ -3,22 +3,19 @@ import os.log
 
 nonisolated private let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
 
-nonisolated private struct ClaudeSettingsFile: Decodable {
-    let env: [String: String]?
-}
-
-nonisolated struct ClaudeSettingsConfig {
+struct ClaudeSettingsConfig {
     let apiURL: URL
     let apiKey: String
     let model: String
 
-    static let defaultBaseURL = "https://api.anthropic.com"
-    static let defaultAPIURL = URL(string: "\(defaultBaseURL)/v1/messages")!
-    static let defaultModel = "claude-haiku-4-5-20251001"
+    nonisolated static let defaultBaseURL = "https://api.anthropic.com"
+    nonisolated static let defaultAPIURL = URL(string: "\(defaultBaseURL)/v1/messages")!
+    nonisolated static let defaultModel = "claude-haiku-4-5-20251001"
 
-    static func parse(from data: Data) throws -> ClaudeSettingsConfig? {
-        let settings = try JSONDecoder().decode(ClaudeSettingsFile.self, from: data)
-        let env = settings.env ?? [:]
+    nonisolated static func parse(from data: Data) throws -> ClaudeSettingsConfig? {
+        let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let env = json?["env"] as? [String: String] ?? [:]
 
         let baseURL = env["ANTHROPIC_BASE_URL"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -40,7 +37,8 @@ nonisolated struct ClaudeSettingsConfig {
         )
     }
 
-    static func buildMessagesURL(from baseURL: String) -> URL? {
+    nonisolated static func buildMessagesURL(from baseURL: String) -> URL? {
+        let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
         guard var components = URLComponents(string: baseURL) else {
             logger.error("Invalid ANTHROPIC_BASE_URL: \(baseURL, privacy: .public)")
             return nil
@@ -334,9 +332,11 @@ final class EmotionAnalyzer {
     }
 
     private func loadClaudeSettingsConfig() -> (apiURL: URL, apiKey: String, model: String)? {
-        let settingsURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
+        Self.loadClaudeSettingsConfig(from: ClaudeConfigDirectoryResolver.resolve().settingsURL)
+    }
 
+    nonisolated static func loadClaudeSettingsConfig(from settingsURL: URL) -> (apiURL: URL, apiKey: String, model: String)? {
+        let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
         guard let data = try? Data(contentsOf: settingsURL) else {
             return nil
         }

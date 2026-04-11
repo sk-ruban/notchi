@@ -44,6 +44,7 @@ status_map = {
 
 output = {
     'session_id': input_data.get('session_id', ''),
+    'transcript_path': input_data.get('transcript_path', ''),
     'cwd': input_data.get('cwd', ''),
     'event': hook_event,
     'status': input_data.get('status', status_map.get(hook_event, 'unknown')),

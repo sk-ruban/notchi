@@ -14,10 +14,36 @@ private let cornerRadiusInsets = (
     closed: (top: CGFloat(6), bottom: CGFloat(14))
 )
 
+private enum SpriteHandoffTiming {
+    static let expandAnimationDuration = 0.2
+    static let collapseAnimationDuration = 0.16
+    static let cleanupBufferDuration = 0.02
+
+    static func animationDuration(for expanded: Bool) -> Double {
+        expanded ? expandAnimationDuration : collapseAnimationDuration
+    }
+
+    static func cleanupDelay(for expanded: Bool) -> Duration {
+        let totalMilliseconds = Int(((animationDuration(for: expanded) + cleanupBufferDuration) * 1000).rounded())
+        return .milliseconds(totalMilliseconds)
+    }
+}
+
 struct NotchContentView: View {
+    private struct SpriteHandoff {
+        enum Direction {
+            case expanding
+            case collapsing
+        }
+
+        let direction: Direction
+        let sessionId: String
+    }
+
     var stateMachine: NotchiStateMachine = .shared
     var panelManager: NotchPanelManager = .shared
     var usageService: ClaudeUsageService = .shared
+    var haptics: HapticService = .shared
     @ObservedObject private var updateManager = UpdateManager.shared
     @State private var showingPanelSettings = false
     @State private var showingSessionActivity = false
@@ -25,22 +51,114 @@ struct NotchContentView: View {
     @State private var isActivityCollapsed = false
     @State private var hoveredSessionId: String?
     @State private var walkAnimator = WalkAnimator()
+    @State private var spriteHandoff: SpriteHandoff?
+    @State private var spriteHandoffProgress: CGFloat = 0
+    @State private var spriteHandoffGeneration = 0
 
     private var sessionStore: SessionStore {
         stateMachine.sessionStore
     }
 
+    private var activeSession: SessionData? {
+        sessionStore.effectiveSession
+    }
+
     private var notchSize: CGSize { panelManager.notchSize }
     private var isExpanded: Bool { panelManager.isExpanded }
+    private var collapsedMode: NotchPanelManager.CollapsedMode { panelManager.collapsedMode }
+    private var isCompactIdle: Bool { !isExpanded && collapsedMode == .compactIdle }
+    private var collapsedHeaderState: NotchiState? {
+        Self.collapsedHeaderState(
+            activeSessionState: activeSession?.state,
+            isCompactIdle: isCompactIdle
+        )
+    }
+    private var collapsedHoverHorizontalInset: CGFloat {
+        !isExpanded && panelManager.isCollapsedHovered
+            ? NotchPanelManager.collapsedHoverHorizontalInset
+            : 0
+    }
+
+    private var collapsedHoverBottomInset: CGFloat {
+        !isExpanded && panelManager.isCollapsedHovered
+            ? NotchPanelManager.collapsedHoverBottomInset
+            : 0
+    }
 
     private var panelAnimation: Animation {
         isExpanded
-            ? .spring(response: 0.42, dampingFraction: 0.8)
-            : .spring(response: 0.45, dampingFraction: 1.0)
+            ? .spring(response: 0.5, dampingFraction: 0.78)
+            : .spring(response: 0.36, dampingFraction: 0.88)
+    }
+
+    private var collapsedHoverAnimation: Animation {
+        panelManager.isCollapsedHovered
+            ? .spring(response: 0.36, dampingFraction: 0.74)
+            : .spring(response: 0.28, dampingFraction: 0.96)
+    }
+
+    private var expandedChromeTransition: AnyTransition {
+        .asymmetric(
+            insertion: .offset(y: -12)
+                .combined(with: .opacity)
+                .animation(.easeOut(duration: 0.22).delay(0.08)),
+            removal: .offset(y: -6)
+                .combined(with: .opacity)
+                .animation(.easeIn(duration: 0.12))
+        )
+    }
+
+    private var expandedHeaderTransition: AnyTransition {
+        .asymmetric(
+            insertion: .offset(y: -8)
+                .combined(with: .opacity)
+                .animation(.easeOut(duration: 0.2).delay(0.12)),
+            removal: .offset(y: -4)
+                .combined(with: .opacity)
+                .animation(.easeIn(duration: 0.1))
+        )
+    }
+
+    private var collapsedHeaderSpriteVisibilityAnimation: Animation {
+        isExpanded
+            ? .easeOut(duration: 0.14).delay(0.05)
+            : .easeOut(duration: 0.16)
+    }
+
+    private var collapsedHeaderSpriteScale: CGFloat {
+        !isExpanded && panelManager.isCollapsedHovered ? 1.08 : 1
+    }
+
+    private var collapsedHeaderSpriteOffsetX: CGFloat {
+        let baseOffset: CGFloat = 15
+        guard !isExpanded && panelManager.isCollapsedHovered else { return baseOffset }
+        return baseOffset + 6
+    }
+
+    private var collapsedHeaderSpriteOffsetY: CGFloat {
+        let baseOffset: CGFloat = -2
+        guard !isExpanded && panelManager.isCollapsedHovered else { return baseOffset }
+        return baseOffset + 3
+    }
+
+    private var collapsedHeaderSpriteVisuals: (opacity: Double, blur: CGFloat) {
+        guard let activeSession, let spriteHandoff, spriteHandoff.sessionId == activeSession.id else {
+            return (opacity: isExpanded ? 0 : 1, blur: 0)
+        }
+
+        let isSource = spriteHandoff.direction == .expanding
+        return (
+            opacity: SpriteHandoffVisuals.opacity(for: spriteHandoffProgress, isSource: isSource),
+            blur: SpriteHandoffVisuals.blur(for: spriteHandoffProgress, isSource: isSource)
+        )
     }
 
     private var sideWidth: CGFloat {
         max(0, notchSize.height - 12) + 24
+    }
+
+    private var compactContentWidth: CGFloat {
+        max(0, panelManager.compactNotchRect.width - (cornerRadiusInsets.closed.bottom * 2))
     }
 
     private var topCornerRadius: CGFloat {
@@ -82,12 +200,24 @@ struct NotchContentView: View {
         VStack(spacing: 0) {
             notchLayout
         }
-        .padding(.horizontal, isExpanded ? cornerRadiusInsets.opened.top : cornerRadiusInsets.closed.bottom)
-        .padding(.bottom, isExpanded ? 12 : 0)
+        .padding(
+            .horizontal,
+            isExpanded
+                ? cornerRadiusInsets.opened.top
+                : cornerRadiusInsets.closed.bottom + collapsedHoverHorizontalInset
+        )
+        .padding(.bottom, isExpanded ? 12 : collapsedHoverBottomInset)
         .background {
             ZStack(alignment: .top) {
                 Color.black
-                GrassIslandView(sessions: sessionStore.sortedSessions, selectedSessionId: sessionStore.selectedSessionId, hoveredSessionId: hoveredSessionId)
+                GrassIslandView(
+                    sessions: sessionStore.sortedSessions,
+                    selectedSessionId: sessionStore.selectedSessionId,
+                    hoveredSessionId: hoveredSessionId,
+                    handoffSessionId: spriteHandoff?.sessionId,
+                    handoffProgress: spriteHandoffProgress,
+                    isHandoffCollapsing: spriteHandoff?.direction == .collapsing
+                )
                     .frame(height: grassHeight, alignment: .bottom)
                     .opacity(isExpanded && !showingPanelSettings ? 1 : 0)
             }
@@ -98,10 +228,11 @@ struct NotchContentView: View {
                     sessions: sessionStore.sortedSessions,
                     selectedSessionId: sessionStore.selectedSessionId,
                     hoveredSessionId: $hoveredSessionId,
+                    handoffSessionId: spriteHandoff?.sessionId,
+                    handoffProgress: spriteHandoffProgress,
+                    isHandoffCollapsing: spriteHandoff?.direction == .collapsing,
                     onSelectSession: { sessionId in
-                        guard sessionStore.activeSessionCount >= 2 else { return }
-                        sessionStore.selectSession(sessionId)
-                        showingSessionActivity = true
+                        selectGrassSession(sessionId)
                     }
                 )
                 .frame(height: grassHeight, alignment: .bottom)
@@ -126,15 +257,20 @@ struct NotchContentView: View {
         }
         .clipShape(notchClipShape)
         .shadow(
-            color: isExpanded ? .black.opacity(0.7) : .clear,
+            color: isExpanded
+                ? .black.opacity(0.7)
+                : (panelManager.isCollapsedHovered ? .black.opacity(0.3) : .clear),
             radius: 6
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(panelAnimation, value: isExpanded)
+        .animation(.easeInOut(duration: 0.18), value: collapsedMode)
+        .animation(collapsedHoverAnimation, value: panelManager.isCollapsedHovered)
         .onReceive(NotificationCenter.default.publisher(for: .notchiShouldCollapse)) { _ in
             panelManager.collapse()
         }
         .onChange(of: isExpanded) { _, expanded in
+            startSpriteHandoff(for: expanded)
             if !expanded {
                 showingPanelSettings = false
                 showingSessionActivity = false
@@ -151,7 +287,7 @@ struct NotchContentView: View {
     @ViewBuilder
     private var notchLayout: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .center, spacing: 0) {
                 headerRow
                     .frame(height: notchSize.height)
 
@@ -167,14 +303,7 @@ struct NotchContentView: View {
                         width: NotchConstants.expandedPanelSize.width - 48,
                         height: expandedPanelHeight
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.8, anchor: .top)
-                                .combined(with: .opacity)
-                                .animation(.smooth(duration: 0.35)),
-                            removal: .opacity.animation(.easeOut(duration: 0.15))
-                        )
-                    )
+                    .transition(expandedChromeTransition)
                 }
             }
 
@@ -202,6 +331,7 @@ struct NotchContentView: View {
                 .padding(.top, 4)
                 .padding(.horizontal, 8)
                 .frame(width: NotchConstants.expandedPanelSize.width - 48)
+                .transition(expandedHeaderTransition)
             }
         }
     }
@@ -211,7 +341,10 @@ struct NotchContentView: View {
             PanelHeaderButton(
                 sfSymbol: "gearshape",
                 showsIndicator: updateManager.hasPendingUpdate,
-                action: { showingPanelSettings = true }
+                action: {
+                    haptics.playNavigationTap()
+                    showingPanelSettings = true
+                }
             )
             PanelHeaderButton(sfSymbol: "xmark", action: { panelManager.collapse() })
         }
@@ -240,53 +373,116 @@ struct NotchContentView: View {
         }
     }
 
-    @ViewBuilder
-    private var headerRow: some View {
-        HStack(spacing: 0) {
-            Color.clear
-                .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
+    private func selectGrassSession(_ sessionId: String) {
+        guard sessionStore.activeSessionCount >= 2 else { return }
 
-            headerSprites
-                .offset(x: 15 + walkAnimator.xOffset, y: -2)
-                .frame(width: sideWidth)
-                .opacity(isExpanded ? 0 : 1)
-                .animation(.none, value: isExpanded)
+        let shouldPlayHaptic = sessionStore.selectedSessionId != sessionId || !showingSessionActivity
+        if shouldPlayHaptic {
+            haptics.playSessionSelection()
+        }
+
+        sessionStore.selectSession(sessionId)
+        showingSessionActivity = true
+    }
+
+    private var headerRow: some View {
+        Group {
+            if isCompactIdle {
+                Color.clear
+                    .frame(width: compactContentWidth)
+            } else {
+                HStack(spacing: 0) {
+                    Color.clear
+                        .frame(width: notchSize.width - cornerRadiusInsets.closed.top)
+
+                    headerSprites
+                        .offset(x: collapsedHeaderSpriteOffsetX + walkAnimator.xOffset, y: collapsedHeaderSpriteOffsetY)
+                        .frame(width: sideWidth)
+                        .opacity(collapsedHeaderSpriteVisuals.opacity)
+                        .blur(radius: collapsedHeaderSpriteVisuals.blur)
+                        .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
+                }
+            }
         }
         .onChange(of: currentHeaderState) { _, newState in
-            walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
-            if newState.canWalk {
-                walkAnimator.start(state: newState)
-            } else {
-                walkAnimator.returnHome()
-            }
+            updateHeaderWalk(for: newState)
         }
         .onChange(of: isExpanded) { _, expanded in
             if expanded {
-                walkAnimator.stop()
-            } else if currentHeaderState.canWalk {
-                walkAnimator.start(state: currentHeaderState)
+                walkAnimator.returnHome()
+            } else {
+                updateHeaderWalk(for: currentHeaderState)
             }
         }
         .onAppear {
-            walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
-            if currentHeaderState.canWalk {
-                walkAnimator.start(state: currentHeaderState)
-            }
+            updateHeaderWalk(for: currentHeaderState)
         }
         .onDisappear {
             walkAnimator.stop()
         }
     }
 
-    private var currentHeaderState: NotchiState {
-        sessionStore.sortedSessions.first?.state ?? .idle
+    private var currentHeaderState: NotchiState? {
+        collapsedHeaderState
     }
 
+    @ViewBuilder
     private var headerSprites: some View {
-        SessionSpriteView(state: currentHeaderState, isSelected: true)
+        if let collapsedHeaderState {
+            SessionSpriteView(
+                state: collapsedHeaderState,
+                isSelected: true
+            )
+            .scaleEffect(collapsedHeaderSpriteScale, anchor: .bottom)
+        }
+    }
+
+    static func collapsedHeaderState(activeSessionState: NotchiState?, isCompactIdle: Bool) -> NotchiState? {
+        guard !isCompactIdle else { return nil }
+        return activeSessionState ?? .idle
+    }
+
+    private func updateHeaderWalk(for state: NotchiState?) {
+        walkAnimator.configure(notchWidth: notchSize.width, sideWidth: sideWidth)
+        guard !isExpanded, let state, state.canWalk else {
+            walkAnimator.returnHome()
+            return
+        }
+        walkAnimator.start(state: state)
+    }
+
+    private func startSpriteHandoff(for expanded: Bool) {
+        spriteHandoffGeneration += 1
+        let generation = spriteHandoffGeneration
+
+        guard let activeSession else {
+            spriteHandoff = nil
+            spriteHandoffProgress = 0
+            return
+        }
+
+        let animationDuration = SpriteHandoffTiming.animationDuration(for: expanded)
+
+        spriteHandoff = SpriteHandoff(
+            direction: expanded ? .expanding : .collapsing,
+            sessionId: activeSession.id
+        )
+        spriteHandoffProgress = 0
+
+        withAnimation(.easeOut(duration: animationDuration)) {
+            spriteHandoffProgress = 1
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: SpriteHandoffTiming.cleanupDelay(for: expanded))
+            guard generation == spriteHandoffGeneration else { return }
+            spriteHandoff = nil
+            spriteHandoffProgress = 0
+        }
     }
 
     private func toggleMute() {
+        haptics.playToggle()
         AppSettings.toggleMute()
         isMuted = AppSettings.isMuted
     }

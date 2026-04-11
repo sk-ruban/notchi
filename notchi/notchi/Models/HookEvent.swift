@@ -3,6 +3,7 @@ import Foundation
 struct HookEvent: Decodable, Sendable {
     let provider: SessionProvider
     let sessionId: String
+    let transcriptPath: String?
     let cwd: String
     let event: String
     let status: String
@@ -18,6 +19,7 @@ struct HookEvent: Decodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case provider
         case sessionId = "session_id"
+        case transcriptPath = "transcript_path"
         case cwd, event, status, pid, tty, tool
         case toolInput = "tool_input"
         case toolUseId = "tool_use_id"
@@ -29,6 +31,7 @@ struct HookEvent: Decodable, Sendable {
     init(
         provider: SessionProvider = .claude,
         sessionId: String,
+        transcriptPath: String? = nil,
         cwd: String,
         event: String,
         status: String,
@@ -43,6 +46,7 @@ struct HookEvent: Decodable, Sendable {
     ) {
         self.provider = provider
         self.sessionId = sessionId
+        self.transcriptPath = transcriptPath
         self.cwd = cwd
         self.event = event
         self.status = status
@@ -60,6 +64,7 @@ struct HookEvent: Decodable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         provider = try container.decodeIfPresent(SessionProvider.self, forKey: .provider) ?? .claude
         sessionId = try container.decode(String.self, forKey: .sessionId)
+        transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
         cwd = try container.decode(String.self, forKey: .cwd)
         event = try container.decode(String.self, forKey: .event)
         status = try container.decode(String.self, forKey: .status)
