@@ -12,7 +12,6 @@ final class TokenGrowthService {
     private(set) var currentStage: GrowthStage
     private(set) var justLeveledUp: Bool = false
     private(set) var isScanning: Bool = false
-    private var weeklyTokensBeforeScan: Int = 0
 
     private init() {
         let storedWeek = AppSettings.weeklyTokenWeek
@@ -109,19 +108,18 @@ final class TokenGrowthService {
     /// On startup, scan this week's JSONL messages and take the max with stored value.
     private func performStartupScan() {
         isScanning = true
-        weeklyTokensBeforeScan = weeklyTokens
         let weekStart = Self.currentWeekStart()
         Task.detached(priority: .background) {
             let scanTotal = await Self.scanWeeklyJSONLTokens(since: weekStart)
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.isScanning = false
-                // Any tokens added via addTokens() while the scan was running must be
-                // preserved even if the scan didn't reach those JSONL lines yet.
-                let liveAddedDuringScan = max(0, self.weeklyTokens - self.weeklyTokensBeforeScan)
-                let reconciled = max(scanTotal, self.weeklyTokensBeforeScan) + liveAddedDuringScan
+                // Take the max of the scan total and the current live count.
+                // Using max() avoids double-counting tokens that the file watcher already
+                // credited before the scan reached the same JSONL file.
+                let reconciled = max(scanTotal, self.weeklyTokens)
                 guard reconciled > self.weeklyTokens else { return }
-                logger.info("Startup scan: \(reconciled) tokens this week (scan=\(scanTotal), live=\(liveAddedDuringScan))")
+                logger.info("Startup scan: \(reconciled) tokens this week (scan=\(scanTotal), live=\(self.weeklyTokens))")
                 self.weeklyTokens = reconciled
                 AppSettings.weeklyTokenCount = reconciled
                 self.currentStage = GrowthStage.stage(for: reconciled)
