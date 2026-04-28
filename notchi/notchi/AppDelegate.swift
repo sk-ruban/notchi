@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         guard !isRunningTests else { return }
 
         NSApplication.shared.setActivationPolicy(.accessory)
+        SkinManager.shared.refresh()
         integrationCoordinator.prepareForLaunch()
         setupNotchWindow()
         observeScreenChanges()

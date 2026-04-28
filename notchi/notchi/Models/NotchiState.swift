@@ -95,12 +95,17 @@ struct NotchiState: Equatable {
     /// Resolves the sprite sheet name with fallback chain: exact emotion -> sad (for sob) -> neutral.
     var spriteSheetName: String {
         let name = "\(task.spritePrefix)_\(emotion.rawValue)"
-        if NSImage(named: name) != nil { return name }
+        if SkinManager.shared.hasImage(forSpriteSheet: name) { return name }
         if emotion == .sob {
             let sadName = "\(task.spritePrefix)_sad"
-            if NSImage(named: sadName) != nil { return sadName }
+            if SkinManager.shared.hasImage(forSpriteSheet: sadName) { return sadName }
         }
         return "\(task.spritePrefix)_neutral"
+    }
+
+    /// The resolved SkinImage using the active skin with full fallback chain.
+    var spriteImage: SkinImage {
+        SkinManager.shared.image(forSpriteSheet: spriteSheetName, emotion: emotion)
     }
     var animationFPS: Double { task.animationFPS }
     var bobDuration: Double { task.bobDuration }

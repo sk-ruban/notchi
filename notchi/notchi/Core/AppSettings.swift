@@ -20,6 +20,13 @@ struct AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: hideSpriteWhenIdleKey) }
     }
 
+    private static let selectedSkinNameKey = "selectedSkinName"
+
+    static var selectedSkinName: String {
+        get { UserDefaults.standard.string(forKey: selectedSkinNameKey) ?? "Default" }
+        set { UserDefaults.standard.set(newValue, forKey: selectedSkinNameKey) }
+    }
+
     static var claudeUsageRecoverySnapshot: ClaudeUsageRecoverySnapshot? {
         get {
             guard let data = UserDefaults.standard.data(forKey: claudeUsageRecoverySnapshotKey) else {
