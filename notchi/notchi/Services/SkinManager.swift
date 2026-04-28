@@ -142,10 +142,19 @@ final class SkinManager {
         guard FileManager.default.fileExists(atPath: url.path) else {
             return .assetCatalog("GrassIsland")
         }
-        return .fileBacked(url)
+        return .fileBacked(url: url)
     }
 
     var skinsDirectoryURL: URL { Self.skinsBaseDirectory }
+
+    private var imageCache: [URL: NSImage] = [:]
+
+    func cachedImage(for url: URL) -> NSImage? {
+        if let cached = imageCache[url] { return cached }
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        imageCache[url] = image
+        return image
+    }
 
     private func installBundledSkinsIfNeeded() {
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
@@ -157,19 +166,27 @@ final class SkinManager {
             return
         }
 
-        do {
-            try FileManager.default.createDirectory(at: Self.skinsBaseDirectory, withIntermediateDirectories: true)
+        Task.detached(priority: .utility) { [baseDir = Self.skinsBaseDirectory] in
+            do {
+                try FileManager.default.createDirectory(at: baseDir, withIntermediateDirectories: true)
 
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-            process.arguments = ["-o", zipURL.path, "-d", Self.skinsBaseDirectory.path]
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            print("Failed to install bundled skin: \(error)")
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+                process.arguments = ["-o", zipURL.path, "-d", baseDir.path]
+                try process.run()
+                process.waitUntilExit()
+
+                guard process.terminationStatus == 0 else { return }
+
+                UserDefaults.standard.set(currentVersion, forKey: Self.installedBundledSkinsKey)
+            } catch {
+                print("Failed to install bundled skin: \(error)")
+            }
+
+            await MainActor.run {
+                SkinManager.shared.refresh()
+            }
         }
-
-        UserDefaults.standard.set(currentVersion, forKey: Self.installedBundledSkinsKey)
     }
 
     private var activeSkin: DiscoveredSkin? {
@@ -184,6 +201,6 @@ final class SkinManager {
         }
         let url = folderURL.appendingPathComponent(filename)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        return .fileBacked(url)
+        return .fileBacked(url: url)
     }
 }
