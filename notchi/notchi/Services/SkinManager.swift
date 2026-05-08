@@ -42,6 +42,7 @@ final class SkinManager {
     private init() {}
 
     func refresh() {
+        imageCache.removeAll()
         try? FileManager.default.createDirectory(
             at: Self.skinsBaseDirectory,
             withIntermediateDirectories: true
@@ -179,12 +180,12 @@ final class SkinManager {
                 guard process.terminationStatus == 0 else { return }
 
                 UserDefaults.standard.set(currentVersion, forKey: Self.installedBundledSkinsKey)
+
+                await MainActor.run {
+                    SkinManager.shared.refresh()
+                }
             } catch {
                 print("Failed to install bundled skin: \(error)")
-            }
-
-            await MainActor.run {
-                SkinManager.shared.refresh()
             }
         }
     }
