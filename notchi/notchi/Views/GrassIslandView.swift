@@ -17,7 +17,9 @@ private enum SpriteLayout {
 }
 
 private enum GrassTexture {
-    static let image = Image("GrassIsland")
+    static var image: Image {
+        SkinManager.shared.grassImage().swiftUIImage
+    }
     static let pixelSize = CGSize(width: 512, height: 512)
     static let tileWidth: CGFloat = 80
 }
@@ -234,7 +236,7 @@ private struct GrassSpriteView: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isAnimatingMotion)) { timeline in
             SpriteSheetView(
-                spriteSheet: state.spriteSheetName,
+                spriteImage: state.spriteImage,
                 frameCount: state.frameCount,
                 columns: state.columns,
                 fps: state.animationFPS,

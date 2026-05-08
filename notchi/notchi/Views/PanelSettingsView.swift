@@ -95,6 +95,8 @@ struct PanelSettingsView: View {
         VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
             ScreenPickerRow(screenSelector: ScreenSelector.shared)
 
+            SkinPickerRow()
+
             SoundPickerView()
 
             Button(action: toggleLaunchAtLogin) {
