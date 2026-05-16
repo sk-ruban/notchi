@@ -1,7 +1,8 @@
 import AppKit
 
 struct TerminalFocusDetector {
-    private static let terminalBundleIds: Set<String> = [
+    // Keep focus detection and terminal jump targeting on the same supported app list.
+    static let terminalBundleIds: Set<String> = [
         "com.apple.Terminal",
         "com.googlecode.iterm2",
         "dev.warp.Warp-Stable",
