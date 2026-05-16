@@ -486,7 +486,9 @@ struct NotchContentView: View {
             haptics.playSessionSelection()
         }
 
-        sessionStore.selectSession(matchingStableId: sessionId)
+        if let session = sessionStore.selectSession(matchingStableId: sessionId) {
+            TerminalJumpService.shared.jump(to: session)
+        }
         showingSessionActivity = true
     }
 

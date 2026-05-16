@@ -380,7 +380,9 @@ struct ExpandedPanelView: View {
                         selectedSessionId: sessionStore.selectedSessionId,
                         hoveredSessionId: $hoveredSessionId,
                         onSelectSession: { sessionId in
-                            sessionStore.selectSession(matchingStableId: sessionId)
+                            if let session = sessionStore.selectSession(matchingStableId: sessionId) {
+                                TerminalJumpService.shared.jump(to: session)
+                            }
                             showingSessionActivity = true
                         },
                         onDeleteSession: { sessionId in

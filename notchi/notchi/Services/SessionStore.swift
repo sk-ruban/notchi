@@ -58,9 +58,11 @@ final class SessionStore {
         selectedSessionKey = sessionKey
     }
 
-    func selectSession(matchingStableId stableId: String) {
-        guard let sessionKey = ProviderSessionKey(stableId: stableId) else { return }
+    @discardableResult
+    func selectSession(matchingStableId stableId: String) -> SessionData? {
+        guard let sessionKey = ProviderSessionKey(stableId: stableId) else { return nil }
         selectSession(sessionKey)
+        return sessions[sessionKey]
     }
 
     func clearSelectedSession() {
