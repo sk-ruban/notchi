@@ -33,6 +33,7 @@ final class SessionData: Identifiable {
     private(set) var permissionMode: String = "default"
     private(set) var pendingQuestions: [PendingQuestion] = []
     private(set) var currentSpinnerVerb: String
+    private(set) var claudeProcessId: Int?
     private(set) var codexProcessId: Int?
     private(set) var codexOrigin: CodexOrigin?
     private(set) var codexTitle: String?
@@ -74,6 +75,10 @@ final class SessionData: Identifiable {
 
     var isCodexCLIProcessBacked: Bool {
         provider == .codex && codexOrigin == .cli && codexProcessId != nil
+    }
+
+    var isClaudeProcessBacked: Bool {
+        provider == .claude && claudeProcessId != nil
     }
 
     var isCodexThreadBacked: Bool {
@@ -226,6 +231,14 @@ final class SessionData: Identifiable {
 
     func updatePermissionMode(_ mode: String) {
         permissionMode = mode
+    }
+
+    func updateClaudeRuntime(processId: Int?) {
+        guard provider == .claude,
+              let processId,
+              processId > 0 else { return }
+
+        claudeProcessId = processId
     }
 
     func updateCodexRuntime(processId: Int?, origin: CodexOrigin?) {

@@ -28,6 +28,7 @@ final class AgentProviderAdapterTests: XCTestCase {
             "cwd": "/tmp",
             "event": "SessionStart",
             "status": "waiting_for_input",
+            "claude_process_id": 12345,
         ])
         let envelope = try JSONDecoder().decode(AgentHookEnvelope.self, from: data)
 
@@ -36,6 +37,7 @@ final class AgentProviderAdapterTests: XCTestCase {
         XCTAssertEqual(event?.provider, .claude)
         XCTAssertEqual(event?.event, .sessionStarted)
         XCTAssertEqual(event?.sessionId, "claude:claude-session")
+        XCTAssertEqual(event?.claudeProcessId, 12345)
     }
 
     func testCodexAdapterNormalizesSupportedEnvelopeIntoHookEvent() throws {

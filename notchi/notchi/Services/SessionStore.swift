@@ -88,6 +88,7 @@ final class SessionStore {
             session.updatePermissionMode(mode)
         }
 
+        session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
         if event.provider == .codex, let transcriptPath = event.transcriptPath {
             session.updateCodexThreadMetadata(

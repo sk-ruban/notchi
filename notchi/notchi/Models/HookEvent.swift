@@ -47,6 +47,7 @@ struct AgentHookEnvelope: Decodable, Sendable {
     let userPrompt: String?
     let permissionMode: String?
     let interactive: Bool?
+    let claudeProcessId: Int?
     let codexProcessId: Int?
     let codexOrigin: CodexOrigin?
     let hasAttachments: Bool?
@@ -61,6 +62,7 @@ struct AgentHookEnvelope: Decodable, Sendable {
         case userPrompt = "user_prompt"
         case permissionMode = "permission_mode"
         case interactive
+        case claudeProcessId = "claude_process_id"
         case codexProcessId = "codex_process_id"
         case codexOrigin = "codex_origin"
         case hasAttachments = "has_attachments"
@@ -81,6 +83,7 @@ struct AgentHookEnvelope: Decodable, Sendable {
         userPrompt = try container.decodeIfPresent(String.self, forKey: .userPrompt)
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         interactive = try container.decodeIfPresent(Bool.self, forKey: .interactive)
+        claudeProcessId = try container.decodeIfPresent(Int.self, forKey: .claudeProcessId)
         codexProcessId = try container.decodeIfPresent(Int.self, forKey: .codexProcessId)
         codexOrigin = try container.decodeIfPresent(CodexOrigin.self, forKey: .codexOrigin)
         hasAttachments = try container.decodeIfPresent(Bool.self, forKey: .hasAttachments)
@@ -101,6 +104,7 @@ struct HookEvent: Sendable {
     let userPromptHasAttachments: Bool
     let permissionMode: String?
     let interactive: Bool?
+    let claudeProcessId: Int?
     let codexProcessId: Int?
     let codexOrigin: CodexOrigin?
 
@@ -126,6 +130,7 @@ struct HookEvent: Sendable {
         userPromptHasAttachments: Bool = false,
         permissionMode: String? = nil,
         interactive: Bool? = nil,
+        claudeProcessId: Int? = nil,
         codexProcessId: Int? = nil,
         codexOrigin: CodexOrigin? = nil
     ) {
@@ -142,6 +147,7 @@ struct HookEvent: Sendable {
         self.userPromptHasAttachments = userPromptHasAttachments
         self.permissionMode = permissionMode
         self.interactive = interactive
+        self.claudeProcessId = claudeProcessId
         self.codexProcessId = codexProcessId
         self.codexOrigin = codexOrigin
     }

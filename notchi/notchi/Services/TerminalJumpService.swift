@@ -32,7 +32,7 @@ struct TerminalJumpService {
             return openURL(url)
         }
 
-        if let processId = Self.codexCLIProcessId(for: session),
+        if let processId = Self.terminalBackedProcessId(for: session),
            let terminalProcessId = terminalProcessID(hosting: processId) {
             return activateProcess(terminalProcessId)
         }
@@ -52,6 +52,16 @@ struct TerminalJumpService {
         guard session.provider == .codex,
               session.codexOrigin == .cli,
               let processId = session.codexProcessId,
+              processId > 0 else {
+            return nil
+        }
+
+        return pid_t(processId)
+    }
+
+    static func claudeCodeProcessId(for session: SessionData) -> pid_t? {
+        guard session.provider == .claude,
+              let processId = session.claudeProcessId,
               processId > 0 else {
             return nil
         }
@@ -97,6 +107,10 @@ struct TerminalJumpService {
         }
 
         return nil
+    }
+
+    private static func terminalBackedProcessId(for session: SessionData) -> pid_t? {
+        codexCLIProcessId(for: session) ?? claudeCodeProcessId(for: session)
     }
 
     private nonisolated static let threadIDAllowedCharacters: CharacterSet = {

@@ -36,12 +36,33 @@ final class TerminalJumpServiceTests: XCTestCase {
                 openedURLs.append(url)
                 return true
             },
-            processSnapshot: { processId in
-                self.makeSnapshot(parentProcessId: [pid_t(30): pid_t(20), pid_t(20): pid_t(10), pid_t(10): pid_t(1)][processId])
+            processSnapshot: { self.makeSnapshot(parentProcessId: Self.terminalAncestry[$0]) },
+            bundleIdentifierForProcess: { Self.terminalBundles[$0] },
+            activateProcess: { processId in
+                activatedProcessIds.append(processId)
+                return true
+            }
+        )
+
+        let didJump = service.jump(to: session)
+
+        XCTAssertTrue(didJump)
+        XCTAssertTrue(openedURLs.isEmpty)
+        XCTAssertEqual(activatedProcessIds, [10])
+    }
+
+    func testClaudeCLISessionActivatesHostingTerminalApp() {
+        let session = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
+        session.updateClaudeRuntime(processId: 30)
+        var openedURLs: [URL] = []
+        var activatedProcessIds: [pid_t] = []
+        let service = makeService(
+            openURL: { url in
+                openedURLs.append(url)
+                return true
             },
-            bundleIdentifierForProcess: { processId in
-                [pid_t(10): "com.apple.Terminal"][processId]
-            },
+            processSnapshot: { self.makeSnapshot(parentProcessId: Self.terminalAncestry[$0]) },
+            bundleIdentifierForProcess: { Self.terminalBundles[$0] },
             activateProcess: { processId in
                 activatedProcessIds.append(processId)
                 return true
@@ -60,9 +81,7 @@ final class TerminalJumpServiceTests: XCTestCase {
         session.updateCodexRuntime(processId: 30, origin: .cli)
         var activatedProcessIds: [pid_t] = []
         let service = makeService(
-            processSnapshot: { processId in
-                self.makeSnapshot(parentProcessId: [pid_t(30): pid_t(20), pid_t(20): pid_t(10), pid_t(10): pid_t(1)][processId])
-            },
+            processSnapshot: { self.makeSnapshot(parentProcessId: Self.terminalAncestry[$0]) },
             bundleIdentifierForProcess: { processId in
                 [pid_t(10): "com.apple.finder"][processId]
             },
@@ -237,4 +256,7 @@ final class TerminalJumpServiceTests: XCTestCase {
 
         return TerminalJumpService.ProcessSnapshot(parentProcessId: parentProcessId)
     }
+
+    private static let terminalAncestry: [pid_t: pid_t] = [30: 20, 20: 10, 10: 1]
+    private static let terminalBundles: [pid_t: String] = [10: "com.apple.Terminal"]
 }
