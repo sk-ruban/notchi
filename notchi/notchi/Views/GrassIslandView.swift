@@ -238,14 +238,15 @@ private struct GrassSpriteView: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isAnimatingMotion)) { timeline in
+            let presentation = spriteSheetPresentation(at: timeline.date)
             SpriteSheetView(
-                spriteSheet: state.spriteSheetName,
+                spriteSheet: presentation.spriteSheetName,
                 frameCount: state.frameCount,
                 columns: state.columns,
                 fps: state.animationFPS,
                 isAnimating: true,
                 animationStartDate: SpriteAnimationPhase.variedLoopAnchor(for: sessionId, spriteSheet: state.spriteSheetName),
-                isMirrored: isMirrored(at: timeline.date)
+                isMirrored: presentation.renderMirrored
             )
             .frame(width: SpriteLayout.size, height: SpriteLayout.size)
             .background(alignment: .bottom) {
@@ -266,6 +267,10 @@ private struct GrassSpriteView: View {
         }
         .onAppear(perform: updateStateMirroring)
         .onChange(of: mirrorKey) { _, _ in updateStateMirroring() }
+    }
+
+    private func spriteSheetPresentation(at date: Date) -> SpriteSheetPresentation {
+        state.spriteSheetPresentation(isMirrored: isMirrored(at: date))
     }
 
     private var mirrorKey: String {

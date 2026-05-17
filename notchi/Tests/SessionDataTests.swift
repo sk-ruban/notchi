@@ -151,6 +151,30 @@ final class SessionDataTests: XCTestCase {
         XCTAssertEqual(first, second)
     }
 
+    func testWorkingMirroringUsesFlippedSpriteAssetWhenAvailable() {
+        let state = NotchiState(task: .working, spriteFamily: .claude)
+        let presentation = state.spriteSheetPresentation(isMirrored: true)
+
+        XCTAssertEqual(presentation.spriteSheetName, "claude_working_neutral_flipped")
+        XCTAssertFalse(presentation.renderMirrored)
+    }
+
+    func testCodexWorkingHappyMirroringUsesMatchingFlippedSpriteAsset() {
+        let state = NotchiState(task: .working, emotion: .happy, spriteFamily: .codex)
+        let presentation = state.spriteSheetPresentation(isMirrored: true)
+
+        XCTAssertEqual(presentation.spriteSheetName, "codex_working_happy_flipped")
+        XCTAssertFalse(presentation.renderMirrored)
+    }
+
+    func testNonWorkingMirroringUsesRenderTransform() {
+        let state = NotchiState(task: .idle, spriteFamily: .claude)
+        let presentation = state.spriteSheetPresentation(isMirrored: true)
+
+        XCTAssertEqual(presentation.spriteSheetName, state.spriteSheetName)
+        XCTAssertTrue(presentation.renderMirrored)
+    }
+
     func testCompactingSpriteUsesStateEntryMirroringUntilStateChanges() {
         let state = NotchiState(task: .compacting)
 

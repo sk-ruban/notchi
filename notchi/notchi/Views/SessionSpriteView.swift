@@ -19,15 +19,16 @@ struct SessionSpriteView: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: bobAmplitude == 0 && state.emotion != .sob)) { timeline in
+            let presentation = spriteSheetPresentation(at: timeline.date)
             SpriteSheetView(
-                spriteSheet: state.spriteSheetName,
+                spriteSheet: presentation.spriteSheetName,
                 frameCount: state.frameCount,
                 columns: state.columns,
                 fps: state.animationFPS,
                 isAnimating: true,
                 animationStartDate: effectiveAnimationStartDate,
                 repeatsAnimation: repeatsAnimation,
-                isMirrored: isMirrored(at: timeline.date)
+                isMirrored: presentation.renderMirrored
             )
             .frame(width: 32, height: 32)
             .offset(
@@ -37,6 +38,10 @@ struct SessionSpriteView: View {
         }
         .onAppear(perform: updateStateMirroring)
         .onChange(of: mirrorKey) { _, _ in updateStateMirroring() }
+    }
+
+    private func spriteSheetPresentation(at date: Date) -> SpriteSheetPresentation {
+        state.spriteSheetPresentation(isMirrored: isMirrored(at: date))
     }
 
     private var mirrorKey: String {
