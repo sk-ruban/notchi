@@ -96,7 +96,7 @@ def claude_process_id():
             break
 
         argv0 = info['argv0']
-        if argv0 == 'claude' or argv0.startswith('claude-'):
+        if argv0 in ('claude', 'claude-code'):
             return pid
 
         if info['ppid'] <= 1 or info['ppid'] == pid:
