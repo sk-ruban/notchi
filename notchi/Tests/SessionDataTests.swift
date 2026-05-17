@@ -132,6 +132,13 @@ final class SessionDataTests: XCTestCase {
         XCTAssertGreaterThan(Set(intervals).count, 1)
     }
 
+    func testTimedSpriteMirroringHandlesFullUInt64Range() {
+        let interval = SpriteMirrorPolicy.timedInterval(seed: "alpha", range: 0...UInt64.max)
+
+        XCTAssertGreaterThanOrEqual(interval, 0)
+        XCTAssertLessThanOrEqual(interval, TimeInterval(UInt64.max))
+    }
+
     func testWorkingSpriteMirroringIsStableInsideWorkingWindow() {
         let state = NotchiState(task: .working)
         let interval = SpriteMirrorPolicy.timedInterval(seed: "session|\(state.spriteSheetName)|interval", range: 10...15)

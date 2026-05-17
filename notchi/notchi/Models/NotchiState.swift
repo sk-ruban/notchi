@@ -223,6 +223,7 @@ struct NotchiState: Equatable {
     var frameCount: Int { inferredFrameCount ?? task.frameCount }
     var columns: Int { inferredFrameCount ?? task.columns }
 
+    @MainActor
     func spriteSheetPresentation(isMirrored: Bool) -> SpriteSheetPresentation {
         let name = spriteSheetName
         guard isMirrored else {
@@ -239,6 +240,7 @@ struct NotchiState: Equatable {
         return SpriteSheetPresentation(spriteSheetName: name, renderMirrored: true)
     }
 
+    @MainActor
     private static func hasSpriteSheet(named name: String) -> Bool {
         if let cached = flippedSpriteSheetAvailability[name] {
             return cached

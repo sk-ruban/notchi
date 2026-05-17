@@ -47,7 +47,8 @@ enum SpriteMirrorPolicy {
         }
 
         let spread = range.upperBound - range.lowerBound
-        return TimeInterval(range.lowerBound + (hash(seed) % (spread + 1)))
+        let divisor = spread == UInt64.max ? UInt64.max : spread + 1
+        return TimeInterval(range.lowerBound + (hash(seed) % divisor))
     }
 
     static func hash(_ value: String) -> UInt64 {
