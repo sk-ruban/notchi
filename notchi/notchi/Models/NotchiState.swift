@@ -43,6 +43,21 @@ enum NotchiTask: String, CaseIterable {
         }
     }
 
+    var mirrorPolicy: SpriteMirrorPolicy.Mode {
+        switch self {
+        case .idle:
+            return .timed(30...60)
+        case .waiting:
+            return .timed(45...90)
+        case .working:
+            return .timed(10...15)
+        case .compacting:
+            return .stateEntry
+        case .sleeping, .waving:
+            return .never
+        }
+    }
+
     var displayName: String {
         switch self {
         case .idle:       return "Idle"
@@ -196,6 +211,7 @@ struct NotchiState: Equatable {
     }
     var swayAmplitude: Double { emotion.swayAmplitude }
     var canWalk: Bool { emotion == .sob ? false : task.canWalk }
+    var mirrorPolicy: SpriteMirrorPolicy.Mode { task.mirrorPolicy }
     var displayName: String { task.displayName }
     var walkFrequencyRange: ClosedRange<Double> { task.walkFrequencyRange }
     var frameCount: Int { inferredFrameCount ?? task.frameCount }

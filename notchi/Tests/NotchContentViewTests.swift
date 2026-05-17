@@ -10,12 +10,16 @@ final class NotchContentViewTests: XCTestCase {
 
         let result = NotchContentView.resolveHeaderSpriteContent(
             activeSessionState: .working,
+            activeSessionId: "claude:active",
             launchWave: wave,
             isCompactIdle: true,
             launchSpriteFamily: .claude
         )
 
-        XCTAssertEqual(result, NotchContentView.HeaderSpriteContent(state: .working))
+        XCTAssertEqual(
+            result,
+            NotchContentView.HeaderSpriteContent(state: .working, mirrorSeed: "claude:active")
+        )
     }
 
     func testLaunchWaveOverridesCompactIdleWhenNoActiveSession() {
@@ -31,6 +35,7 @@ final class NotchContentViewTests: XCTestCase {
         )
 
         XCTAssertEqual(result?.state, waveState)
+        XCTAssertEqual(result?.mirrorSeed, "launch-wave-codex")
         XCTAssertEqual(result?.startedAt, startedAt)
         XCTAssertEqual(result?.repeatsAnimation, false)
     }
@@ -57,7 +62,8 @@ final class NotchContentViewTests: XCTestCase {
         XCTAssertEqual(
             result,
             NotchContentView.HeaderSpriteContent(
-                state: NotchiState(task: .idle, spriteFamily: .codex)
+                state: NotchiState(task: .idle, spriteFamily: .codex),
+                mirrorSeed: "fallback-codex"
             )
         )
     }

@@ -54,6 +54,7 @@ struct NotchContentView: View {
 
     struct HeaderSpriteContent: Equatable {
         let state: NotchiState
+        let mirrorSeed: String
         let startedAt: Date
         let repeatsAnimation: Bool
         let scale: CGFloat
@@ -61,12 +62,14 @@ struct NotchContentView: View {
 
         init(
             state: NotchiState,
+            mirrorSeed: String,
             startedAt: Date = SpriteAnimationPhase.sharedLoopAnchor,
             repeatsAnimation: Bool = true,
             scale: CGFloat = 1,
             xOffset: CGFloat = 0
         ) {
             self.state = state
+            self.mirrorSeed = mirrorSeed
             self.startedAt = startedAt
             self.repeatsAnimation = repeatsAnimation
             self.scale = scale
@@ -112,6 +115,7 @@ struct NotchContentView: View {
     private var headerSpriteContent: HeaderSpriteContent? {
         Self.resolveHeaderSpriteContent(
             activeSessionState: activeSession?.state,
+            activeSessionId: activeSession?.id,
             launchWave: launchWave,
             isCompactIdle: isCompactIdle,
             launchSpriteFamily: launchSpriteFamily
@@ -120,17 +124,22 @@ struct NotchContentView: View {
 
     static func resolveHeaderSpriteContent(
         activeSessionState: NotchiState?,
+        activeSessionId: String? = nil,
         launchWave: LaunchWave?,
         isCompactIdle: Bool,
         launchSpriteFamily: NotchiSpriteFamily
     ) -> HeaderSpriteContent? {
         if let activeSessionState {
-            return HeaderSpriteContent(state: activeSessionState)
+            return HeaderSpriteContent(
+                state: activeSessionState,
+                mirrorSeed: activeSessionId ?? "active-header-sprite"
+            )
         }
 
         if let launchWave {
             return HeaderSpriteContent(
                 state: launchWave.state,
+                mirrorSeed: "launch-wave-\(launchWave.state.spriteFamily.rawValue)",
                 startedAt: launchWave.startedAt,
                 repeatsAnimation: false,
                 scale: LaunchWaveTiming.spriteScale,
@@ -139,7 +148,10 @@ struct NotchContentView: View {
         }
 
         guard !isCompactIdle else { return nil }
-        return HeaderSpriteContent(state: NotchiState(task: .idle, spriteFamily: launchSpriteFamily))
+        return HeaderSpriteContent(
+            state: NotchiState(task: .idle, spriteFamily: launchSpriteFamily),
+            mirrorSeed: "fallback-\(launchSpriteFamily.rawValue)"
+        )
     }
     private var collapsedHoverHorizontalInset: CGFloat {
         !isExpanded && panelManager.isCollapsedHovered
@@ -518,6 +530,7 @@ struct NotchContentView: View {
             SessionSpriteView(
                 state: headerSpriteContent.state,
                 isSelected: true,
+                mirrorSeed: headerSpriteContent.mirrorSeed,
                 animationStartDate: headerSpriteContent.startedAt,
                 repeatsAnimation: headerSpriteContent.repeatsAnimation
             )
