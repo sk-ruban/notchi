@@ -828,27 +828,33 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertFalse(session.pendingQuestions.isEmpty)
     }
 
-    func testAskUserQuestionInteractionIdRequiresToolUseIdForPreToolUse() throws {
-        let payload: [String: Any] = [
-            "provider": "claude",
-            "session_id": "missing-tool-use-id",
-            "cwd": "/tmp",
-            "event": "PreToolUse",
-            "status": "running_tool",
-            "tool": "AskUserQuestion",
-            "tool_input": [
-                "questions": [
-                    [
-                        "question": "Which path?",
-                        "options": [["label": "Fast"]],
+    func testPreToolUseAskUserQuestionDoesNotProduceInteractionId() throws {
+        func envelope(toolUseId: String?) throws -> AgentHookEnvelope {
+            var payload: [String: Any] = [
+                "provider": "claude",
+                "session_id": "ask-user-question-tui-first",
+                "cwd": "/tmp",
+                "event": "PreToolUse",
+                "status": "running_tool",
+                "tool": "AskUserQuestion",
+                "tool_input": [
+                    "questions": [
+                        [
+                            "question": "Which path?",
+                            "options": [["label": "Fast"]],
+                        ],
                     ],
                 ],
-            ],
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        let envelope = try JSONDecoder().decode(AgentHookEnvelope.self, from: data)
+            ]
+            if let toolUseId {
+                payload["tool_use_id"] = toolUseId
+            }
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            return try JSONDecoder().decode(AgentHookEnvelope.self, from: data)
+        }
 
-        XCTAssertNil(HookInteractionRequest.id(for: envelope))
+        XCTAssertNil(HookInteractionRequest.id(for: try envelope(toolUseId: nil)))
+        XCTAssertNil(HookInteractionRequest.id(for: try envelope(toolUseId: "toolu_present")))
     }
 
     func testPermissionRequestInteractionIdDoesNotRequireToolUseId() throws {

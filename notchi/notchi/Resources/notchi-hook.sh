@@ -139,9 +139,7 @@ def should_wait_for_response():
     if os.environ.get('NOTCHI_INTERACTIVE', 'true') != 'true':
         return False
 
-    return hook_event == 'PermissionRequest' or (
-        hook_event == 'PreToolUse' and tool == 'AskUserQuestion'
-    )
+    return hook_event == 'PermissionRequest'
 
 try:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

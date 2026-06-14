@@ -763,10 +763,6 @@ nonisolated enum HookInteractionRequest {
 
         let toolUseId: String
         switch event {
-        case .preToolUse:
-            guard envelope.tool == "AskUserQuestion" else { return nil }
-            guard let existingToolUseId = envelope.toolUseId else { return nil }
-            toolUseId = existingToolUseId
         case .permissionRequest:
             toolUseId = envelope.toolUseId ?? UUID().uuidString
         default:
