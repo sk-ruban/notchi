@@ -184,6 +184,7 @@ extension ClaudeUsageServiceTests {
         await Task.yield()
 
         XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(service.isConnected)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
     }
 
