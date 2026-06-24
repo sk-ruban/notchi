@@ -19,6 +19,11 @@ final class UsageDisplayTests: XCTestCase {
         XCTAssertEqual(usage.formattedResetTime, "2d 2h")
     }
 
+    func testFormattedResetTimeOmitsHoursAtExactDayBoundary() {
+        let usage = QuotaPeriod(utilization: 10, resetDate: Date(timeIntervalSinceNow: 72 * 3600 + 5 * 60))
+        XCTAssertEqual(usage.formattedResetTime, "3d")
+    }
+
     func testPeriodDisplayReturnsNilWhenNoUsage() {
         XCTAssertNil(UsageMetrics.periodDisplay(title: "Session", usage: nil))
     }

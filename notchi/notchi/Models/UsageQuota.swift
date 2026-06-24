@@ -68,7 +68,8 @@ nonisolated struct QuotaPeriod: Codable, Equatable, Sendable {
         let minutes = (Int(interval) % 3600) / 60
 
         if hours >= 48 {
-            return "\(hours / 24)d \(hours % 24)h"
+            let remainingHours = hours % 24
+            return remainingHours > 0 ? "\(hours / 24)d \(remainingHours)h" : "\(hours / 24)d"
         } else if hours > 0 {
             return "\(hours)h \(minutes)m"
         } else {
