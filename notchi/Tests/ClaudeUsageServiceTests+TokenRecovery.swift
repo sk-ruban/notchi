@@ -157,6 +157,36 @@ extension ClaudeUsageServiceTests {
         XCTAssertFalse(AppSettings.isUsageEnabled)
     }
 
+    func testSystemWakeKeepsUsageEnabledWhenKeychainBrieflyUnavailable() async throws {
+        let scheduler = PollSchedulerSpy()
+        var keychainAvailable = true
+        let dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            getCachedOAuthToken: { _ in keychainAvailable ? "token" : nil },
+            getOAuthCredentials: { _ in nil },
+            fetchUsage: { _ in
+                (self.makeSuccessPayload(utilization: 42), self.makeResponse(statusCode: 200))
+            }
+        )
+
+        let service = ClaudeUsageService(dependencies: dependencies)
+        AppSettings.isUsageEnabled = true
+
+        service.startPolling()
+        await Task.yield()
+        await Task.yield()
+        XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
+
+        keychainAvailable = false
+        service.startPolling(afterSystemWake: true)
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
+    }
+
     func testStartPollingDisablesUsageWhenNoCachedTokenExists() async throws {
         let scheduler = PollSchedulerSpy()
         var getCachedTokenCalls: [Bool] = []
@@ -206,14 +236,14 @@ extension ClaudeUsageServiceTests {
         await Task.yield()
         await Task.yield()
 
-        XCTAssertFalse(AppSettings.isUsageEnabled)
+        XCTAssertTrue(AppSettings.isUsageEnabled)
         XCTAssertFalse(service.isConnected)
         XCTAssertNil(service.error)
         XCTAssertEqual(service.statusMessage, "Claude authentication needs attention.")
         XCTAssertTrue(service.isUsageStale)
         XCTAssertEqual(service.recoveryAction, .reconnect)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
-        XCTAssertTrue(scheduler.intervals.isEmpty)
+        XCTAssertTrue(scheduler.intervals.contains(300))
     }
 
     func testStartPollingRecoversFreshCredentialsWhenNoCachedTokenExists() async throws {

@@ -787,21 +787,24 @@ final class ClaudeUsageService {
         stopPolling()
 
         Task {
-            if afterSystemWake,
-               isHeadersFallbackActive,
-               let accessToken = cachedToken {
-                resetHeadersFallbackProbeWindowFromWake()
-                await refreshActiveHeadersFallback(with: accessToken)
+            if afterSystemWake, let accessToken = cachedToken {
+                if isHeadersFallbackActive {
+                    resetHeadersFallbackProbeWindowFromWake()
+                    await refreshActiveHeadersFallback(with: accessToken)
+                } else {
+                    await performFetch(with: accessToken, consultCredentialMetadata: false)
+                }
                 return
             }
 
             guard let resolution = resolveStoredAccessToken(allowsCredentialRecovery: true) else {
                 isConnected = false
-                AppSettings.isUsageEnabled = false
                 clearOAuthBackoffState()
                 if currentUsage != nil {
                     presentReconnectRequired(message: "Claude authentication needs attention.")
+                    scheduleSelfHealRetry()
                 } else {
+                    AppSettings.isUsageEnabled = false
                     clearTransientState()
                 }
                 return
