@@ -14,6 +14,7 @@ final class NotchPanelManager {
     static let collapsedHoverBottomInset: CGFloat = 5
 
     private static let compactNotchPaddingTotal: CGFloat = 16
+    private static let physicalNotchExtraWidth: CGFloat = 28
     private static func makeCompactNotchRect(notchSize: CGSize, notchRect: CGRect) -> CGRect {
         CGRect(
             x: notchRect.midX - ((notchSize.width + compactNotchPaddingTotal) / 2),
@@ -53,6 +54,7 @@ final class NotchPanelManager {
     private(set) var notchRect: CGRect = .zero
     private(set) var compactNotchRect: CGRect = .zero
     private(set) var panelRect: CGRect = .zero
+    private(set) var hasPhysicalNotch = false
     /// The exact notch shape from the system bezel path, or nil if unavailable
     private(set) var systemNotchPath: CGPath?
 
@@ -110,11 +112,12 @@ final class NotchPanelManager {
         let screenFrame = screen.frame
 
         notchSize = newNotchSize
+        hasPhysicalNotch = screen.hasNotch
         systemNotchPath = screen.notchPath
 
         let notchCenterX = screenFrame.origin.x + screenFrame.width / 2
         let sideWidth = max(0, newNotchSize.height - 12) + 24
-        let notchTotalWidth = newNotchSize.width + sideWidth
+        let notchTotalWidth = newNotchSize.width + sideWidth + (screen.hasNotch ? Self.physicalNotchExtraWidth : 0)
 
         notchRect = CGRect(
             x: notchCenterX - notchTotalWidth / 2,
@@ -142,11 +145,13 @@ final class NotchPanelManager {
         notchSize: CGSize,
         notchRect: CGRect,
         panelRect: CGRect = .zero,
-        systemNotchPath: CGPath? = nil
+        systemNotchPath: CGPath? = nil,
+        hasPhysicalNotch: Bool = false
     ) {
         self.notchSize = notchSize
         self.notchRect = notchRect
         self.panelRect = panelRect
+        self.hasPhysicalNotch = hasPhysicalNotch
         self.systemNotchPath = systemNotchPath
 
         compactNotchRect = Self.makeCompactNotchRect(notchSize: notchSize, notchRect: notchRect)

@@ -118,6 +118,10 @@ struct NotchContentView: View {
         sessionStore.effectiveSession
     }
 
+    private var codexUsageService: CodexUsageService {
+        .shared
+    }
+
     private var notchSize: CGSize { panelManager.notchSize }
     private var isExpanded: Bool { panelManager.isExpanded }
     private var collapsedMode: NotchPanelManager.CollapsedMode { panelManager.collapsedMode }
@@ -253,6 +257,9 @@ struct NotchContentView: View {
     }
 
     private var collapsedHeaderSpriteOffsetX: CGFloat {
+        if panelManager.hasPhysicalNotch {
+            return 0
+        }
         let baseOffset: CGFloat = 15
         guard !isExpanded && panelManager.isCollapsedHovered else { return baseOffset }
         return baseOffset + 6
@@ -300,10 +307,33 @@ struct NotchContentView: View {
         max(0, notchSize.height - 12) + 24
     }
 
+    private var usageRingProvider: AgentProvider {
+        activeSession?.provider ?? AppSettings.lastUsedAgentProvider
+    }
+
     private var usageRingPercentage: Int? {
         guard AppSettings.isUsageEnabled,
-              let usage = usageService.currentUsage else { return nil }
+              sessionStore.activeSessionCount > 0 else { return nil }
+
+        let usage: QuotaPeriod?
+        switch usageRingProvider {
+        case .claude:
+            usage = usageService.currentUsage
+        case .codex:
+            usage = codexUsageService.currentUsage
+        }
+
+        guard let usage, !usage.isExpired else { return nil }
         return usage.usagePercentage
+    }
+
+    private var isUsageRingStale: Bool {
+        switch usageRingProvider {
+        case .claude:
+            usageService.isUsageStale
+        case .codex:
+            codexUsageService.isUsageStale
+        }
     }
 
     private var compactContentWidth: CGFloat {
@@ -318,12 +348,8 @@ struct NotchContentView: View {
         isExpanded ? cornerRadiusInsets.opened.bottom : cornerRadiusInsets.closed.bottom
     }
 
-    /// Uses the system notch curve in collapsed mode when available.
     private var notchClipShape: AnyShape {
-        if !isExpanded, let systemPath = panelManager.systemNotchPath {
-            return AnyShape(SystemNotchShape(cgPath: systemPath))
-        }
-        return AnyShape(NotchShape(
+        AnyShape(NotchShape(
             topCornerRadius: topCornerRadius,
             bottomCornerRadius: bottomCornerRadius
         ))
@@ -482,7 +508,7 @@ struct NotchContentView: View {
                     ExpandedPanelView(
                         sessionStore: sessionStore,
                         usageService: usageService,
-                        codexUsageService: CodexUsageService.shared,
+                        codexUsageService: codexUsageService,
                         showingSettings: $showingPanelSettings,
                         showingSettingsDetail: $showingPanelSettingsDetail,
                         showingSessionActivity: $showingSessionActivity,
@@ -595,7 +621,10 @@ struct NotchContentView: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        if isCompactIdle && launchWave == nil && !isLaunchWavePreparing {
+        if isExpanded {
+            Color.clear
+                .frame(width: notchSize.width)
+        } else if isCompactIdle && launchWave == nil && !isLaunchWavePreparing {
             Color.clear
                 .frame(width: compactContentWidth)
         } else {
@@ -628,7 +657,7 @@ struct NotchContentView: View {
     private func logRingState(side: NotchSide) {
         guard side == .left else { return }
         let hidden = usageRingPercentage == nil || isLaunchWaveActive
-        let line = "hidden=\(hidden) pct=\(String(describing: usageRingPercentage)) launchWave=\(isLaunchWaveActive) enabled=\(AppSettings.isUsageEnabled) sessions=\(sessionStore.activeSessionCount) claudeUsage=\(usageService.currentUsage != nil) stale=\(usageService.isUsageStale) connected=\(usageService.isConnected) fallback=\(usageService.isUsingHeadersFallback)"
+        let line = "hidden=\(hidden) provider=\(usageRingProvider.rawValue) pct=\(String(describing: usageRingPercentage)) launchWave=\(isLaunchWaveActive) enabled=\(AppSettings.isUsageEnabled) sessions=\(sessionStore.activeSessionCount) claudeUsage=\(usageService.currentUsage != nil) codexUsage=\(codexUsageService.currentUsage != nil) stale=\(isUsageRingStale) connected=\(usageService.isConnected) fallback=\(usageService.isUsingHeadersFallback)"
         guard line != Self.lastRingDebugLine else { return }
         Self.lastRingDebugLine = line
         Self.ringDebugLogger.error("RING-DEBUG \(line, privacy: .public)")
@@ -638,7 +667,7 @@ struct NotchContentView: View {
     private func ringSlot(side: NotchSide) -> some View {
         let _ = logRingState(side: side)
         if let usageRingPercentage, !isLaunchWaveActive {
-            UsageRingView(percentage: usageRingPercentage, isStale: usageService.isUsageStale)
+            UsageRingView(percentage: usageRingPercentage, isStale: isUsageRingStale)
                 .opacity(collapsedHeaderSpriteVisuals.opacity)
                 .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
                 .frame(width: sideWidth)

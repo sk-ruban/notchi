@@ -116,6 +116,21 @@ final class NotchPanelManagerTests: XCTestCase {
         XCTAssertEqual(manager.collapsedMode, .compactIdle)
     }
 
+    func testTestingGeometryCanRepresentPhysicalNotchWithoutSystemPath() async {
+        let defaults = makeDefaults()
+        let sessionCount = SessionCountBox(1)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+
+        manager.setGeometryForTesting(
+            notchSize: CGSize(width: 224, height: 38),
+            notchRect: CGRect(x: 100, y: 0, width: 302, height: 38),
+            hasPhysicalNotch: true
+        )
+
+        XCTAssertTrue(manager.hasPhysicalNotch)
+        XCTAssertNil(manager.systemNotchPath)
+    }
+
     func testCompactHoverExpansionStartsImmediatelyAndReturnsAfterDelay() async {
         let defaults = makeDefaults()
         defaults.set(true, forKey: AppSettings.hideSpriteWhenIdleKey)

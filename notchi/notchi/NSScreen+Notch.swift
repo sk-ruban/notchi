@@ -22,7 +22,7 @@ extension NSScreen {
     /// Calculates the notch dimensions for this screen
     var notchSize: CGSize {
         guard hasNotch else {
-            return CGSize(width: 224, height: 38)
+            return CGSize(width: 224, height: 28)
         }
 
         let fullWidth = frame.width
