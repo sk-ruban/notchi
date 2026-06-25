@@ -746,7 +746,11 @@ final class ClaudeUsageService {
                 prefersRecoveredCredentials: true
             ) else {
                 presentReconnectRequired(message: "Claude authentication needs attention.")
-                AppSettings.isUsageEnabled = false
+                if currentUsage != nil {
+                    scheduleSelfHealRetry()
+                } else {
+                    AppSettings.isUsageEnabled = false
+                }
                 return
             }
             cachedToken = resolution.token

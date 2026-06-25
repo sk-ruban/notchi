@@ -81,6 +81,33 @@ extension ClaudeUsageServiceTests {
         XCTAssertFalse(AppSettings.isUsageEnabled)
     }
 
+    func testConnectAndStartPollingKeepsUsageEnabledWhenUsageIsVisible() async throws {
+        let scheduler = PollSchedulerSpy()
+        let dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            getCachedOAuthToken: { _ in nil },
+            getOAuthCredentials: { _ in nil },
+            fetchUsage: { _ in
+                XCTFail("fetchUsage should not run without a token")
+                return (Data(), self.makeResponse(statusCode: 200))
+            }
+        )
+
+        let service = ClaudeUsageService(dependencies: dependencies)
+        service.currentUsage = makeQuotaPeriod(utilization: 42)
+        AppSettings.isUsageEnabled = true
+
+        service.connectAndStartPolling()
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertEqual(service.recoveryAction, .reconnect)
+        XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
+        XCTAssertEqual(scheduler.intervals, [300])
+    }
+
     func testStartPollingPrefersEnvironmentTokenBeforeKeychainLookups() async throws {
         let scheduler = PollSchedulerSpy()
         var environmentTokenCalls = 0
