@@ -58,30 +58,59 @@ struct ClaudeSettingsConfig {
     }
 
     nonisolated static func buildMessagesURL(from baseURL: String) -> URL? {
-        let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
-        guard var components = URLComponents(string: baseURL) else {
+        guard let url = EmotionAnalysisProvider.claude.endpointURL(fromBaseURL: baseURL) else {
+            let logger = Logger(subsystem: "com.ruban.notchi", category: "EmotionAnalyzer")
             logger.error("Invalid ANTHROPIC_BASE_URL: \(baseURL, privacy: .public)")
             return nil
         }
-
-        let normalizedPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        switch true {
-        case normalizedPath.isEmpty:
-            components.path = "/v1/messages"
-        case normalizedPath.hasSuffix("/v1/messages") || normalizedPath == "v1/messages":
-            components.path = "/\(normalizedPath)"
-        case normalizedPath.hasSuffix("/v1") || normalizedPath == "v1":
-            components.path = "/\(normalizedPath)/messages"
-        default:
-            components.path = "/\(normalizedPath)/v1/messages"
-        }
-
-        return components.url
+        return url
     }
 }
 
 enum OpenAISettingsConfig {
     nonisolated static let defaultAPIURL = URL(string: "https://api.openai.com/v1/chat/completions")!
+}
+
+extension EmotionAnalysisProvider {
+    nonisolated var defaultEndpointURL: URL {
+        switch self {
+        case .claude:
+            ClaudeSettingsConfig.defaultAPIURL
+        case .openAI:
+            OpenAISettingsConfig.defaultAPIURL
+        }
+    }
+
+    nonisolated private var endpointPathComponents: [String] {
+        switch self {
+        case .claude:
+            ["v1", "messages"]
+        case .openAI:
+            ["v1", "chat", "completions"]
+        }
+    }
+
+    nonisolated func endpointURL(fromBaseURL baseURL: String?) -> URL? {
+        let trimmed = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else {
+            return defaultEndpointURL
+        }
+
+        let urlString = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
+        guard var components = URLComponents(string: urlString),
+              let host = components.host,
+              !host.isEmpty else {
+            return nil
+        }
+
+        let baseComponents = components.path.split(separator: "/").map(String.init)
+        let endpoint = endpointPathComponents
+        let overlap = (0...min(baseComponents.count, endpoint.count))
+            .reversed()
+            .first { Array(baseComponents.suffix($0)) == Array(endpoint.prefix($0)) } ?? 0
+        components.path = "/" + (baseComponents + endpoint.dropFirst(overlap)).joined(separator: "/")
+        return components.url
+    }
 }
 
 private struct HaikuResponse: Decodable {
@@ -117,6 +146,7 @@ struct EmotionAnalysisTestResult {
 
 enum EmotionAnalysisRequestError: LocalizedError {
     case missingAPIKey(EmotionAnalysisProvider)
+    case invalidBaseURL
     case httpStatus(provider: String, statusCode: Int)
     case invalidResponse
 
@@ -124,6 +154,8 @@ enum EmotionAnalysisRequestError: LocalizedError {
         switch self {
         case .missingAPIKey(let provider):
             "Missing \(provider.displayName) API key"
+        case .invalidBaseURL:
+            "Invalid API base URL"
         case .httpStatus(let provider, let statusCode):
             "\(provider) API returned HTTP \(statusCode)"
         case .invalidResponse:
@@ -135,6 +167,8 @@ enum EmotionAnalysisRequestError: LocalizedError {
         switch self {
         case .missingAPIKey:
             "Missing"
+        case .invalidBaseURL:
+            "Bad URL"
         case .httpStatus(_, let statusCode):
             "HTTP \(statusCode)"
         case .invalidResponse:
@@ -344,12 +378,19 @@ final class EmotionAnalyzer {
         }
     }
 
+    static func manualEndpointURL(for provider: EmotionAnalysisProvider) -> URL? {
+        provider.endpointURL(fromBaseURL: AppSettings.apiBaseURL(for: provider))
+    }
+
     private func resolveClaudeProvider() -> ClaudeEmotionAnalysisProvider? {
         if let apiKey = KeychainManager.getAnthropicApiKey(allowInteraction: false)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !apiKey.isEmpty {
+            guard let apiURL = Self.manualEndpointURL(for: .claude) else {
+                return nil
+            }
             return ClaudeEmotionAnalysisProvider(
-                apiURL: ClaudeSettingsConfig.defaultAPIURL,
+                apiURL: apiURL,
                 apiKey: apiKey,
                 model: AppSettings.selectedEmotionAnalysisModel(for: .claude).rawValue
             )
@@ -369,12 +410,13 @@ final class EmotionAnalyzer {
     private func resolveOpenAIProvider() -> OpenAIEmotionAnalysisProvider? {
         guard let apiKey = KeychainManager.getOpenAIApiKey(allowInteraction: false)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
-              !apiKey.isEmpty else {
+              !apiKey.isEmpty,
+              let apiURL = Self.manualEndpointURL(for: .openAI) else {
             return nil
         }
 
         return OpenAIEmotionAnalysisProvider(
-            apiURL: OpenAISettingsConfig.defaultAPIURL,
+            apiURL: apiURL,
             apiKey: apiKey,
             model: AppSettings.selectedEmotionAnalysisModel(for: .openAI).rawValue
         )
@@ -383,9 +425,10 @@ final class EmotionAnalyzer {
     func testConfiguration(
         provider: EmotionAnalysisProvider,
         model: EmotionAnalysisModel,
-        apiKey: String?
+        apiKey: String?,
+        baseURL: String?
     ) async throws -> EmotionAnalysisTestResult {
-        let analysisProvider = try resolveProvider(provider: provider, model: model, apiKey: apiKey)
+        let analysisProvider = try resolveProvider(provider: provider, model: model, apiKey: apiKey, baseURL: baseURL)
         let start = ContinuousClock.now
         let result = try await analysisProvider.analyze(prompt: Self.testPrompt, systemPrompt: Self.systemPrompt)
         let elapsed = (ContinuousClock.now - start).components
@@ -401,15 +444,19 @@ final class EmotionAnalyzer {
     private func resolveProvider(
         provider: EmotionAnalysisProvider,
         model: EmotionAnalysisModel,
-        apiKey: String?
+        apiKey: String?,
+        baseURL: String?
     ) throws -> EmotionAnalysisProviding {
         let trimmedKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         switch provider {
         case .claude:
             if !trimmedKey.isEmpty {
+                guard let apiURL = provider.endpointURL(fromBaseURL: baseURL) else {
+                    throw EmotionAnalysisRequestError.invalidBaseURL
+                }
                 return ClaudeEmotionAnalysisProvider(
-                    apiURL: ClaudeSettingsConfig.defaultAPIURL,
+                    apiURL: apiURL,
                     apiKey: trimmedKey,
                     model: model.rawValue
                 )
@@ -429,8 +476,12 @@ final class EmotionAnalyzer {
                 throw EmotionAnalysisRequestError.missingAPIKey(provider)
             }
 
+            guard let apiURL = provider.endpointURL(fromBaseURL: baseURL) else {
+                throw EmotionAnalysisRequestError.invalidBaseURL
+            }
+
             return OpenAIEmotionAnalysisProvider(
-                apiURL: OpenAISettingsConfig.defaultAPIURL,
+                apiURL: apiURL,
                 apiKey: trimmedKey,
                 model: model.rawValue
             )

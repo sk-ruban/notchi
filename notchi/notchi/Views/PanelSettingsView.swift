@@ -520,11 +520,13 @@ private struct EmotionAnalysisSettingsView: View {
     @State private var provider = AppSettings.emotionAnalysisProvider
     @State private var model = AppSettings.selectedEmotionAnalysisModel(for: AppSettings.emotionAnalysisProvider)
     @State private var apiKeyInput = AppSettings.apiKey(for: AppSettings.emotionAnalysisProvider) ?? ""
+    @State private var baseURLInput = AppSettings.apiBaseURL(for: AppSettings.emotionAnalysisProvider) ?? ""
     @State private var isProviderPickerExpanded = false
     @State private var isModelPickerExpanded = false
     @State private var testState: TestState = .idle
     @State private var setupLinkShakePhase: CGFloat = 0
     @FocusState private var isAPIKeyFocused: Bool
+    @FocusState private var isBaseURLFocused: Bool
 
     private var hasApiKey: Bool {
         !apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -537,6 +539,7 @@ private struct EmotionAnalysisSettingsView: View {
                 providerSection
                 modelSection
                 apiKeySection
+                baseURLSection
                 testSection
                 setupSection
             }
@@ -544,11 +547,19 @@ private struct EmotionAnalysisSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onDisappear {
             saveApiKey(for: provider)
+            saveBaseURL(for: provider)
         }
         .animation(.spring(response: 0.3), value: isProviderPickerExpanded)
         .animation(.spring(response: 0.3), value: isModelPickerExpanded)
         .onChange(of: apiKeyInput) { _, _ in
             resetTestState()
+        }
+        .onChange(of: baseURLInput) { _, _ in
+            resetTestState()
+        }
+        .onChange(of: isBaseURLFocused) { _, focused in
+            guard !focused else { return }
+            saveBaseURL(for: provider)
         }
         .onChange(of: isAPIKeyFocused) { _, focused in
             guard focused else { return }
@@ -689,6 +700,49 @@ private struct EmotionAnalysisSettingsView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var baseURLSection: some View {
+        HStack {
+            Image(systemName: "link")
+                .font(.system(size: 12))
+                .foregroundColor(TerminalColors.secondaryText)
+                .frame(width: 20)
+
+            Text("Base URL")
+                .font(.system(size: 12))
+                .foregroundColor(TerminalColors.primaryText)
+                .layoutPriority(1)
+
+            Spacer(minLength: 12)
+
+            baseURLField
+        }
+        .padding(.vertical, SettingsLayout.rowVerticalPadding)
+    }
+
+    private var baseURLField: some View {
+        ZStack(alignment: .leading) {
+            TextField("", text: $baseURLInput)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(TerminalColors.primaryText)
+                .padding(.horizontal, SettingsLayout.fieldHorizontalPadding)
+                .padding(.vertical, SettingsLayout.fieldVerticalPadding)
+                .background(Color.white.opacity(0.06))
+                .cornerRadius(6)
+                .focused($isBaseURLFocused)
+                .onSubmit { saveBaseURL(for: provider) }
+
+            if baseURLInput.isEmpty {
+                Text(provider.apiBaseURLPlaceholder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(TerminalColors.dimmedText)
+                    .padding(.leading, SettingsLayout.fieldHorizontalPadding)
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(minWidth: 220, maxWidth: 300)
     }
 
     private var setupSection: some View {
@@ -877,10 +931,12 @@ private struct EmotionAnalysisSettingsView: View {
         blurAPIKeyField()
         guard newProvider != provider else { return }
         saveApiKey(for: provider)
+        saveBaseURL(for: provider)
         provider = newProvider
         AppSettings.emotionAnalysisProvider = newProvider
         model = AppSettings.selectedEmotionAnalysisModel(for: newProvider)
         apiKeyInput = AppSettings.apiKey(for: newProvider) ?? ""
+        baseURLInput = AppSettings.apiBaseURL(for: newProvider) ?? ""
         resetTestState()
     }
 
@@ -897,6 +953,10 @@ private struct EmotionAnalysisSettingsView: View {
         AppSettings.setApiKey(trimmed.isEmpty ? nil : trimmed, for: provider)
     }
 
+    private func saveBaseURL(for provider: EmotionAnalysisProvider) {
+        AppSettings.setApiBaseURL(baseURLInput, for: provider)
+    }
+
     private func openAPIKeyPage() {
         blurAPIKeyField()
         NSWorkspace.shared.open(provider.apiKeyURL)
@@ -910,18 +970,20 @@ private struct EmotionAnalysisSettingsView: View {
         let currentProvider = provider
         let currentModel = model
         let currentAPIKey = apiKeyInput
+        let currentBaseURL = baseURLInput
 
         Task { @MainActor in
             do {
                 let result = try await EmotionAnalyzer.shared.testConfiguration(
                     provider: currentProvider,
                     model: currentModel,
-                    apiKey: currentAPIKey
+                    apiKey: currentAPIKey,
+                    baseURL: currentBaseURL
                 )
-                guard isCurrentTestSnapshot(provider: currentProvider, model: currentModel, apiKey: currentAPIKey) else { return }
+                guard isCurrentTestSnapshot(provider: currentProvider, model: currentModel, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
                 testState = .success(result)
             } catch {
-                guard isCurrentTestSnapshot(provider: currentProvider, model: currentModel, apiKey: currentAPIKey) else { return }
+                guard isCurrentTestSnapshot(provider: currentProvider, model: currentModel, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
                 testState = .failure(testErrorText(error))
             }
         }
@@ -934,9 +996,10 @@ private struct EmotionAnalysisSettingsView: View {
     private func isCurrentTestSnapshot(
         provider: EmotionAnalysisProvider,
         model: EmotionAnalysisModel,
-        apiKey: String
+        apiKey: String,
+        baseURL: String
     ) -> Bool {
-        self.provider == provider && self.model == model && apiKeyInput == apiKey
+        self.provider == provider && self.model == model && apiKeyInput == apiKey && baseURLInput == baseURL
     }
 
     private func blurAPIKeyField() {

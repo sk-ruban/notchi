@@ -24,6 +24,15 @@ enum EmotionAnalysisProvider: String, CaseIterable, Identifiable {
         }
     }
 
+    var apiBaseURLPlaceholder: String {
+        switch self {
+        case .claude:
+            "api.anthropic.com"
+        case .openAI:
+            "api.openai.com"
+        }
+    }
+
     var apiKeyURL: URL {
         switch self {
         case .claude:
@@ -144,6 +153,8 @@ struct AppSettings {
     private static let emotionAnalysisProviderKey = "emotionAnalysisProvider"
     private static let emotionAnalysisClaudeModelKey = "emotionAnalysisClaudeModel"
     private static let emotionAnalysisOpenAIModelKey = "emotionAnalysisOpenAIModel"
+    private static let emotionAnalysisClaudeBaseURLKey = "emotionAnalysisClaudeBaseURL"
+    private static let emotionAnalysisOpenAIBaseURLKey = "emotionAnalysisOpenAIBaseURL"
     private static let lastUsedAgentProviderKey = "lastUsedAgentProvider"
     nonisolated private static let agentHooksDisabledProvidersKey = "agentHooksDisabledProviders"
 
@@ -320,6 +331,30 @@ struct AppSettings {
             anthropicApiKey = key
         case .openAI:
             openAIApiKey = key
+        }
+    }
+
+    static func apiBaseURL(for provider: EmotionAnalysisProvider) -> String? {
+        let value = UserDefaults.standard.string(forKey: apiBaseURLKey(for: provider))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return value?.isEmpty == false ? value : nil
+    }
+
+    static func setApiBaseURL(_ baseURL: String?, for provider: EmotionAnalysisProvider) {
+        let trimmed = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed, !trimmed.isEmpty {
+            UserDefaults.standard.set(trimmed, forKey: apiBaseURLKey(for: provider))
+        } else {
+            UserDefaults.standard.removeObject(forKey: apiBaseURLKey(for: provider))
+        }
+    }
+
+    private static func apiBaseURLKey(for provider: EmotionAnalysisProvider) -> String {
+        switch provider {
+        case .claude:
+            emotionAnalysisClaudeBaseURLKey
+        case .openAI:
+            emotionAnalysisOpenAIBaseURLKey
         }
     }
 
