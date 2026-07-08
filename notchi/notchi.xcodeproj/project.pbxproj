@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4708DB2C2FFDF75300AD3A82 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4708DB2B2FFDF75300AD3A82 /* Localizable.xcstrings */; };
+		4708DB2D2FFDF75300AD3A82 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 4708DB2B2FFDF75300AD3A82 /* Localizable.xcstrings */; };
 		47C923A02F2CFA1F00EA1E18 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 47C923A12F2CFA1F00EA1E18 /* Sparkle */; };
 /* End PBXBuildFile section */
 
@@ -21,6 +23,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4708DB2B2FFDF75300AD3A82 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		47C922822F2CFA1F00EA1E18 /* notchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = notchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A11A00022F50000000EA1E18 /* Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -60,6 +63,7 @@
 		47C922792F2CFA1F00EA1E18 = {
 			isa = PBXGroup;
 			children = (
+				4708DB2B2FFDF75300AD3A82 /* Localizable.xcstrings */,
 				47C922842F2CFA1F00EA1E18 /* notchi */,
 				A11A00012F50000000EA1E18 /* Tests */,
 				47C922832F2CFA1F00EA1E18 /* Products */,
@@ -149,6 +153,9 @@
 			knownRegions = (
 				en,
 				Base,
+				ja,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = 47C922792F2CFA1F00EA1E18;
 			minimizedProjectReferenceProxies = 1;
@@ -171,6 +178,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4708DB2D2FFDF75300AD3A82 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -178,6 +186,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4708DB2C2FFDF75300AD3A82 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,6 +280,7 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -330,6 +340,7 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
