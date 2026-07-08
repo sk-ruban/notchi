@@ -127,12 +127,12 @@ struct ScreenPickerRow: View {
     private func screenSublabel(for screen: NSScreen) -> String? {
         var parts: [String] = []
         if screen.isBuiltIn {
-            parts.append("Built-in")
+            parts.append(String(localized: "Built-in"))
         }
         if screen == NSScreen.main {
-            parts.append("Main")
+            parts.append(String(localized: "Main"))
         }
-        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        return parts.isEmpty ? nil : parts.formatted(.list(type: .and, width: .narrow))
     }
 
     private func triggerWindowRecreation() {

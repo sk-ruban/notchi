@@ -697,10 +697,10 @@ struct ExpandedPanelView: View {
 
     private var emptyState: some View {
         let hooksInstalled = IntegrationCoordinator.shared.hasAnyInstalledHooks()
-        let title = hooksInstalled ? "Waiting for activity" : "Hooks not installed"
+        let title = hooksInstalled ? String(localized: "Waiting for activity") : String(localized: "Hooks not installed")
         let subtitle = hooksInstalled
-            ? "Start Claude Code or Codex to begin tracking"
-            : "Open settings to set up Claude Code and Codex integration"
+            ? String(localized: "Start Claude Code or Codex to begin tracking")
+            : String(localized: "Open settings to set up Claude Code and Codex integration")
 
         return VStack(spacing: 8) {
             MorphingText(

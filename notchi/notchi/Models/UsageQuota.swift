@@ -109,16 +109,13 @@ nonisolated struct QuotaPeriod: Codable, Equatable, Sendable {
 
         let interval = resetDate.timeIntervalSince(now)
         let hours = Int(interval) / 3600
-        let minutes = (Int(interval) % 3600) / 60
 
-        if hours >= 48 {
-            let remainingHours = hours % 24
-            return remainingHours > 0 ? "\(hours / 24)d \(remainingHours)h" : "\(hours / 24)d"
-        } else if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        } else {
-            return "\(minutes)m"
-        }
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.zeroFormattingBehavior = .dropAll
+        formatter.maximumUnitCount = 2
+        formatter.allowedUnits = hours >= 48 ? [.day, .hour] : (hours > 0 ? [.hour, .minute] : [.minute])
+        return formatter.string(from: interval)
     }
 }
 

@@ -1149,8 +1149,8 @@ private struct NotchLayoutSettingsView: View {
 
     private func pickHint(option: NotchSlotContent, isSelected: Bool, other: NotchSlotContent) -> String? {
         guard !isSelected else { return nil }
-        if option == other, other != .nothing { return "swap" }
-        if NotchSlotContent.conflict(option, other) { return "replace" }
+        if option == other, other != .nothing { return String(localized: "swap") }
+        if NotchSlotContent.conflict(option, other) { return String(localized: "replace") }
         return nil
     }
 

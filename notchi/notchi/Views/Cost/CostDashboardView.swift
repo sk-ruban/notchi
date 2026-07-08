@@ -70,16 +70,16 @@ struct CostDashboardView: View {
     ) -> [(title: String, value: String)] {
         [
             (
-                selected.map { dayFormatter.string(from: $0.date) } ?? "Today",
+                selected.map { dayFormatter.string(from: $0.date) } ?? String(localized: "Today"),
                 CostStatFormatter.usd(selected?.costUSD ?? r.todayCostUSD)
             ),
             (
-                selected.map { "\(dayFormatter.string(from: $0.date)) toks" } ?? "Today's toks",
+                selected.map { String(localized: "\(dayFormatter.string(from: $0.date)) toks") } ?? String(localized: "Today's toks"),
                 CostStatFormatter.tokens(selected?.totalTokens ?? r.todayTokens)
             ),
-            ("30d", CostStatFormatter.usd(r.windowCostUSD)),
-            ("30d toks", CostStatFormatter.tokens(r.windowTokens)),
-            ("Top model", r.topModel.map(CostStatFormatter.modelName) ?? "—"),
+            (String(localized: "30d"), CostStatFormatter.usd(r.windowCostUSD)),
+            (String(localized: "30d toks"), CostStatFormatter.tokens(r.windowTokens)),
+            (String(localized: "Top model"), r.topModel.map(CostStatFormatter.modelName) ?? "—"),
         ]
     }
 

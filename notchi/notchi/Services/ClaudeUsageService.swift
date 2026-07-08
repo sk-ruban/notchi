@@ -747,7 +747,7 @@ final class ClaudeUsageService {
                 allowsCredentialRecovery: true,
                 prefersRecoveredCredentials: true
             ) else {
-                presentReconnectRequired(message: "Claude authentication needs attention.")
+                presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
                 if currentUsage != nil {
                     scheduleSelfHealRetry()
                 } else {
@@ -807,7 +807,7 @@ final class ClaudeUsageService {
                 isConnected = false
                 clearOAuthBackoffState()
                 if currentUsage != nil {
-                    presentReconnectRequired(message: "Claude authentication needs attention.")
+                    presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
                     scheduleSelfHealRetry()
                 } else {
                     AppSettings.isUsageEnabled = false
@@ -1065,7 +1065,7 @@ final class ClaudeUsageService {
         defer { if userInitiated { isLoading = false } }
 
         guard let userAgent = await resolveUserAgent() else {
-            presentReconnectRequired(message: "Install Claude Code CLI to continue")
+            presentReconnectRequired(message: String(localized: "Install Claude Code CLI to continue"))
             stopPolling()
             return
         }
@@ -1162,7 +1162,7 @@ final class ClaudeUsageService {
             if allow403EmptyHeadersRecovery {
                 await recoverFromEmptyHeadersFallback(afterOAuth403With: accessToken, userInitiated: userInitiated)
             } else {
-                presentReconnectRequired(message: "Claude authentication needs attention.")
+                presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
                 stopPolling()
             }
         }
@@ -1186,8 +1186,8 @@ final class ClaudeUsageService {
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 presentRetryableIssue(
-                    noUsageMessage: "Invalid response, retrying in \(Int(pollInterval))s",
-                    staleMessage: "Stale data"
+                    noUsageMessage: String(localized: "Invalid response, retrying in \(Int(pollInterval))s"),
+                    staleMessage: String(localized: "Stale data")
                 )
                 schedulePollTimer()
                 return .handled
@@ -1268,8 +1268,8 @@ final class ClaudeUsageService {
 
                 clearOAuthBackoffState()
                 presentRetryableIssue(
-                    noUsageMessage: "HTTP \(httpResponse.statusCode), retrying in \(Int(pollInterval))s",
-                    staleMessage: "Stale data"
+                    noUsageMessage: String(localized: "HTTP \(httpResponse.statusCode), retrying in \(Int(pollInterval))s"),
+                    staleMessage: String(localized: "Stale data")
                 )
                 schedulePollTimer()
                 logger.warning("API error: HTTP \(httpResponse.statusCode)")
@@ -1298,8 +1298,8 @@ final class ClaudeUsageService {
 
         } catch {
             presentRetryableIssue(
-                noUsageMessage: "Network error, retrying in \(Int(pollInterval))s",
-                staleMessage: "Stale data"
+                noUsageMessage: String(localized: "Network error, retrying in \(Int(pollInterval))s"),
+                staleMessage: String(localized: "Stale data")
             )
             logger.error("OAuth fetch failed: \(error.localizedDescription)")
             schedulePollTimer()
@@ -1343,8 +1343,8 @@ final class ClaudeUsageService {
                     return .noHeadersFallback
                 case .normalRetrying, .normalNoRetry:
                     presentRetryableIssue(
-                        noUsageMessage: "Invalid response, retrying in \(Int(pollInterval))s",
-                        staleMessage: "Stale data"
+                        noUsageMessage: String(localized: "Invalid response, retrying in \(Int(pollInterval))s"),
+                        staleMessage: String(localized: "Stale data")
                     )
                     schedulePollTimer()
                     return .handled
@@ -1367,8 +1367,8 @@ final class ClaudeUsageService {
                     return .noHeadersFallback
                 case .normalRetrying:
                     presentRetryableIssue(
-                        noUsageMessage: "No rate limit headers, retrying in \(Int(pollInterval))s",
-                        staleMessage: "Stale data"
+                        noUsageMessage: String(localized: "No rate limit headers, retrying in \(Int(pollInterval))s"),
+                        staleMessage: String(localized: "Stale data")
                     )
                     schedulePollTimer()
                     return .noHeadersFallback
@@ -1410,8 +1410,8 @@ final class ClaudeUsageService {
                 return .noHeadersFallback
             case .normalRetrying, .normalNoRetry:
                 presentRetryableIssue(
-                    noUsageMessage: "Network error, retrying in \(Int(pollInterval))s",
-                    staleMessage: "Stale data"
+                    noUsageMessage: String(localized: "Network error, retrying in \(Int(pollInterval))s"),
+                    staleMessage: String(localized: "Stale data")
                 )
                 logger.error("Headers fetch failed: \(error.localizedDescription)")
                 schedulePollTimer()
@@ -1422,7 +1422,7 @@ final class ClaudeUsageService {
 
     private func refreshActiveHeadersFallback(with accessToken: String) async {
         guard let userAgent = await resolveUserAgent() else {
-            presentReconnectRequired(message: "Install Claude Code CLI to continue")
+            presentReconnectRequired(message: String(localized: "Install Claude Code CLI to continue"))
             stopPolling()
             return
         }
@@ -1496,7 +1496,7 @@ final class ClaudeUsageService {
         if usesCredentialMetadata,
            !credentials.scopes.isEmpty,
            !credentials.scopes.contains("user:profile") {
-            presentReconnectRequired(message: "Claude authentication needs attention.")
+            presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
             stopPolling()
             return .handled
         }
@@ -1523,7 +1523,7 @@ final class ClaudeUsageService {
                 return .handled
             }
 
-            presentWaitForClaudeCode(message: "Start a Claude Code session to track usage")
+            presentWaitForClaudeCode(message: String(localized: "Start a Claude Code session to track usage"))
             stopPolling()
             return .handled
         }
@@ -1569,7 +1569,7 @@ final class ClaudeUsageService {
             return
         }
 
-        presentReconnectRequired(message: "Claude authentication needs attention.")
+        presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
         stopPolling()
     }
 
@@ -1583,7 +1583,7 @@ final class ClaudeUsageService {
             logger.warning(
                 "OAuth 403 requires reconnect - errorType: \(errorTypeLog, privacy: .public), requestID: \(requestIDLog, privacy: .public), message: \(rawMessage, privacy: .public)"
             )
-            presentReconnectRequired(message: "Claude authentication needs attention.")
+            presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
             stopPolling()
             return .handled
 
@@ -1852,21 +1852,21 @@ final class ClaudeUsageService {
         let roundedDelay = Int(ceil(remaining))
 
         if currentUsage == nil {
-            error = "Rate limited, retrying in \(roundedDelay)s"
+            error = String(localized: "Rate limited, retrying in \(roundedDelay)s")
             statusMessage = nil
             isUsageStale = false
             return
         }
 
         error = nil
-        statusMessage = "Updating in \(roundedDelay)s"
+        statusMessage = String(localized: "Updating in \(roundedDelay)s")
         isUsageStale = true
     }
 
     private func handleRetryDuringOAuthBackoff(with accessToken: String, remaining: TimeInterval) async {
         if !didAttemptHeadersFallbackInOAuthBackoff {
             guard let userAgent = await resolveUserAgent() else {
-                presentReconnectRequired(message: "Install Claude Code CLI to continue")
+                presentReconnectRequired(message: String(localized: "Install Claude Code CLI to continue"))
                 stopPolling()
                 return
             }
@@ -1898,8 +1898,8 @@ final class ClaudeUsageService {
             currentModelUsageName = nil
             clearOAuthBackoffState()
             presentRetryableIssue(
-                noUsageMessage: "No rate limit headers, retrying in \(Int(pollInterval))s",
-                staleMessage: "Stale data"
+                noUsageMessage: String(localized: "No rate limit headers, retrying in \(Int(pollInterval))s"),
+                staleMessage: String(localized: "Stale data")
             )
             schedulePollTimer()
             return .handled
