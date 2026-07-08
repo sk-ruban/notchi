@@ -80,6 +80,28 @@
         }
       }
     },
+    "%@ remaining" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "残り %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "剩余 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "剩餘 %@"
+          }
+        }
+      }
+    },
     "%@ resets in %@" : {
       "localizations" : {
         "en" : {

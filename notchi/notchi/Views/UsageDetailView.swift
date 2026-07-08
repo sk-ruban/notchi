@@ -265,7 +265,7 @@ struct CodexCreditsRowView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(TerminalColors.primaryText)
             HStack {
-                Text(String(format: "$%.2f remaining", remainingUSD))
+                Text(String(localized: "\(String(format: "$%.2f", remainingUSD)) remaining"))
                     .foregroundColor(TerminalColors.secondaryText)
                 Spacer()
             }

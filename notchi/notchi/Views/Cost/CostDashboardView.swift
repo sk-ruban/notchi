@@ -15,29 +15,11 @@ enum CostStatFormatter {
     }()
 
     static func tokens(_ n: Int) -> String {
-        switch n {
-        case 1_000_000_000...:
-            let v = Double(n) / 1_000_000_000
-            return "\(formatted(v))B"
-        case 1_000_000...:
-            let v = Double(n) / 1_000_000
-            return "\(formatted(v))M"
-        case 1_000...:
-            let v = Double(n) / 1_000
-            return "\(formatted(v))K"
-        default:
-            return "\(n)"
-        }
+        n.formatted(.number.notation(.compactName))
     }
 
     static func usd(_ amount: Double) -> String {
         usdFormatter.string(from: NSNumber(value: amount)) ?? String(format: "$%.2f", amount)
-    }
-
-    private static func formatted(_ v: Double) -> String {
-        v.truncatingRemainder(dividingBy: 1) == 0
-            ? String(Int(v))
-            : String(format: "%.1f", v)
     }
 
     static func modelName(_ raw: String) -> String {
@@ -156,7 +138,7 @@ struct CostDashboardView: View {
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "MMM d"
+        f.setLocalizedDateFormatFromTemplate("MMMd")
         return f
     }()
 
