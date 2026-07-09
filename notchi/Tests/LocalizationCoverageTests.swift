@@ -22,4 +22,11 @@ final class LocalizationCoverageTests: XCTestCase {
             }
         }
     }
+
+    func testIntInterpolationResolvesThroughStringLocalized() throws {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "ja", ofType: "lproj"))
+        let ja = try XCTUnwrap(Bundle(path: path))
+        let resolved = String(localized: "Network error, retrying in \(60)s", bundle: ja)
+        XCTAssertEqual(resolved, "ネットワークエラー。60秒後に再試行します")
+    }
 }

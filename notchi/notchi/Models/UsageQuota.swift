@@ -115,7 +115,7 @@ nonisolated struct QuotaPeriod: Codable, Equatable, Sendable {
         formatter.zeroFormattingBehavior = .dropAll
         formatter.maximumUnitCount = 2
         formatter.allowedUnits = hours >= 48 ? [.day, .hour] : (hours > 0 ? [.hour, .minute] : [.minute])
-        return formatter.string(from: interval)
+        return formatter.string(from: max(interval, 60))
     }
 }
 
