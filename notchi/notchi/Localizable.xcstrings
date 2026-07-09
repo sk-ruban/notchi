@@ -131,6 +131,7 @@
       }
     },
     "%@ toks" : {
+      "comment" : "Date placeholder intentionally omitted in CJK — the adjacent column already shows the date (prevents truncation).",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -349,13 +350,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "代理挂钩"
+            "value" : "代理钩子"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "代理掛鉤"
+            "value" : "代理鉤子"
           }
         }
       }
@@ -397,13 +398,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "附加文件"
+            "value" : "附件"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "附加檔案"
+            "value" : "附件"
           }
         }
       }
@@ -585,7 +586,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "略過"
+            "value" : "繞過"
           }
         }
       }
@@ -1038,19 +1039,19 @@
         "ja" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "フックが未インストール"
+            "value" : "フック未インストール"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "未安装挂钩"
+            "value" : "未安装钩子"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "未安裝掛鉤"
+            "value" : "未安裝鉤子"
           }
         }
       }
@@ -1312,13 +1313,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "缺失"
+            "value" : "未设置"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "缺少"
+            "value" : "未設定"
           }
         }
       }
@@ -1734,7 +1735,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "設定を開いて Claude Code と Codex の連携を設定"
+            "value" : "設定を開いて Claude Code と Codex の連携をセットアップ"
           }
         },
         "zh-Hans" : {
@@ -1746,7 +1747,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "開啟設定以設定 Claude Code 和 Codex 整合"
+            "value" : "開啟設定以完成 Claude Code 和 Codex 整合"
           }
         }
       }
@@ -1816,7 +1817,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "計劃模式"
+            "value" : "計畫模式"
           }
         }
       }
@@ -1924,13 +1925,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "已限速，%lld 秒后重试"
+            "value" : "已达速率限制，%lld 秒后重试"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "已限速，%lld 秒後重試"
+            "value" : "已達速率限制，%lld 秒後重試"
           }
         }
       }
@@ -1946,13 +1947,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "准备安装"
+            "value" : "可安装"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "準備安裝"
+            "value" : "可安裝"
           }
         }
       }
@@ -2212,19 +2213,19 @@
         "ja" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "設定"
+            "value" : "要設定"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "设置"
+            "value" : "需设置"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "設定"
+            "value" : "需設定"
           }
         }
       }
@@ -2264,13 +2265,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "部分模型缺少定价 — 费用为部分统计"
+            "value" : "部分模型缺少定价，费用为部分统计"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "部分模型缺少定價 — 費用為部分統計"
+            "value" : "部分模型缺少定價，費用為部分統計"
           }
         }
       }
@@ -2332,13 +2333,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "在 GitHub 上加星"
+            "value" : "在 GitHub 上加星标"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "在 GitHub 上加星"
+            "value" : "在 GitHub 上加星標"
           }
         }
       }
@@ -2376,13 +2377,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "启动 Claude Code 会话以跟踪用量"
+            "value" : "开始 Claude Code 会话以跟踪用量"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "啟動 Claude Code 工作階段以追蹤用量"
+            "value" : "開始 Claude Code 工作階段以追蹤用量"
           }
         }
       }
@@ -2414,7 +2415,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "タップして Claude の使用状況を表示"
+            "value" : "クリックして Claude の使用状況を表示"
           }
         },
         "zh-Hans" : {
@@ -2514,13 +2515,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "今天"
+            "value" : "今日"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "今天"
+            "value" : "今日"
           }
         }
       }
@@ -2760,13 +2761,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "等待活动"
+            "value" : "正在等待活动"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "等待活動"
+            "value" : "正在等待活動"
           }
         }
       }
