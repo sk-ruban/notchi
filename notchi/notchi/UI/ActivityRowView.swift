@@ -49,7 +49,7 @@ struct ActivityRowView: View {
 
     private var statusLabel: some View {
         let isSuccess = event.status == .success
-        return Text(isSuccess ? "Completed" : "Failed")
+        return Text(isSuccess ? String(localized: "Completed") : String(localized: "Failed"))
             .font(.system(size: 12))
             .foregroundColor(isSuccess ? TerminalColors.green : TerminalColors.red)
     }
@@ -76,7 +76,7 @@ private struct InlineAnswerTextField: NSViewRepresentable {
         textField.isBordered = false
         textField.drawsBackground = false
         textField.focusRingType = .none
-        textField.placeholderString = "Type answer"
+        textField.placeholderString = String(localized: "Type answer")
         textField.font = .systemFont(ofSize: 10)
         textField.textColor = .white
         textField.lineBreakMode = .byTruncatingTail

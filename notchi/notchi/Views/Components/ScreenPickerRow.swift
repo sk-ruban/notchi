@@ -48,8 +48,8 @@ struct ScreenPickerRow: View {
     private var expandedPicker: some View {
         VStack(alignment: .leading, spacing: 4) {
             screenOptionRow(
-                label: "Automatic",
-                sublabel: "Built-in or Main",
+                label: String(localized: "Automatic"),
+                sublabel: String(localized: "Built-in or Main"),
                 isSelected: screenSelector.selectionMode == .automatic
             ) {
                 screenSelector.selectAutomatic()
@@ -119,9 +119,9 @@ struct ScreenPickerRow: View {
 
     private var currentSelectionLabel: String {
         if screenSelector.selectionMode == .automatic {
-            return "Auto"
+            return String(localized: "Auto")
         }
-        return screenSelector.selectedScreen?.localizedName ?? "Auto"
+        return screenSelector.selectedScreen?.localizedName ?? String(localized: "Auto")
     }
 
     private func screenSublabel(for screen: NSScreen) -> String? {

@@ -60,12 +60,12 @@ enum NotchiTask: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .idle:       return "Idle"
-        case .working:    return "Working..."
-        case .sleeping:   return "Sleeping"
-        case .compacting: return "Compacting..."
-        case .waiting:    return "Waiting..."
-        case .waving:     return "Waving"
+        case .idle:       return String(localized: "Idle")
+        case .working:    return String(localized: "Working...")
+        case .sleeping:   return String(localized: "Sleeping")
+        case .compacting: return String(localized: "Compacting...")
+        case .waiting:    return String(localized: "Waiting...")
+        case .waving:     return String(localized: "Waving")
         }
     }
 

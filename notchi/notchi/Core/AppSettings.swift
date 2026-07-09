@@ -18,9 +18,9 @@ enum EmotionAnalysisProvider: String, CaseIterable, Identifiable {
     var apiKeyPlaceholder: String {
         switch self {
         case .claude:
-            "Anthropic API Key"
+            String(localized: "Anthropic API Key")
         case .openAI:
-            "OpenAI API Key"
+            String(localized: "OpenAI API Key")
         }
     }
 
@@ -106,11 +106,11 @@ enum NotchSlotContent: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .latest: "Latest Session"
-        case .ring: "Usage"
+        case .latest: String(localized: "Latest Session")
+        case .ring: String(localized: "Usage")
         case .claude: "Claude"
         case .codex: "Codex"
-        case .nothing: "Nothing"
+        case .nothing: String(localized: "Nothing")
         }
     }
 

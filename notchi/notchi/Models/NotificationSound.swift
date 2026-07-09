@@ -39,7 +39,7 @@ enum NotificationSound: String, CaseIterable, Codable {
 
     var displayName: String {
         switch self {
-        case .none: return "None"
+        case .none: return String(localized: "None")
         case .pop: return "Pop"
         case .ping: return "Ping"
         case .tink: return "Tink"

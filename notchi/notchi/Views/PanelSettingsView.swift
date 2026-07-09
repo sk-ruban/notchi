@@ -16,9 +16,9 @@ enum PanelUsageBadgeState: Equatable {
     var text: String {
         switch self {
         case .connected:
-            "Connected"
+            String(localized: "Connected")
         case .setup:
-            "Set Up"
+            String(localized: "Set Up")
         }
     }
 
@@ -348,28 +348,28 @@ struct PanelSettingsView: View {
         let states = availableHookStates()
 
         guard !states.isEmpty else {
-            return StatusBadge(text: "Unavailable", color: TerminalColors.amber)
+            return StatusBadge(text: String(localized: "Unavailable"), color: TerminalColors.amber)
         }
 
         let enabledStates = states.filter { $0 != .disabled }
         guard !enabledStates.isEmpty else {
-            return StatusBadge(text: "Off", color: TerminalColors.dimmedText)
+            return StatusBadge(text: String(localized: "Off"), color: TerminalColors.dimmedText)
         }
 
         if enabledStates.contains(.failed) {
-            return StatusBadge(text: "Error", color: TerminalColors.red)
+            return StatusBadge(text: String(localized: "Error"), color: TerminalColors.red)
         }
 
         let installedCount = enabledStates.filter { $0 == .installed }.count
         if installedCount == enabledStates.count {
-            return StatusBadge(text: "Installed", color: TerminalColors.green)
+            return StatusBadge(text: String(localized: "Installed"), color: TerminalColors.green)
         }
 
         if installedCount > 0 {
-            return StatusBadge(text: "Partial", color: TerminalColors.amber)
+            return StatusBadge(text: String(localized: "Partial"), color: TerminalColors.amber)
         }
 
-        return StatusBadge(text: "Set Up", color: TerminalColors.amber)
+        return StatusBadge(text: String(localized: "Set Up"), color: TerminalColors.amber)
     }
 
     private func availableHookStates() -> [AgentHookInstallStatus] {
@@ -381,15 +381,15 @@ struct PanelSettingsView: View {
     private func hookProviderStatus(_ status: AgentHookInstallStatus) -> StatusBadge {
         switch status {
         case .installed:
-            StatusBadge(text: "Installed", color: TerminalColors.green)
+            StatusBadge(text: String(localized: "Installed"), color: TerminalColors.green)
         case .notInstalled:
-            StatusBadge(text: "Install", color: TerminalColors.amber)
+            StatusBadge(text: String(localized: "Install"), color: TerminalColors.amber)
         case .providerUnavailable:
-            StatusBadge(text: "Not Found", color: TerminalColors.amber)
+            StatusBadge(text: String(localized: "Not Found"), color: TerminalColors.amber)
         case .failed:
-            StatusBadge(text: "Error", color: TerminalColors.red)
+            StatusBadge(text: String(localized: "Error"), color: TerminalColors.red)
         case .disabled:
-            StatusBadge(text: "Off", color: TerminalColors.dimmedText)
+            StatusBadge(text: String(localized: "Off"), color: TerminalColors.dimmedText)
         }
     }
 
@@ -465,7 +465,7 @@ struct PanelSettingsView: View {
             return ("Claude Code", TerminalColors.green)
         }
 
-        return ("No Key", TerminalColors.red)
+        return (String(localized: "No Key"), TerminalColors.red)
     }
 
     private func hasStoredApiKey(for provider: EmotionAnalysisProvider) -> Bool {
@@ -486,9 +486,9 @@ struct PanelSettingsView: View {
                     .foregroundColor(TerminalColors.dimmedText)
             }
         case .upToDate:
-            statusBadge("Up to date", color: TerminalColors.green)
+            statusBadge(String(localized: "Up to date"), color: TerminalColors.green)
         case .updateAvailable:
-            statusBadge("Update available", color: TerminalColors.amber)
+            statusBadge(String(localized: "Update available"), color: TerminalColors.amber)
         case .downloading:
             HStack(spacing: 4) {
                 ProgressView()
@@ -498,7 +498,7 @@ struct PanelSettingsView: View {
                     .foregroundColor(TerminalColors.dimmedText)
             }
         case .readyToInstall:
-            statusBadge("Ready to install", color: TerminalColors.green)
+            statusBadge(String(localized: "Ready to install"), color: TerminalColors.green)
         case .error(let failure):
             statusBadge(failure.label, color: TerminalColors.red)
         case .idle:
@@ -793,7 +793,7 @@ private struct EmotionAnalysisSettingsView: View {
                     .font(.system(size: 13))
                     .foregroundColor(TerminalColors.dimmedText)
             } else {
-                statusBadge("Missing key", color: TerminalColors.red)
+                statusBadge(String(localized: "Missing key"), color: TerminalColors.red)
             }
         case .testing:
             ProgressView()
@@ -814,11 +814,11 @@ private struct EmotionAnalysisSettingsView: View {
         case .idle:
             EmptyView()
         case .testing:
-            testDetailText("Testing \(provider.displayName) with \(model.displayName)...")
+            testDetailText(String(localized: "Testing \(provider.displayName) with \(model.displayName)..."))
         case .success(let result):
-            testDetailText("Result: \(testResultText(result))")
+            testDetailText(String(localized: "Result: \(testResultText(result))"))
         case .failure:
-            testDetailText(canTest ? "Could not verify this configuration." : "Add an API key to test this configuration.")
+            testDetailText(canTest ? String(localized: "Could not verify this configuration.") : String(localized: "Add an API key to test this configuration."))
         }
     }
 
@@ -905,7 +905,7 @@ private struct EmotionAnalysisSettingsView: View {
         if provider == .claude, hasClaudeCodeFallback {
             return "Claude Code"
         }
-        return "Missing"
+        return String(localized: "Missing")
     }
 
     private var fallbackStatusColor: Color {
@@ -1018,15 +1018,15 @@ private struct EmotionAnalysisSettingsView: View {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet:
-                return "Offline"
+                return String(localized: "Offline")
             case .timedOut:
-                return "Timeout"
+                return String(localized: "Timeout")
             default:
-                return "Failed"
+                return String(localized: "Failed")
             }
         }
 
-        return "Failed"
+        return String(localized: "Failed")
     }
 
     private func statusBadge(_ text: String, color: Color) -> some View {
@@ -1079,7 +1079,7 @@ private struct NotchLayoutSettingsView: View {
     }
 
     @ViewBuilder
-    private func sideRow(_ side: Side, icon: String, title: String, isExpanded: Binding<Bool>) -> some View {
+    private func sideRow(_ side: Side, icon: String, title: LocalizedStringKey, isExpanded: Binding<Bool>) -> some View {
         let selection = side == .left ? left : right
         VStack(alignment: .leading, spacing: 0) {
             Button(action: { isExpanded.wrappedValue.toggle() }) {
@@ -1175,7 +1175,7 @@ private struct NotchLayoutSettingsView: View {
 
 struct SettingsRowView<Trailing: View>: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {

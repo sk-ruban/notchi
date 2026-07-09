@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import SwiftUI
 
 struct ShortcutRecorderView: View {
-    private static let recordingPrompt = "Press keys"
+    private static let recordingPrompt = String(localized: "Press keys")
 
     let shortcut: GlobalShortcut
     var onBeginRecording: () -> Void = {}

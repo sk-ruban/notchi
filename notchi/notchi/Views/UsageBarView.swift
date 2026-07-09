@@ -62,11 +62,11 @@ struct UsageBarView: View {
     var recoveryActionLabel: String {
         switch recoveryAction {
         case .retry:
-            return "Retry"
+            return String(localized: "Retry")
         case .reconnect:
-            return "Reconnect"
+            return String(localized: "Reconnect")
         case .waitForClaudeCode:
-            return "Open Claude Code"
+            return String(localized: "Open Claude Code")
         case .none:
             return ""
         }
@@ -118,9 +118,9 @@ struct UsageBarView: View {
 
     func resetLabelText(for resetTime: String) -> String {
         if let resetLabelPrefix {
-            return "\(resetLabelPrefix) resets in \(resetTime)"
+            return String(localized: "\(resetLabelPrefix) resets in \(resetTime)")
         }
-        return "Resets in \(resetTime)"
+        return String(localized: "Resets in \(resetTime)")
     }
 
     var body: some View {

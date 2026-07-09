@@ -58,10 +58,10 @@ struct UsageDetailView: View {
             let stale = claudeUsage.isUsageStale
             let heldOver = stale || claudeUsage.isUsingHeadersFallback
             return [
-                UsageMetrics.periodDisplay(title: "Session", usage: claudeUsage.currentUsage, isStale: stale),
-                UsageMetrics.periodDisplay(title: "Weekly", usage: claudeUsage.currentWeeklyUsage, isStale: heldOver),
+                UsageMetrics.periodDisplay(title: String(localized: "Session"), usage: claudeUsage.currentUsage, isStale: stale),
+                UsageMetrics.periodDisplay(title: String(localized: "Weekly"), usage: claudeUsage.currentWeeklyUsage, isStale: heldOver),
                 UsageMetrics.periodDisplay(
-                    title: claudeUsage.currentModelUsageName ?? "Model",
+                    title: claudeUsage.currentModelUsageName ?? String(localized: "Model"),
                     usage: claudeUsage.currentModelUsage,
                     isStale: heldOver
                 ),
@@ -69,9 +69,9 @@ struct UsageDetailView: View {
         case .codex:
             let stale = codexUsage.isUsageStale
             return [
-                UsageMetrics.periodDisplay(title: "Session", usage: codexUsage.currentUsage, isStale: stale),
-                UsageMetrics.periodDisplay(title: "Weekly", usage: codexUsage.currentWeeklyUsage, isStale: stale),
-                UsageMetrics.periodDisplay(title: "Reviews", usage: codexUsage.currentReviewsUsage, isStale: stale),
+                UsageMetrics.periodDisplay(title: String(localized: "Session"), usage: codexUsage.currentUsage, isStale: stale),
+                UsageMetrics.periodDisplay(title: String(localized: "Weekly"), usage: codexUsage.currentWeeklyUsage, isStale: stale),
+                UsageMetrics.periodDisplay(title: String(localized: "Reviews"), usage: codexUsage.currentReviewsUsage, isStale: stale),
             ].compactMap { $0 }
         }
     }

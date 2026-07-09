@@ -1,6 +1,6 @@
 import Foundation
 struct PendingQuestion {
-    static let freeTextOptionLabel = "Type something"
+    static let freeTextOptionLabel = String(localized: "Type something")
 
     let question: String
     let header: String?
@@ -65,10 +65,10 @@ final class SessionData: Identifiable {
 
     var currentModeDisplay: String? {
         switch permissionMode {
-        case "plan": return "Plan Mode"
-        case "acceptEdits": return "Accept Edits"
-        case "dontAsk": return "Don't Ask"
-        case "bypassPermissions": return "Bypass"
+        case "plan": return String(localized: "Plan Mode")
+        case "acceptEdits": return String(localized: "Accept Edits")
+        case "dontAsk": return String(localized: "Don't Ask")
+        case "bypassPermissions": return String(localized: "Bypass")
         default: return nil
         }
     }

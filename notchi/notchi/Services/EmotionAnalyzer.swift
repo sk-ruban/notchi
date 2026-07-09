@@ -153,26 +153,26 @@ enum EmotionAnalysisRequestError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey(let provider):
-            "Missing \(provider.displayName) API key"
+            String(localized: "Missing \(provider.displayName) API key")
         case .invalidBaseURL:
-            "Invalid API base URL"
+            String(localized: "Invalid API base URL")
         case .httpStatus(let provider, let statusCode):
-            "\(provider) API returned HTTP \(statusCode)"
+            String(localized: "\(provider) API returned HTTP \(statusCode)")
         case .invalidResponse:
-            "Invalid emotion analysis response"
+            String(localized: "Invalid emotion analysis response")
         }
     }
 
     var shortLabel: String {
         switch self {
         case .missingAPIKey:
-            "Missing"
+            String(localized: "Missing")
         case .invalidBaseURL:
-            "Bad URL"
+            String(localized: "Bad URL")
         case .httpStatus(_, let statusCode):
-            "HTTP \(statusCode)"
+            String(localized: "HTTP \(statusCode)")
         case .invalidResponse:
-            "Invalid"
+            String(localized: "Invalid")
         }
     }
 }

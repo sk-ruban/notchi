@@ -139,7 +139,7 @@ nonisolated struct SharedUsageBarState {
         if let labelOverride {
             return labelOverride
         }
-        return "\(provider.displayName) Usage"
+        return String(localized: "\(provider.displayName) Usage")
     }
 
     static let noActiveSession = SharedUsageBarState(
@@ -153,7 +153,7 @@ nonisolated struct SharedUsageBarState {
         isStale: false,
         recoveryAction: .none,
         lastObservedAt: nil,
-        labelOverride: "Start a session to track usage",
+        labelOverride: String(localized: "Start a session to track usage"),
         isProviderSpecific: false
     )
 }
@@ -538,7 +538,7 @@ struct ExpandedPanelView: View {
 
     static func questionResponseHint(for session: SessionData?) -> String? {
         guard session?.provider == .codex else { return nil }
-        return "Reply directly in the Codex app or CLI"
+        return String(localized: "Reply directly in the Codex app or CLI")
     }
 
     static func sharedUsageResetLabelPrefix(

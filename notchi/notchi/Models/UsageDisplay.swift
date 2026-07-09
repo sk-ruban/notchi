@@ -20,7 +20,7 @@ nonisolated struct ExtraUsageDisplay: Equatable {
 nonisolated enum UsageMetrics {
     static func periodDisplay(title: String, usage: QuotaPeriod?, isStale: Bool = false) -> UsagePeriodDisplay? {
         guard let usage else { return nil }
-        let resetText = usage.formattedResetTime.map { "resets in \($0)" }
+        let resetText = usage.formattedResetTime.map { String(localized: "resets in \($0)") }
         return UsagePeriodDisplay(
             title: title,
             percentUsed: min(max(usage.usagePercentage, 0), 100),
