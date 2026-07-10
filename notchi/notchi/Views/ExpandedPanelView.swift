@@ -205,20 +205,32 @@ struct ExpandedPanelView: View {
     }
 
     private var usageDetailDefaultProvider: AgentProvider {
-        usageContextSession?.provider ?? sharedUsageBarState?.provider ?? .claude
+        Self.usageDetailDefaultProvider(
+            contextSession: usageContextSession,
+            lastUsedProvider: AppSettings.lastUsedAgentProvider,
+            claudeHasData: claudeHasUsageData,
+            codexHasData: codexHasUsageData
+        )
     }
 
-    private var hasUsageDetailData: Bool {
+    private var claudeHasUsageData: Bool {
         UsageMetrics.claudeHasData(
             usage: usageService.currentUsage,
             weeklyUsage: usageService.currentWeeklyUsage,
             modelUsage: usageService.currentModelUsage,
             extraUsage: usageService.currentExtraUsage
         )
-            || UsageMetrics.codexHasData(
-                usage: codexUsageService.currentUsage,
-                weeklyUsage: codexUsageService.currentWeeklyUsage
-            )
+    }
+
+    private var codexHasUsageData: Bool {
+        UsageMetrics.codexHasData(
+            usage: codexUsageService.currentUsage,
+            weeklyUsage: codexUsageService.currentWeeklyUsage
+        )
+    }
+
+    private var hasUsageDetailData: Bool {
+        claudeHasUsageData || codexHasUsageData
     }
 
     private var state: NotchiState {
@@ -556,6 +568,25 @@ struct ExpandedPanelView: View {
         appUsageEnabled: Bool = AppSettings.isUsageEnabled
     ) -> Bool {
         provider == .codex || appUsageEnabled
+    }
+
+    static func usageDetailDefaultProvider(
+        contextSession: SessionData?,
+        lastUsedProvider: AgentProvider,
+        claudeHasData: Bool,
+        codexHasData: Bool
+    ) -> AgentProvider {
+        if let contextSession {
+            return contextSession.provider
+        }
+        switch lastUsedProvider {
+        case .claude where claudeHasData, .codex where codexHasData:
+            return lastUsedProvider
+        default:
+            if claudeHasData { return .claude }
+            if codexHasData { return .codex }
+            return lastUsedProvider
+        }
     }
 
     static func sharedUsageBarState(

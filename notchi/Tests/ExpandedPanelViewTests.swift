@@ -164,6 +164,52 @@ final class ExpandedPanelViewTests: XCTestCase {
         )
     }
 
+    func testUsageDetailOpensOnContextSessionProviderRegardlessOfLastUsed() {
+        let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
+
+        let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            contextSession: codexSession,
+            lastUsedProvider: .claude,
+            claudeHasData: true,
+            codexHasData: true
+        )
+
+        XCTAssertEqual(provider, .codex)
+    }
+
+    func testUsageDetailOpensOnLastUsedProviderWhenIdleAndItHasData() {
+        let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            contextSession: nil,
+            lastUsedProvider: .codex,
+            claudeHasData: true,
+            codexHasData: true
+        )
+
+        XCTAssertEqual(provider, .codex)
+    }
+
+    func testUsageDetailPrefersProviderWithDataOverLastUsedWithoutData() {
+        let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            contextSession: nil,
+            lastUsedProvider: .codex,
+            claudeHasData: true,
+            codexHasData: false
+        )
+
+        XCTAssertEqual(provider, .claude)
+    }
+
+    func testUsageDetailOpensOnLastUsedProviderWhenIdleWithNoDataAnywhere() {
+        let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            contextSession: nil,
+            lastUsedProvider: .codex,
+            claudeHasData: false,
+            codexHasData: false
+        )
+
+        XCTAssertEqual(provider, .codex)
+    }
+
     func testCodexUsageBarIgnoresClaudeUsageSetting() {
         XCTAssertTrue(ExpandedPanelView.sharedUsageBarIsEnabled(provider: .codex, appUsageEnabled: false))
         XCTAssertFalse(ExpandedPanelView.sharedUsageBarIsEnabled(provider: .claude, appUsageEnabled: false))
