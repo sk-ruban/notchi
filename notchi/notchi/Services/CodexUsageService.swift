@@ -52,6 +52,9 @@ final class CodexUsageService {
     var isUsageStale = false
     var statusMessage: String?
     var lastObservedAt: Date?
+    var hasUsageData: Bool {
+        UsageMetrics.codexHasData(usage: currentUsage, weeklyUsage: currentWeeklyUsage)
+    }
 
     private static let staleObservationInterval: TimeInterval = 15 * 60
 

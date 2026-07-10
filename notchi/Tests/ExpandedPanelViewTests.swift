@@ -170,9 +170,7 @@ final class ExpandedPanelViewTests: XCTestCase {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
             requestedProvider: nil,
             contextSession: codexSession,
-            lastUsedProvider: .claude,
-            claudeHasData: true,
-            codexHasData: true
+            lastUsedProvider: .claude
         )
 
         XCTAssertEqual(provider, .codex)
@@ -184,57 +182,17 @@ final class ExpandedPanelViewTests: XCTestCase {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
             requestedProvider: .claude,
             contextSession: codexSession,
-            lastUsedProvider: .codex,
-            claudeHasData: true,
-            codexHasData: true
+            lastUsedProvider: .codex
         )
 
         XCTAssertEqual(provider, .claude)
     }
 
-    func testUsageDetailOpensOnLastUsedProviderWhenIdleAndItHasData() {
+    func testUsageDetailOpensOnLastUsedProviderWhenIdle() {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
             requestedProvider: nil,
             contextSession: nil,
-            lastUsedProvider: .codex,
-            claudeHasData: true,
-            codexHasData: true
-        )
-
-        XCTAssertEqual(provider, .codex)
-    }
-
-    func testUsageDetailPrefersProviderWithDataOverLastUsedWithoutData() {
-        let provider = ExpandedPanelView.usageDetailDefaultProvider(
-            requestedProvider: nil,
-            contextSession: nil,
-            lastUsedProvider: .codex,
-            claudeHasData: true,
-            codexHasData: false
-        )
-
-        XCTAssertEqual(provider, .claude)
-    }
-
-    func testUsageDetailPrefersCodexWithDataOverLastUsedClaudeWithoutData() {
-        let provider = ExpandedPanelView.usageDetailDefaultProvider(
-            requestedProvider: nil,
-            contextSession: nil,
-            lastUsedProvider: .claude,
-            claudeHasData: false,
-            codexHasData: true
-        )
-
-        XCTAssertEqual(provider, .codex)
-    }
-
-    func testUsageDetailOpensOnLastUsedProviderWhenIdleWithNoDataAnywhere() {
-        let provider = ExpandedPanelView.usageDetailDefaultProvider(
-            requestedProvider: nil,
-            contextSession: nil,
-            lastUsedProvider: .codex,
-            claudeHasData: false,
-            codexHasData: false
+            lastUsedProvider: .codex
         )
 
         XCTAssertEqual(provider, .codex)

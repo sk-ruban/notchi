@@ -25,19 +25,11 @@ struct UsageDetailView: View {
     }
 
     private var claudeHasData: Bool {
-        UsageMetrics.claudeHasData(
-            usage: claudeUsage.currentUsage,
-            weeklyUsage: claudeUsage.currentWeeklyUsage,
-            modelUsage: claudeUsage.currentModelUsage,
-            extraUsage: claudeUsage.currentExtraUsage
-        )
+        claudeUsage.hasUsageData
     }
 
     private var codexHasData: Bool {
-        UsageMetrics.codexHasData(
-            usage: codexUsage.currentUsage,
-            weeklyUsage: codexUsage.currentWeeklyUsage
-        )
+        codexUsage.hasUsageData
     }
 
     private var showsToggle: Bool {
@@ -45,10 +37,22 @@ struct UsageDetailView: View {
     }
 
     private var resolvedProvider: AgentProvider {
-        switch selectedProvider {
+        Self.resolvedProvider(
+            selected: selectedProvider,
+            claudeHasData: claudeHasData,
+            codexHasData: codexHasData
+        )
+    }
+
+    static func resolvedProvider(
+        selected: AgentProvider,
+        claudeHasData: Bool,
+        codexHasData: Bool
+    ) -> AgentProvider {
+        switch selected {
         case .claude where !claudeHasData && codexHasData: return .codex
         case .codex where !codexHasData && claudeHasData: return .claude
-        default: return selectedProvider
+        default: return selected
         }
     }
 

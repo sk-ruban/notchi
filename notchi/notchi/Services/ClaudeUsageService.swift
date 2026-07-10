@@ -695,6 +695,14 @@ final class ClaudeUsageService {
     var isConnected = false
     var isUsageStale = false
     var isUsingHeadersFallback: Bool { isHeadersFallbackActive }
+    var hasUsageData: Bool {
+        UsageMetrics.claudeHasData(
+            usage: currentUsage,
+            weeklyUsage: currentWeeklyUsage,
+            modelUsage: currentModelUsage,
+            extraUsage: currentExtraUsage
+        )
+    }
     var lastObservedAt: Date?
     var recoveryAction: ClaudeUsageRecoveryAction = .none
 

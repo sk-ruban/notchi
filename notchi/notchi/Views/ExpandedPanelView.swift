@@ -211,30 +211,12 @@ struct ExpandedPanelView: View {
         Self.usageDetailDefaultProvider(
             requestedProvider: usageDetailProvider,
             contextSession: usageContextSession,
-            lastUsedProvider: AppSettings.lastUsedAgentProvider,
-            claudeHasData: claudeHasUsageData,
-            codexHasData: codexHasUsageData
-        )
-    }
-
-    private var claudeHasUsageData: Bool {
-        UsageMetrics.claudeHasData(
-            usage: usageService.currentUsage,
-            weeklyUsage: usageService.currentWeeklyUsage,
-            modelUsage: usageService.currentModelUsage,
-            extraUsage: usageService.currentExtraUsage
-        )
-    }
-
-    private var codexHasUsageData: Bool {
-        UsageMetrics.codexHasData(
-            usage: codexUsageService.currentUsage,
-            weeklyUsage: codexUsageService.currentWeeklyUsage
+            lastUsedProvider: AppSettings.lastUsedAgentProvider
         )
     }
 
     private var hasUsageDetailData: Bool {
-        claudeHasUsageData || codexHasUsageData
+        usageService.hasUsageData || codexUsageService.hasUsageData
     }
 
     private var state: NotchiState {
@@ -577,24 +559,9 @@ struct ExpandedPanelView: View {
     static func usageDetailDefaultProvider(
         requestedProvider: AgentProvider?,
         contextSession: SessionData?,
-        lastUsedProvider: AgentProvider,
-        claudeHasData: Bool,
-        codexHasData: Bool
+        lastUsedProvider: AgentProvider
     ) -> AgentProvider {
-        if let requestedProvider {
-            return requestedProvider
-        }
-        if let contextSession {
-            return contextSession.provider
-        }
-        switch lastUsedProvider {
-        case .claude where claudeHasData, .codex where codexHasData:
-            return lastUsedProvider
-        default:
-            if claudeHasData { return .claude }
-            if codexHasData { return .codex }
-            return lastUsedProvider
-        }
+        requestedProvider ?? contextSession?.provider ?? lastUsedProvider
     }
 
     static func sharedUsageBarState(
