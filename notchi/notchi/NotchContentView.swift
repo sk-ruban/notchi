@@ -301,7 +301,7 @@ struct NotchContentView: View {
     }
 
     private var ringProvider: AgentProvider {
-        activeSession?.provider ?? .claude
+        activeSession?.provider ?? AppSettings.lastUsedAgentProvider
     }
 
     private var ringIsStale: Bool {
@@ -638,17 +638,18 @@ struct NotchContentView: View {
                 .opacity(collapsedHeaderSpriteVisuals.opacity)
                 .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
                 .frame(width: sideWidth)
-                .scaleEffect(collapsedHeaderSpriteScale, anchor: .bottom)
-                .offset(x: ringOffsetX(side: side), y: collapsedUsageRingOffsetY)
                 .contentShape(Rectangle())
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { _ in
-                            guard !isExpanded, !showingUsageDetail else { return }
+                            guard !isExpanded else { return }
                             isActivityCollapsed = false
                             showingUsageDetail = true
+                            panelManager.expand()
                         }
                 )
+                .scaleEffect(collapsedHeaderSpriteScale, anchor: .bottom)
+                .offset(x: ringOffsetX(side: side), y: collapsedUsageRingOffsetY)
         } else {
             Color.clear.frame(width: sideWidth)
         }
