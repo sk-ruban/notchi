@@ -11,6 +11,7 @@ final class SessionStore {
 
     private(set) var sessions: [ProviderSessionKey: SessionData] = [:]
     private(set) var selectedSessionKey: ProviderSessionKey?
+    private(set) var selectedAt: Date?
     private var displaySessionNumbersById: [String: Int] = [:]
     private var resolveCodexMetadata: @Sendable ([String]) -> [String: CodexThreadMetadata] = { transcriptPaths in
         CodexThreadMetadataResolver.metadata(forTranscriptPaths: transcriptPaths)
@@ -58,12 +59,38 @@ final class SessionStore {
     }
 
     func latestSession(excluding provider: AgentProvider?) -> SessionData? {
-        sortedSessions.first { $0.provider != provider }
+        if let pinned = pinnedSelectedSession, pinned.provider != provider {
+            return pinned
+        }
+        return sortedSessions.first { $0.provider != provider }
+    }
+
+    private var pinnedSelectedSession: SessionData? {
+        guard let selected = selectedSession else { return nil }
+        let otherActivities = sessions.values
+            .filter { $0.sessionKey != selected.sessionKey }
+            .map(\.lastActivity)
+        return Self.pinnedSession(
+            selected: selected,
+            selectedAt: selectedAt,
+            otherSessionActivities: otherActivities
+        )
+    }
+
+    static func pinnedSession(
+        selected: SessionData?,
+        selectedAt: Date?,
+        otherSessionActivities: [Date]
+    ) -> SessionData? {
+        guard let selected, let selectedAt else { return nil }
+        let overridden = otherSessionActivities.contains { $0 > selectedAt }
+        return overridden ? nil : selected
     }
 
     func selectSession(_ sessionKey: ProviderSessionKey) {
         guard sessions[sessionKey] != nil else { return }
         selectedSessionKey = sessionKey
+        selectedAt = Date()
     }
 
     @discardableResult
@@ -75,6 +102,7 @@ final class SessionStore {
 
     func clearSelectedSession() {
         selectedSessionKey = nil
+        selectedAt = nil
     }
 
     func process(_ event: HookEvent, sessionStartTimeOverride: Date? = nil) -> SessionData {
@@ -220,8 +248,10 @@ final class SessionStore {
 
         if activeSessionCount == 1 {
             selectedSessionKey = session.sessionKey
+            selectedAt = Date()
         } else {
             selectedSessionKey = nil
+            selectedAt = nil
         }
 
         return session
@@ -234,10 +264,12 @@ final class SessionStore {
 
         if selectedSessionKey == sessionKey {
             selectedSessionKey = nil
+            selectedAt = nil
         }
 
         if selectedSessionKey == nil, activeSessionCount == 1 {
             selectedSessionKey = sessions.keys.first
+            selectedAt = Date()
         }
     }
 

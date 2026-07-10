@@ -1364,6 +1364,101 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(session.task, .working)
     }
 
+    func testPinnedSessionHoldsWhileOtherSessionsHaveNoNewerActivity() {
+        let selected = SessionData(sessionId: "pinned-claude", provider: .claude, cwd: "/tmp/project")
+        let selectedAt = Date(timeIntervalSince1970: 1_000)
+
+        let pinned = SessionStore.pinnedSession(
+            selected: selected,
+            selectedAt: selectedAt,
+            otherSessionActivities: [
+                Date(timeIntervalSince1970: 900),
+                Date(timeIntervalSince1970: 1_000),
+            ]
+        )
+
+        XCTAssertEqual(pinned?.id, selected.id)
+    }
+
+    func testPinnedSessionReleasesWhenAnotherSessionActsAfterSelection() {
+        let selected = SessionData(sessionId: "pinned-claude", provider: .claude, cwd: "/tmp/project")
+
+        let pinned = SessionStore.pinnedSession(
+            selected: selected,
+            selectedAt: Date(timeIntervalSince1970: 1_000),
+            otherSessionActivities: [Date(timeIntervalSince1970: 1_001)]
+        )
+
+        XCTAssertNil(pinned)
+    }
+
+    func testPinnedSessionRequiresBothSelectionAndTimestamp() {
+        let session = SessionData(sessionId: "pinned-claude", provider: .claude, cwd: "/tmp/project")
+
+        XCTAssertNil(
+            SessionStore.pinnedSession(
+                selected: nil,
+                selectedAt: Date(timeIntervalSince1970: 1_000),
+                otherSessionActivities: []
+            )
+        )
+        XCTAssertNil(
+            SessionStore.pinnedSession(
+                selected: session,
+                selectedAt: nil,
+                otherSessionActivities: []
+            )
+        )
+    }
+
+    func testSelectionTimestampFollowsSelectAndClear() {
+        let store = SessionStore.shared
+        let session = store.process(makeEvent(
+            sessionId: "select-stamp-\(UUID().uuidString)",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+
+        store.selectSession(session.sessionKey)
+        XCTAssertNotNil(store.selectedAt)
+
+        store.clearSelectedSession()
+        XCTAssertNil(store.selectedAt)
+    }
+
+    func testLatestSessionHonorsSelectionPinUntilAnotherSessionActs() {
+        let store = SessionStore.shared
+        let first = store.process(makeEvent(
+            sessionId: "pin-first-\(UUID().uuidString)",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "first"
+        ))
+        let secondSessionId = "pin-second-\(UUID().uuidString)"
+        let second = store.process(makeEvent(
+            sessionId: secondSessionId,
+            provider: .codex,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "second"
+        ))
+
+        XCTAssertEqual(store.latestSession(excluding: nil)?.id, second.id)
+
+        store.selectSession(first.sessionKey)
+        XCTAssertEqual(store.latestSession(excluding: nil)?.id, first.id)
+
+        _ = store.process(makeEvent(
+            sessionId: secondSessionId,
+            provider: .codex,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "second again"
+        ))
+        XCTAssertEqual(store.latestSession(excluding: nil)?.id, second.id)
+    }
+
     private func makeEvent(
         sessionId: String,
         provider: AgentProvider = .claude,
