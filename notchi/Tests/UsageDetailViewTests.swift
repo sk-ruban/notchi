@@ -12,6 +12,10 @@ final class UsageDetailViewTests: XCTestCase {
             UsageDetailView.resolvedProvider(selected: .codex, claudeHasData: true, codexHasData: true),
             .codex
         )
+        XCTAssertEqual(
+            UsageDetailView.resolvedProvider(selected: .codex, claudeHasData: false, codexHasData: true),
+            .codex
+        )
     }
 
     func testResolvedProviderReroutesDatalessClaudeToCodexWithData() {
@@ -22,10 +26,6 @@ final class UsageDetailViewTests: XCTestCase {
     }
 
     func testResolvedProviderReroutesDatalessCodexToClaudeWithData() {
-        XCTAssertEqual(
-            UsageDetailView.resolvedProvider(selected: .codex, claudeHasData: false, codexHasData: true),
-            .codex
-        )
         XCTAssertEqual(
             UsageDetailView.resolvedProvider(selected: .codex, claudeHasData: true, codexHasData: false),
             .claude
