@@ -168,6 +168,7 @@ final class ExpandedPanelViewTests: XCTestCase {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
 
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: nil,
             contextSession: codexSession,
             lastUsedProvider: .claude,
             claudeHasData: true,
@@ -177,8 +178,23 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertEqual(provider, .codex)
     }
 
+    func testUsageDetailOpensOnRequestedProviderOverContextSession() {
+        let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
+
+        let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: .claude,
+            contextSession: codexSession,
+            lastUsedProvider: .codex,
+            claudeHasData: true,
+            codexHasData: true
+        )
+
+        XCTAssertEqual(provider, .claude)
+    }
+
     func testUsageDetailOpensOnLastUsedProviderWhenIdleAndItHasData() {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: nil,
             contextSession: nil,
             lastUsedProvider: .codex,
             claudeHasData: true,
@@ -190,6 +206,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testUsageDetailPrefersProviderWithDataOverLastUsedWithoutData() {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: nil,
             contextSession: nil,
             lastUsedProvider: .codex,
             claudeHasData: true,
@@ -201,6 +218,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testUsageDetailPrefersCodexWithDataOverLastUsedClaudeWithoutData() {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: nil,
             contextSession: nil,
             lastUsedProvider: .claude,
             claudeHasData: false,
@@ -212,6 +230,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testUsageDetailOpensOnLastUsedProviderWhenIdleWithNoDataAnywhere() {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: nil,
             contextSession: nil,
             lastUsedProvider: .codex,
             claudeHasData: false,

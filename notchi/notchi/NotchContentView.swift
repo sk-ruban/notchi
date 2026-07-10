@@ -95,6 +95,7 @@ struct NotchContentView: View {
     @State private var showingPanelSettings = false
     @State private var showingPanelSettingsDetail = false
     @State private var showingUsageDetail = false
+    @State private var usageDetailProvider: AgentProvider?
     @State private var showingSessionActivity = false
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
@@ -300,8 +301,25 @@ struct NotchContentView: View {
         max(0, notchSize.height - 12) + 24
     }
 
+    private var collapsedSpriteSession: SessionData? {
+        sessionForSprite(leftContent, excluding: rightContent.spriteProvider)
+            ?? sessionForSprite(rightContent, excluding: leftContent.spriteProvider)
+    }
+
     private var ringProvider: AgentProvider {
-        activeSession?.provider ?? AppSettings.lastUsedAgentProvider
+        Self.collapsedRingProvider(
+            spriteSession: collapsedSpriteSession,
+            effectiveSession: activeSession,
+            lastUsedProvider: AppSettings.lastUsedAgentProvider
+        )
+    }
+
+    static func collapsedRingProvider(
+        spriteSession: SessionData?,
+        effectiveSession: SessionData?,
+        lastUsedProvider: AgentProvider
+    ) -> AgentProvider {
+        (spriteSession ?? effectiveSession)?.provider ?? lastUsedProvider
     }
 
     private var ringIsStale: Bool {
@@ -470,6 +488,7 @@ struct NotchContentView: View {
                 showingPanelSettingsDetail = false
                 showingSessionActivity = false
                 showingUsageDetail = false
+                usageDetailProvider = nil
                 hoveredSessionId = nil
             }
         }
@@ -492,6 +511,7 @@ struct NotchContentView: View {
                         sessionStore: sessionStore,
                         usageService: usageService,
                         codexUsageService: CodexUsageService.shared,
+                        usageDetailProvider: usageDetailProvider,
                         showingSettings: $showingPanelSettings,
                         showingSettingsDetail: $showingPanelSettingsDetail,
                         showingSessionActivity: $showingSessionActivity,
@@ -581,6 +601,7 @@ struct NotchContentView: View {
             }
         } else if showingUsageDetail {
             showingUsageDetail = false
+            usageDetailProvider = nil
         } else if showingSessionActivity {
             showingSessionActivity = false
             sessionStore.clearSelectedSession()
@@ -589,6 +610,7 @@ struct NotchContentView: View {
 
     private func selectGrassSession(_ sessionId: String) {
         showingUsageDetail = false
+        usageDetailProvider = nil
         guard sessionStore.activeSessionCount >= 2 else { return }
 
         let shouldPlayHaptic = sessionStore.selectedSessionId != sessionId || !showingSessionActivity
@@ -628,7 +650,20 @@ struct NotchContentView: View {
             ringSlot(side: side)
         case .latest, .claude, .codex:
             spriteSlot(content: spriteContent(for: content, side: side), side: side)
+                .simultaneousGesture(collapsedSpriteGesture(for: content, side: side))
         }
+    }
+
+    private func collapsedSpriteGesture(for content: NotchSlotContent, side: NotchSide) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                guard !isExpanded else { return }
+                let excluded = (side == .left ? rightContent : leftContent).spriteProvider
+                guard let session = sessionForSprite(content, excluding: excluded) else { return }
+                sessionStore.selectSession(matchingStableId: session.id)
+                showingSessionActivity = true
+                panelManager.expand()
+            }
     }
 
     @ViewBuilder
@@ -644,6 +679,7 @@ struct NotchContentView: View {
                         .onChanged { _ in
                             guard !isExpanded else { return }
                             isActivityCollapsed = false
+                            usageDetailProvider = ringProvider
                             showingUsageDetail = true
                             panelManager.expand()
                         }

@@ -162,6 +162,7 @@ struct ExpandedPanelView: View {
     let sessionStore: SessionStore
     let usageService: ClaudeUsageService
     let codexUsageService: CodexUsageService
+    let usageDetailProvider: AgentProvider?
     @Binding var showingSettings: Bool
     @Binding var showingSettingsDetail: Bool
     @Binding var showingSessionActivity: Bool
@@ -173,6 +174,7 @@ struct ExpandedPanelView: View {
         sessionStore: SessionStore,
         usageService: ClaudeUsageService,
         codexUsageService: CodexUsageService,
+        usageDetailProvider: AgentProvider?,
         showingSettings: Binding<Bool>,
         showingSettingsDetail: Binding<Bool>,
         showingSessionActivity: Binding<Bool>,
@@ -183,6 +185,7 @@ struct ExpandedPanelView: View {
         self.sessionStore = sessionStore
         self.usageService = usageService
         self.codexUsageService = codexUsageService
+        self.usageDetailProvider = usageDetailProvider
         _showingSettings = showingSettings
         _showingSettingsDetail = showingSettingsDetail
         _showingSessionActivity = showingSessionActivity
@@ -206,6 +209,7 @@ struct ExpandedPanelView: View {
 
     private var usageDetailDefaultProvider: AgentProvider {
         Self.usageDetailDefaultProvider(
+            requestedProvider: usageDetailProvider,
             contextSession: usageContextSession,
             lastUsedProvider: AppSettings.lastUsedAgentProvider,
             claudeHasData: claudeHasUsageData,
@@ -571,11 +575,15 @@ struct ExpandedPanelView: View {
     }
 
     static func usageDetailDefaultProvider(
+        requestedProvider: AgentProvider?,
         contextSession: SessionData?,
         lastUsedProvider: AgentProvider,
         claudeHasData: Bool,
         codexHasData: Bool
     ) -> AgentProvider {
+        if let requestedProvider {
+            return requestedProvider
+        }
         if let contextSession {
             return contextSession.provider
         }

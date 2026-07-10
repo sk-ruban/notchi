@@ -29,6 +29,44 @@ final class NotchContentViewTests: XCTestCase {
         XCTAssertFalse(NotchSlotContent.conflict(.ring, .latest))
     }
 
+    func testRingProviderFollowsDisplayedSpriteSessionOverSelectedSession() {
+        let claudeSpriteSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
+        let codexSelectedSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
+
+        XCTAssertEqual(
+            NotchContentView.collapsedRingProvider(
+                spriteSession: claudeSpriteSession,
+                effectiveSession: codexSelectedSession,
+                lastUsedProvider: .codex
+            ),
+            .claude
+        )
+    }
+
+    func testRingProviderFallsBackToEffectiveSessionWithoutDisplayedSprite() {
+        let codexSelectedSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
+
+        XCTAssertEqual(
+            NotchContentView.collapsedRingProvider(
+                spriteSession: nil,
+                effectiveSession: codexSelectedSession,
+                lastUsedProvider: .claude
+            ),
+            .codex
+        )
+    }
+
+    func testRingProviderFallsBackToLastUsedProviderWhenIdle() {
+        XCTAssertEqual(
+            NotchContentView.collapsedRingProvider(
+                spriteSession: nil,
+                effectiveSession: nil,
+                lastUsedProvider: .codex
+            ),
+            .codex
+        )
+    }
+
     func testGrassIslandRendersOnlyForExpandedActivityView() {
         XCTAssertTrue(
             NotchContentView.shouldRenderGrassIsland(
