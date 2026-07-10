@@ -469,6 +469,7 @@ struct NotchContentView: View {
                 showingPanelSettings = false
                 showingPanelSettingsDetail = false
                 showingSessionActivity = false
+                showingUsageDetail = false
                 hoveredSessionId = nil
             }
         }
@@ -639,6 +640,15 @@ struct NotchContentView: View {
                 .frame(width: sideWidth)
                 .scaleEffect(collapsedHeaderSpriteScale, anchor: .bottom)
                 .offset(x: ringOffsetX(side: side), y: collapsedUsageRingOffsetY)
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            guard !isExpanded, !showingUsageDetail else { return }
+                            isActivityCollapsed = false
+                            showingUsageDetail = true
+                        }
+                )
         } else {
             Color.clear.frame(width: sideWidth)
         }
