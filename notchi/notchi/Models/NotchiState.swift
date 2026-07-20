@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 enum NotchiTask: String, CaseIterable {
     case idle, working, sleeping, compacting, waiting, waving
@@ -140,8 +141,52 @@ struct NotchiState: Equatable {
     var spriteFamily: NotchiSpriteFamily = .claude
     private static var flippedSpriteSheetAvailability: [String: Bool] = [:]
 
+    private struct SpriteSheetMetadataKey: Hashable {
+        let family: NotchiSpriteFamily
+        let task: NotchiTask
+        let emotion: NotchiEmotion
+    }
+
+    private struct SpriteSheetMetadataCache {
+        var namesByKey: [SpriteSheetMetadataKey: String] = [:]
+        var frameCountsBySheet: [String: Int?] = [:]
+        var probeCount = 0
+    }
+
+    private static let spriteSheetMetadataCache = OSAllocatedUnfairLock(initialState: SpriteSheetMetadataCache())
+
+    private static func probeSpriteSheetImage(named name: String) -> NSImage? {
+#if DEBUG
+        spriteSheetMetadataCache.withLock { $0.probeCount += 1 }
+#endif
+        return NSImage(named: name)
+    }
+
+#if DEBUG
+    static var spriteSheetProbeCountForTesting: Int {
+        spriteSheetMetadataCache.withLock { $0.probeCount }
+    }
+
+    @MainActor
+    static func resetSpriteSheetMetadataCacheForTesting() {
+        spriteSheetMetadataCache.withLock { $0 = SpriteSheetMetadataCache() }
+        flippedSpriteSheetAvailability = [:]
+    }
+#endif
+
     /// Resolves the sprite sheet name with fallback chain: exact emotion -> nearby base emotion -> neutral -> idle.
     var spriteSheetName: String {
+        let key = SpriteSheetMetadataKey(family: spriteFamily, task: task, emotion: emotion)
+        if let cached = Self.spriteSheetMetadataCache.withLock({ $0.namesByKey[key] }) {
+            return cached
+        }
+
+        let resolved = resolvedSpriteSheetName()
+        Self.spriteSheetMetadataCache.withLock { $0.namesByKey[key] = resolved }
+        return resolved
+    }
+
+    private func resolvedSpriteSheetName() -> String {
         if let availableName = availableSpriteSheetName(for: task, emotion: emotion) {
             return availableName
         }
@@ -155,18 +200,18 @@ struct NotchiState: Equatable {
 
     private func availableSpriteSheetName(for task: NotchiTask, emotion: NotchiEmotion) -> String? {
         let name = spriteSheetName(for: task, emotion: emotion)
-        if NSImage(named: name) != nil { return name }
+        if Self.probeSpriteSheetImage(named: name) != nil { return name }
         if emotion == .elated {
             let happyName = spriteSheetName(for: task, emotion: .happy)
-            if NSImage(named: happyName) != nil { return happyName }
+            if Self.probeSpriteSheetImage(named: happyName) != nil { return happyName }
         }
         if emotion == .sob {
             let sadName = spriteSheetName(for: task, emotion: .sad)
-            if NSImage(named: sadName) != nil { return sadName }
+            if Self.probeSpriteSheetImage(named: sadName) != nil { return sadName }
         }
 
         let neutralName = spriteSheetName(for: task, emotion: .neutral)
-        return NSImage(named: neutralName) != nil ? neutralName : nil
+        return Self.probeSpriteSheetImage(named: neutralName) != nil ? neutralName : nil
     }
 
     private func spriteSheetName(for task: NotchiTask, emotion: NotchiEmotion) -> String {
@@ -249,13 +294,24 @@ struct NotchiState: Equatable {
             return cached
         }
 
-        let exists = NSImage(named: name) != nil
+        let exists = Self.probeSpriteSheetImage(named: name) != nil
         flippedSpriteSheetAvailability[name] = exists
         return exists
     }
 
     private var inferredFrameCount: Int? {
-        guard let image = NSImage(named: spriteSheetName), image.size.height > 0 else {
+        let sheetName = spriteSheetName
+        if let cached = Self.spriteSheetMetadataCache.withLock({ $0.frameCountsBySheet[sheetName] }) {
+            return cached
+        }
+
+        let inferred = Self.inferFrameCount(sheetName: sheetName)
+        Self.spriteSheetMetadataCache.withLock { $0.frameCountsBySheet[sheetName] = .some(inferred) }
+        return inferred
+    }
+
+    private static func inferFrameCount(sheetName: String) -> Int? {
+        guard let image = probeSpriteSheetImage(named: sheetName), image.size.height > 0 else {
             return nil
         }
 
