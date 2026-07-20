@@ -730,10 +730,6 @@ nonisolated struct CodexCompactionSignalUpdate: Sendable, Equatable {
     let signal: CodexCompactionSignal?
 }
 
-// WHY: The metadata and compaction resolvers each re-listed ~/.codex on every
-// refresh tick just to find the newest versioned sqlite file. The cached URL is
-// revalidated cheaply and re-listed only on expiry or when the file disappears,
-// so database rotation is still picked up within the TTL.
 nonisolated final class CodexSQLiteURLCache: Sendable {
     private struct Entry {
         let url: URL

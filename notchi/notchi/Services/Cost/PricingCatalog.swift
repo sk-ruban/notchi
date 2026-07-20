@@ -78,10 +78,6 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
             let models: [String: ModelsDev.LenientEntry]
         }
 
-        // WHY: models.dev omits cache fields for models that don't bill them,
-        // and its shape drifts over time. A strict decoder made one unexpected
-        // entry silently kill the refresh for every provider; unparseable
-        // entries must degrade to "that model missing", nothing more.
         struct LenientEntry: Decodable {
             let entry: ModelEntry?
 

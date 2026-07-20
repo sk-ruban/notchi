@@ -502,10 +502,6 @@ final class NotchiStateMachine {
         requestCodexCompactionSignalRefresh()
     }
 
-    // WHY: Transcript writes arrive in sub-second bursts while Codex streams.
-    // Each compaction refresh spawns a sqlite3 process, so pending refreshes
-    // absorb later writes and refreshes are spaced out by a minimum interval
-    // instead of re-arming the debounce on every write.
     private func requestCodexCompactionSignalRefresh() {
         guard codexCompactionSignalRefreshTask == nil else { return }
         let sinceLastRefresh = lastCodexCompactionSignalRefreshAt.map { ContinuousClock.now - $0 }

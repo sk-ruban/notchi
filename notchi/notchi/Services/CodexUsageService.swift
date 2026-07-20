@@ -154,10 +154,6 @@ final class CodexUsageService {
     }
 }
 
-// WHY: The periodic refresh re-read up to a full tail window per transcript
-// every 5 seconds. Tracking a per-path offset keeps steady-state refreshes to
-// only the bytes appended since the previous scan, with the tail window as the
-// fallback for first sight, truncation, and oversized append bursts.
 nonisolated final class CodexUsageScanner: @unchecked Sendable {
     private struct PathScanState {
         var offset: UInt64
@@ -225,8 +221,6 @@ nonisolated final class CodexUsageScanner: @unchecked Sendable {
             data = Data(data[data.index(after: firstNewline)...])
         }
 
-        // The trailing unterminated line is scanned but the offset stays before
-        // it, so a line completed by a later write is parsed again in full.
         let scanned = CodexUsageSnapshotResolver.snapshot(scanningLines: data)
         let carried = isIncremental ? previous?.snapshot : nil
         let best = latest(of: scanned, carried)
