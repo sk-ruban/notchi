@@ -2,62 +2,106 @@
   "version": 1,
   "models": {
     "gpt-5": {
-      "inputPerToken": 0.00000125,
-      "outputPerToken": 0.00001,
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.000000125
+      "cacheReadPerToken": 1.25e-07
     },
     "gpt-5-codex": {
-      "inputPerToken": 0.00000125,
-      "outputPerToken": 0.00001,
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.000000125
+      "cacheReadPerToken": 1.25e-07
     },
     "gpt-5-mini": {
-      "inputPerToken": 0.00000025,
-      "outputPerToken": 0.000002,
+      "inputPerToken": 2.5e-07,
+      "outputPerToken": 2e-06,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.000000025
+      "cacheReadPerToken": 2.5e-08
     },
     "gpt-5.3-codex": {
-      "inputPerToken": 0.00000175,
-      "outputPerToken": 0.000014,
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.000000175
+      "cacheReadPerToken": 1.75e-07
     },
     "gpt-5.4": {
-      "inputPerToken": 0.0000025,
-      "outputPerToken": 0.000015,
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.00000025,
+      "cacheReadPerToken": 2.5e-07,
       "thresholdTokens": 272000,
-      "inputPerTokenAboveThreshold": 0.000005,
-      "outputPerTokenAboveThreshold": 0.0000225,
+      "inputPerTokenAboveThreshold": 5e-06,
+      "outputPerTokenAboveThreshold": 2.25e-05,
       "cacheCreationPerTokenAboveThreshold": 0,
-      "cacheReadPerTokenAboveThreshold": 0.0000005
+      "cacheReadPerTokenAboveThreshold": 5e-07
     },
     "gpt-5.4-mini": {
-      "inputPerToken": 0.00000075,
-      "outputPerToken": 0.0000045,
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 4.5e-06,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.000000075
+      "cacheReadPerToken": 7.5e-08
     },
     "gpt-5.5": {
-      "inputPerToken": 0.000005,
-      "outputPerToken": 0.00003,
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.0000005,
+      "cacheReadPerToken": 5e-07,
       "thresholdTokens": 272000,
-      "inputPerTokenAboveThreshold": 0.00001,
-      "outputPerTokenAboveThreshold": 0.000045,
+      "inputPerTokenAboveThreshold": 1e-05,
+      "outputPerTokenAboveThreshold": 4.5e-05,
       "cacheCreationPerTokenAboveThreshold": 0,
-      "cacheReadPerTokenAboveThreshold": 0.000001
+      "cacheReadPerTokenAboveThreshold": 1e-06
     },
     "gpt-5.5-pro": {
-      "inputPerToken": 0.00003,
+      "inputPerToken": 3e-05,
       "outputPerToken": 0.00018,
       "cacheCreationPerToken": 0,
-      "cacheReadPerToken": 0.00003
+      "cacheReadPerToken": 3e-05
+    },
+    "gpt-5.6": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07,
+      "thresholdTokens": 272000,
+      "inputPerTokenAboveThreshold": 1e-05,
+      "outputPerTokenAboveThreshold": 4.5e-05,
+      "cacheCreationPerTokenAboveThreshold": 1.25e-05,
+      "cacheReadPerTokenAboveThreshold": 1e-06
+    },
+    "gpt-5.6-sol": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07,
+      "thresholdTokens": 272000,
+      "inputPerTokenAboveThreshold": 1e-05,
+      "outputPerTokenAboveThreshold": 4.5e-05,
+      "cacheCreationPerTokenAboveThreshold": 1.25e-05,
+      "cacheReadPerTokenAboveThreshold": 1e-06
+    },
+    "gpt-5.6-luna": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 1.0000000000000001e-07,
+      "thresholdTokens": 272000,
+      "inputPerTokenAboveThreshold": 2e-06,
+      "outputPerTokenAboveThreshold": 9e-06,
+      "cacheCreationPerTokenAboveThreshold": 2.5e-06,
+      "cacheReadPerTokenAboveThreshold": 2.0000000000000002e-07
+    },
+    "gpt-5.6-terra": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.125e-06,
+      "cacheReadPerToken": 2.5e-07,
+      "thresholdTokens": 272000,
+      "inputPerTokenAboveThreshold": 5e-06,
+      "outputPerTokenAboveThreshold": 2.25e-05,
+      "cacheCreationPerTokenAboveThreshold": 6.25e-06,
+      "cacheReadPerTokenAboveThreshold": 5e-07
     }
   }
 }

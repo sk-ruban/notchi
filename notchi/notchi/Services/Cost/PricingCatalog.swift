@@ -75,7 +75,19 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         let openai: ModelsDev.Provider?
 
         struct Provider: Decodable {
-            let models: [String: ModelsDev.ModelEntry]
+            let models: [String: ModelsDev.LenientEntry]
+        }
+
+        // WHY: models.dev omits cache fields for models that don't bill them,
+        // and its shape drifts over time. A strict decoder made one unexpected
+        // entry silently kill the refresh for every provider; unparseable
+        // entries must degrade to "that model missing", nothing more.
+        struct LenientEntry: Decodable {
+            let entry: ModelEntry?
+
+            init(from decoder: any Decoder) {
+                entry = try? ModelEntry(from: decoder)
+            }
         }
 
         struct ModelEntry: Decodable {
@@ -85,16 +97,16 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         struct Cost: Decodable {
             let input: Double
             let output: Double
-            let cache_read: Double
-            let cache_write: Double
+            let cache_read: Double?
+            let cache_write: Double?
             let tiers: [ModelsDev.Tier]?
         }
 
         struct Tier: Decodable {
             let input: Double
             let output: Double
-            let cache_read: Double
-            let cache_write: Double
+            let cache_read: Double?
+            let cache_write: Double?
             let tier: ModelsDev.TierSpec?
         }
 
@@ -173,8 +185,8 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         let perMillion = 1_000_000.0
         var updated: [String: ClaudeModelPricing] = [:]
 
-        for (rawId, entry) in provider.models {
-            guard let cost = entry.cost else { continue }
+        for (rawId, lenient) in provider.models {
+            guard let cost = lenient.entry?.cost else { continue }
             let key = config.normalize(rawId)
 
             let firstTier = cost.tiers?.first(where: { $0.tier?.type == "context" })
@@ -183,14 +195,14 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
             updated[key] = ClaudeModelPricing(
                 inputPerToken: cost.input / perMillion,
                 outputPerToken: cost.output / perMillion,
-                cacheCreationPerToken: cost.cache_write / perMillion,
-                cacheReadPerToken: cost.cache_read / perMillion,
+                cacheCreationPerToken: (cost.cache_write ?? 0) / perMillion,
+                cacheReadPerToken: (cost.cache_read ?? 0) / perMillion,
                 cacheCreation1hPerToken: nil,
                 thresholdTokens: thresholdTokens,
                 inputPerTokenAboveThreshold: firstTier.map { $0.input / perMillion },
                 outputPerTokenAboveThreshold: firstTier.map { $0.output / perMillion },
-                cacheCreationPerTokenAboveThreshold: firstTier.map { $0.cache_write / perMillion },
-                cacheReadPerTokenAboveThreshold: firstTier.map { $0.cache_read / perMillion })
+                cacheCreationPerTokenAboveThreshold: firstTier.map { ($0.cache_write ?? 0) / perMillion },
+                cacheReadPerTokenAboveThreshold: firstTier.map { ($0.cache_read ?? 0) / perMillion })
         }
 
         guard Self.isPlausibleRefresh(updated, anchors: config.plausibilityAnchors) else { return }
