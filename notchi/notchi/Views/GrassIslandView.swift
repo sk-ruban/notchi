@@ -244,20 +244,16 @@ private struct GrassSpriteView: View {
     private let swayDuration: Double = 2.0
     private let glowColor = Color(red: 0.4, green: 0.7, blue: 1.0)
 
-    private var motion: GrassSpriteMotion {
-        GrassSpriteMotion(state: state, reduceMotion: reduceMotion)
-    }
-
-    private func swayDegrees(at date: Date) -> Double {
-        let swayAmplitude = motion.swayAmplitude
-        guard swayAmplitude > 0 else { return 0 }
+    private func swayDegrees(at date: Date, amplitude: Double) -> Double {
+        guard amplitude > 0 else { return 0 }
         let t = date.timeIntervalSinceReferenceDate
         let phase = (t / swayDuration).truncatingRemainder(dividingBy: 1.0)
-        return sin(phase * .pi * 2) * swayAmplitude
+        return sin(phase * .pi * 2) * amplitude
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: motion.frameInterval, paused: !motion.isAnimating)) { timeline in
+        let motion = GrassSpriteMotion(state: state, reduceMotion: reduceMotion)
+        return TimelineView(.animation(minimumInterval: motion.frameInterval, paused: !motion.isAnimating)) { timeline in
             let presentation = spriteSheetPresentation(at: timeline.date)
             SpriteSheetView(
                 spriteSheet: presentation.spriteSheetName,
@@ -278,7 +274,7 @@ private struct GrassSpriteView: View {
                         .offset(y: 4)
                 }
             }
-            .rotationEffect(.degrees(swayDegrees(at: timeline.date)), anchor: .bottom)
+            .rotationEffect(.degrees(swayDegrees(at: timeline.date, amplitude: motion.swayAmplitude)), anchor: .bottom)
             .offset(
                 x: SpriteLayout.xOffset(xPosition: xPosition, totalWidth: totalWidth)
                     + trembleOffset(at: timeline.date, amplitude: motion.trembleAmplitude),

@@ -178,7 +178,8 @@ nonisolated final class CodexUsageScanner: @unchecked Sendable {
     func latestSnapshot(transcriptPaths: [String]) -> CodexUsageSnapshot? {
         lock.lock()
         defer { lock.unlock() }
-        states = states.filter { transcriptPaths.contains($0.key) }
+        let requestedPaths = Set(transcriptPaths)
+        states = states.filter { requestedPaths.contains($0.key) }
         return transcriptPaths
             .compactMap { scan(path: $0) }
             .max { lhs, rhs in lhs.observedAt < rhs.observedAt }
