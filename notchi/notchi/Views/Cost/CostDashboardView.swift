@@ -79,7 +79,10 @@ struct CostDashboardView: View {
             ),
             (String(localized: "30d"), CostStatFormatter.usd(r.windowCostUSD)),
             (String(localized: "30d toks"), CostStatFormatter.tokens(r.windowTokens)),
-            (String(localized: "Top model"), r.topModel.map(CostStatFormatter.modelName) ?? "—"),
+            (
+                String(localized: "Top model"),
+                (selected.map(\.topModel) ?? r.topModel).map(CostStatFormatter.modelName) ?? "—"
+            ),
         ]
     }
 

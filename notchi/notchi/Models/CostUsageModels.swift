@@ -38,6 +38,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         let totalTokens: Int
         let requestCount: Int
         let pricedFraction: Double
+        let topModel: String?
         var id: String { day }
     }
 
@@ -75,7 +76,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
             entries.append(DayEntry(
                 day: key, date: cursor, costUSD: totals.costUSD,
                 totalTokens: totals.totalTokens, requestCount: totals.requestCount,
-                pricedFraction: priced))
+                pricedFraction: priced, topModel: topModel(in: models)))
             cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
         }
         return DailyCostReport(

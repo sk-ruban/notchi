@@ -97,6 +97,29 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(identicalReport.topModel, "gpt-5.4", "lowest name must win an exact tie")
     }
 
+    func testEntriesCarryTheirOwnTopModel() {
+        var buckets: DayModelBuckets = [:]
+        buckets["2026-06-22"] = [
+            "claude-sonnet-4": ModelTokenTotals(
+                input: 100, output: 50, costNanos: 8_000_000_000, requestCount: 1, pricedCount: 1),
+            "claude-opus-4": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 1_000_000_000, requestCount: 1, pricedCount: 1)]
+        buckets["2026-06-24"] = [
+            "claude-opus-4": ModelTokenTotals(
+                input: 300, output: 100, costNanos: 9_000_000_000, requestCount: 2, pricedCount: 2)]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.make(
+            provider: .claude, buckets: buckets,
+            windowStart: day("2026-06-20"), today: day("2026-06-24"), calendar: cal)
+
+        XCTAssertEqual(report.entries[2].topModel, "claude-sonnet-4")
+        XCTAssertEqual(report.entries[4].topModel, "claude-opus-4")
+        XCTAssertNil(report.entries[1].topModel)
+        XCTAssertEqual(report.topModel, "claude-opus-4")
+    }
+
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {
         var buckets: DayModelBuckets = [:]
         buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(
