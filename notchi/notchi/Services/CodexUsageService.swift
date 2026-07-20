@@ -13,7 +13,7 @@ nonisolated struct CodexUsageServiceDependencies: Sendable {
 
     static let live = CodexUsageServiceDependencies(
         resolveUsage: { transcriptPaths in
-            CodexUsageSnapshotResolver.latestSnapshot(transcriptPaths: transcriptPaths)
+            CodexUsageScanner.shared.latestSnapshot(transcriptPaths: transcriptPaths)
         },
         fetchAPIUsage: { await CodexUsageAPIClient.fetchLive() },
         now: { Date() }
@@ -154,6 +154,115 @@ final class CodexUsageService {
     }
 }
 
+// WHY: The periodic refresh re-read up to a full tail window per transcript
+// every 5 seconds. Tracking a per-path offset keeps steady-state refreshes to
+// only the bytes appended since the previous scan, with the tail window as the
+// fallback for first sight, truncation, and oversized append bursts.
+nonisolated final class CodexUsageScanner: @unchecked Sendable {
+    private struct PathScanState {
+        var offset: UInt64
+        var snapshot: CodexUsageSnapshot?
+    }
+
+    static let shared = CodexUsageScanner()
+
+    private let maxTailBytes: Int
+    private let lock = NSLock()
+    private var states: [String: PathScanState] = [:]
+    private var bytesRead: UInt64 = 0
+
+    init(maxTailBytes: Int = CodexUsageSnapshotResolver.defaultMaxTailBytes) {
+        self.maxTailBytes = maxTailBytes
+    }
+
+    func latestSnapshot(transcriptPaths: [String]) -> CodexUsageSnapshot? {
+        lock.lock()
+        defer { lock.unlock() }
+        states = states.filter { transcriptPaths.contains($0.key) }
+        return transcriptPaths
+            .compactMap { scan(path: $0) }
+            .max { lhs, rhs in lhs.observedAt < rhs.observedAt }
+    }
+
+    private func scan(path: String) -> CodexUsageSnapshot? {
+        guard let handle = FileHandle(forReadingAtPath: path) else {
+            states[path] = nil
+            return nil
+        }
+        defer { try? handle.close() }
+        guard let fileSize = try? handle.seekToEnd() else {
+            return states[path]?.snapshot
+        }
+
+        let previous = states[path]
+        let isIncremental = previous.map {
+            $0.offset <= fileSize && fileSize - $0.offset <= UInt64(maxTailBytes)
+        } ?? false
+
+        if isIncremental, previous?.offset == fileSize {
+            return previous?.snapshot
+        }
+
+        let tailStart = fileSize > UInt64(maxTailBytes) ? fileSize - UInt64(maxTailBytes) : 0
+        let readStart = isIncremental ? previous!.offset : tailStart
+        guard (try? handle.seek(toOffset: readStart)) != nil,
+              let readData = try? handle.readToEnd() else {
+            return previous?.snapshot
+        }
+        bytesRead += UInt64(readData.count)
+
+        var lineStart = readStart
+        var data = readData
+        if !isIncremental, readStart > 0,
+           !CodexUsageSnapshotResolver.tailBeginsOnLineBoundary(handle, tailOffset: readStart) {
+            guard let firstNewline = data.firstIndex(of: UInt8(ascii: "\n")) else {
+                states[path] = PathScanState(offset: readStart, snapshot: nil)
+                return nil
+            }
+            let droppedCount = data.distance(from: data.startIndex, to: firstNewline) + 1
+            lineStart += UInt64(droppedCount)
+            data = Data(data[data.index(after: firstNewline)...])
+        }
+
+        // The trailing unterminated line is scanned but the offset stays before
+        // it, so a line completed by a later write is parsed again in full.
+        let scanned = CodexUsageSnapshotResolver.snapshot(scanningLines: data)
+        let carried = isIncremental ? previous?.snapshot : nil
+        let best = latest(of: scanned, carried)
+
+        let newOffset: UInt64
+        if let lastNewline = data.lastIndex(of: UInt8(ascii: "\n")) {
+            newOffset = lineStart + UInt64(data.distance(from: data.startIndex, to: lastNewline) + 1)
+        } else {
+            newOffset = lineStart
+        }
+
+        states[path] = PathScanState(offset: newOffset, snapshot: best)
+        return best
+    }
+
+    private func latest(of lhs: CodexUsageSnapshot?, _ rhs: CodexUsageSnapshot?) -> CodexUsageSnapshot? {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?):
+            return lhs.observedAt >= rhs.observedAt ? lhs : rhs
+        case let (lhs?, nil):
+            return lhs
+        case let (nil, rhs?):
+            return rhs
+        case (nil, nil):
+            return nil
+        }
+    }
+
+#if DEBUG
+    var bytesReadForTesting: UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return bytesRead
+    }
+#endif
+}
+
 nonisolated enum CodexUsageSnapshotResolver {
     private static let isoFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -161,12 +270,6 @@ nonisolated enum CodexUsageSnapshotResolver {
         return f
     }()
     private static let isoBasic = ISO8601DateFormatter()
-
-    static func latestSnapshot(transcriptPaths: [String]) -> CodexUsageSnapshot? {
-        transcriptPaths
-            .compactMap { latestSnapshot(transcriptPath: $0) }
-            .max { lhs, rhs in lhs.observedAt < rhs.observedAt }
-    }
 
     // WHY: Rollout files grow unbounded (>100MB in long sessions) and Codex
     // appends fresh token_count events near EOF, so the periodic refresh only
@@ -183,10 +286,14 @@ nonisolated enum CodexUsageSnapshotResolver {
             return nil
         }
 
+        return snapshot(scanningLines: tail)
+    }
+
+    static func snapshot(scanningLines data: Data) -> CodexUsageSnapshot? {
         var latestSnapshot: CodexUsageSnapshot?
         let decoder = JSONDecoder()
         let tokenCountMarker = Data(#""token_count""#.utf8)
-        for line in tail.split(separator: UInt8(ascii: "\n")) {
+        for line in data.split(separator: UInt8(ascii: "\n")) {
             guard line.range(of: tokenCountMarker) != nil,
                   let event = try? decoder.decode(CodexTokenCountEvent.self, from: Data(line)),
                   event.payload?.type == "token_count",
@@ -241,7 +348,7 @@ nonisolated enum CodexUsageSnapshotResolver {
         return data[data.index(after: firstNewline)...]
     }
 
-    private static func tailBeginsOnLineBoundary(_ fileHandle: FileHandle, tailOffset: UInt64) -> Bool {
+    static func tailBeginsOnLineBoundary(_ fileHandle: FileHandle, tailOffset: UInt64) -> Bool {
         guard (try? fileHandle.seek(toOffset: tailOffset - 1)) != nil,
               let previousByte = try? fileHandle.read(upToCount: 1) else {
             return false
