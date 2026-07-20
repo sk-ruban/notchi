@@ -1,4 +1,5 @@
 import Foundation
+import os
 import XCTest
 @testable import notchi
 
@@ -462,6 +463,96 @@ final class NotchiStateMachineTests: XCTestCase {
 
         XCTAssertGreaterThan(endedHookCalls, 0)
         XCTAssertEqual(CodexUsageService.shared.currentUsage?.usagePercentage, 15)
+    }
+
+    func testCodexCompactionRefreshDelayUsesDebounceWhenNoRecentRefresh() {
+        XCTAssertEqual(
+            NotchiStateMachine.codexCompactionRefreshDelay(sinceLastRefresh: nil),
+            .milliseconds(150)
+        )
+        XCTAssertEqual(
+            NotchiStateMachine.codexCompactionRefreshDelay(sinceLastRefresh: .seconds(3)),
+            .milliseconds(150)
+        )
+    }
+
+    func testCodexCompactionRefreshDelayEnforcesMinimumIntervalAfterRecentRefresh() {
+        XCTAssertEqual(
+            NotchiStateMachine.codexCompactionRefreshDelay(sinceLastRefresh: .zero),
+            .seconds(2)
+        )
+        XCTAssertEqual(
+            NotchiStateMachine.codexCompactionRefreshDelay(sinceLastRefresh: .milliseconds(500)),
+            .milliseconds(1500)
+        )
+        XCTAssertEqual(
+            NotchiStateMachine.codexCompactionRefreshDelay(sinceLastRefresh: .milliseconds(1900)),
+            .milliseconds(150)
+        )
+    }
+
+    func testTranscriptWriteBurstCoalescesIntoSingleCompactionRefresh() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
+        let resolverCalls = OSAllocatedUnfairLock(initialState: 0)
+        SessionStore.shared.setCodexCompactionSignalResolverForTesting { _ in
+            resolverCalls.withLock { $0 += 1 }
+            return [:]
+        }
+        let sessionId = "codex-write-burst-\(UUID().uuidString)"
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: "/tmp/write-burst-rollout.jsonl",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+
+        for _ in 0..<8 {
+            stateMachine.requestCodexCompactionSignalRefreshForTesting()
+            try await Task.sleep(for: .milliseconds(60))
+        }
+
+        XCTAssertEqual(resolverCalls.withLock { $0 }, 1)
+    }
+
+    func testCompactionRefreshCanRunAgainAfterPreviousCycleCompletes() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
+        let resolverCalls = OSAllocatedUnfairLock(initialState: 0)
+        SessionStore.shared.setCodexCompactionSignalResolverForTesting { _ in
+            resolverCalls.withLock { $0 += 1 }
+            return [:]
+        }
+        let sessionId = "codex-second-cycle-\(UUID().uuidString)"
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: "/tmp/second-cycle-rollout.jsonl",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+
+        stateMachine.requestCodexCompactionSignalRefreshForTesting()
+        let firstCycleRan = await waitUntil(timeout: 1.0) { resolverCalls.withLock { $0 } == 1 }
+        XCTAssertTrue(firstCycleRan)
+
+        stateMachine.requestCodexCompactionSignalRefreshForTesting()
+        let secondCycleRan = await waitUntil(timeout: 3.0) { resolverCalls.withLock { $0 } == 2 }
+
+        XCTAssertTrue(secondCycleRan)
+        XCTAssertEqual(resolverCalls.withLock { $0 }, 2)
+    }
+
+    private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return condition()
     }
 
     private func makeInteractiveSession(sessionId: String) -> SessionData {

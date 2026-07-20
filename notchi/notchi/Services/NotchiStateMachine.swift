@@ -20,6 +20,7 @@ final class NotchiStateMachine {
     private var codexThreadMetadataRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshGeneration = 0
+    private var lastCodexCompactionSignalRefreshAt: ContinuousClock.Instant?
     private var codexThreadMetadataImmediateRefreshKeys: Set<ProviderSessionKey> = []
     private var codexThreadMetadataAutoRefreshEnabled = true
     private var codexProcessMissCounts: [ProviderSessionKey: Int] = [:]
@@ -37,6 +38,7 @@ final class NotchiStateMachine {
     private static let codexProcessMonitorInterval: Duration = .seconds(2)
     private static let codexThreadMetadataMonitorInterval: Duration = .seconds(5)
     private static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
+    private static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
     private static let codexProcessMissLimit = 2
     private static let pendingSessionStartMaxAge: TimeInterval = 10 * 60
 
@@ -477,6 +479,9 @@ final class NotchiStateMachine {
             defer { self.codexThreadMetadataRefreshTask = nil }
 
             let compactionRequests = self.sessionStore.codexCompactionSignalRequests()
+            if !compactionRequests.isEmpty {
+                self.lastCodexCompactionSignalRefreshAt = .now
+            }
             async let metadataUpdates = self.sessionStore.resolveCodexThreadMetadata(requests)
             async let compactionUpdates = self.sessionStore.resolveCodexCompactionSignals(compactionRequests)
             async let usageRefresh: Void = CodexUsageService.shared.refresh(transcriptPaths: transcriptPaths)
@@ -493,12 +498,28 @@ final class NotchiStateMachine {
     }
 
     private func scheduleCodexCompactionSignalRefresh() {
-        scheduleCodexCompactionSignalRefresh(after: Self.codexCompactionSignalRefreshDebounce)
+        guard codexThreadMetadataAutoRefreshEnabled else { return }
+        requestCodexCompactionSignalRefresh()
+    }
+
+    // WHY: Transcript writes arrive in sub-second bursts while Codex streams.
+    // Each compaction refresh spawns a sqlite3 process, so pending refreshes
+    // absorb later writes and refreshes are spaced out by a minimum interval
+    // instead of re-arming the debounce on every write.
+    private func requestCodexCompactionSignalRefresh() {
+        guard codexCompactionSignalRefreshTask == nil else { return }
+        let sinceLastRefresh = lastCodexCompactionSignalRefreshAt.map { ContinuousClock.now - $0 }
+        scheduleCodexCompactionSignalRefresh(after: Self.codexCompactionRefreshDelay(sinceLastRefresh: sinceLastRefresh))
+    }
+
+    nonisolated static func codexCompactionRefreshDelay(sinceLastRefresh: Duration?) -> Duration {
+        guard let sinceLastRefresh, sinceLastRefresh < codexCompactionSignalMinRefreshInterval else {
+            return codexCompactionSignalRefreshDebounce
+        }
+        return max(codexCompactionSignalRefreshDebounce, codexCompactionSignalMinRefreshInterval - sinceLastRefresh)
     }
 
     private func scheduleCodexCompactionSignalRefresh(after delay: Duration) {
-        guard codexThreadMetadataAutoRefreshEnabled else { return }
-
         codexCompactionSignalRefreshGeneration += 1
         let generation = codexCompactionSignalRefreshGeneration
         codexCompactionSignalRefreshTask?.cancel()
@@ -517,6 +538,7 @@ final class NotchiStateMachine {
             return
         }
 
+        lastCodexCompactionSignalRefreshAt = .now
         let signals = await sessionStore.resolveCodexCompactionSignals(requests)
         guard !Task.isCancelled else {
             clearCodexCompactionSignalRefreshTask(generation: generation)
@@ -565,6 +587,7 @@ final class NotchiStateMachine {
         codexThreadMetadataRefreshTask?.cancel()
         codexThreadMetadataRefreshTask = nil
         cancelCodexCompactionSignalRefresh()
+        lastCodexCompactionSignalRefreshAt = nil
         codexThreadMetadataImmediateRefreshKeys.removeAll()
         codexThreadMetadataAutoRefreshEnabled = true
         codexProcessMissCounts.removeAll()
@@ -585,6 +608,10 @@ final class NotchiStateMachine {
 
     func setCodexThreadMetadataAutoRefreshEnabledForTesting(_ enabled: Bool) {
         codexThreadMetadataAutoRefreshEnabled = enabled
+    }
+
+    func requestCodexCompactionSignalRefreshForTesting() {
+        requestCodexCompactionSignalRefresh()
     }
 
     func setPendingSessionStartTimeForTesting(_ startTime: Date, sessionKey: ProviderSessionKey) {

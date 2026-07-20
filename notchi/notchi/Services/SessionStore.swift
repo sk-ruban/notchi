@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 extension Notification.Name {
     static let sessionStoreActiveSessionCountDidChange = Notification.Name("sessionStoreActiveSessionCountDidChange")
@@ -729,6 +730,57 @@ nonisolated struct CodexCompactionSignalUpdate: Sendable, Equatable {
     let signal: CodexCompactionSignal?
 }
 
+// WHY: The metadata and compaction resolvers each re-listed ~/.codex on every
+// refresh tick just to find the newest versioned sqlite file. The cached URL is
+// revalidated cheaply and re-listed only on expiry or when the file disappears,
+// so database rotation is still picked up within the TTL.
+nonisolated final class CodexSQLiteURLCache: Sendable {
+    private struct Entry {
+        let url: URL
+        let cachedAt: Date
+    }
+
+    static let shared = CodexSQLiteURLCache(
+        ttl: 60,
+        list: { CodexFileSystem.scanLatestSQLiteURL(prefix: $0) },
+        fileExists: { FileManager.default.fileExists(atPath: $0.path) },
+        now: { Date() }
+    )
+
+    private let ttl: TimeInterval
+    private let list: @Sendable (String) -> URL?
+    private let fileExists: @Sendable (URL) -> Bool
+    private let now: @Sendable () -> Date
+    private let entries = OSAllocatedUnfairLock<[String: Entry]>(initialState: [:])
+
+    init(
+        ttl: TimeInterval,
+        list: @escaping @Sendable (String) -> URL?,
+        fileExists: @escaping @Sendable (URL) -> Bool,
+        now: @escaping @Sendable () -> Date
+    ) {
+        self.ttl = ttl
+        self.list = list
+        self.fileExists = fileExists
+        self.now = now
+    }
+
+    func url(prefix: String) -> URL? {
+        let currentTime = now()
+        if let entry = entries.withLock({ $0[prefix] }),
+           currentTime.timeIntervalSince(entry.cachedAt) < ttl,
+           fileExists(entry.url) {
+            return entry.url
+        }
+
+        let resolved = list(prefix)
+        entries.withLock { state in
+            state[prefix] = resolved.map { Entry(url: $0, cachedAt: currentTime) }
+        }
+        return resolved
+    }
+}
+
 nonisolated enum CodexFileSystem {
     static let sqliteSeparator = "\u{1F}"
 
@@ -738,6 +790,10 @@ nonisolated enum CodexFileSystem {
     }
 
     static func latestSQLiteURL(prefix: String) -> URL? {
+        CodexSQLiteURLCache.shared.url(prefix: prefix)
+    }
+
+    static func scanLatestSQLiteURL(prefix: String) -> URL? {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: codexDirectoryURL,
             includingPropertiesForKeys: nil
