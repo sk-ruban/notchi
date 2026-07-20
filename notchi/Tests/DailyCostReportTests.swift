@@ -70,6 +70,33 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(report.topModel, "claude-opus-4")              // highest cost across window
     }
 
+    func testTopModelTieOnCostIsBrokenByTokensThenName() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+
+        var unpriced: DayModelBuckets = [:]
+        unpriced["2026-06-24"] = [
+            "gpt-5.6-sol": ModelTokenTotals(input: 900, output: 100, costNanos: 0,
+                                            requestCount: 3, pricedCount: 0),
+            "gpt-5.6-luna": ModelTokenTotals(input: 100, output: 50, costNanos: 0,
+                                             requestCount: 1, pricedCount: 0)]
+        let unpricedReport = DailyCostReport.make(
+            provider: .codex, buckets: unpriced,
+            windowStart: day("2026-06-20"), today: day("2026-06-24"), calendar: cal)
+        XCTAssertEqual(unpricedReport.topModel, "gpt-5.6-sol", "more tokens must win a cost tie")
+
+        var identical: DayModelBuckets = [:]
+        identical["2026-06-24"] = [
+            "gpt-5.5": ModelTokenTotals(input: 100, output: 50, costNanos: 5_000,
+                                        requestCount: 1, pricedCount: 1),
+            "gpt-5.4": ModelTokenTotals(input: 100, output: 50, costNanos: 5_000,
+                                        requestCount: 1, pricedCount: 1)]
+        let identicalReport = DailyCostReport.make(
+            provider: .codex, buckets: identical,
+            windowStart: day("2026-06-20"), today: day("2026-06-24"), calendar: cal)
+        XCTAssertEqual(identicalReport.topModel, "gpt-5.4", "lowest name must win an exact tie")
+    }
+
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {
         var buckets: DayModelBuckets = [:]
         buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(

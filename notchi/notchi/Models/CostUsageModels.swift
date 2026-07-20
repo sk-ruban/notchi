@@ -62,14 +62,14 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         var entries: [DayEntry] = []
         var cursor = calendar.startOfDay(for: windowStart)
         let last = calendar.startOfDay(for: today)
-        var modelCostNanos: [String: Int] = [:]
+        var windowTotalsByModel: [String: ModelTokenTotals] = [:]
         while cursor <= last {
             let key = dayKey(cursor, calendar: calendar)
             let models = buckets[key] ?? [:]
             var totals = ModelTokenTotals()
             for (m, t) in models {
                 totals = totals + t
-                modelCostNanos[m, default: 0] += t.costNanos
+                windowTotalsByModel[m] = (windowTotalsByModel[m] ?? ModelTokenTotals()) + t
             }
             let priced = totals.requestCount == 0 ? 1 : Double(totals.pricedCount) / Double(totals.requestCount)
             entries.append(DayEntry(
@@ -78,7 +78,22 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
                 pricedFraction: priced))
             cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
         }
-        let topModel = modelCostNanos.max(by: { $0.value < $1.value })?.key
-        return DailyCostReport(provider: provider, entries: entries, topModel: topModel)
+        return DailyCostReport(
+            provider: provider, entries: entries,
+            topModel: topModel(in: windowTotalsByModel))
+    }
+
+    static func topModel(in totalsByModel: [String: ModelTokenTotals]) -> String? {
+        totalsByModel
+            .max { lhs, rhs in
+                if lhs.value.costNanos != rhs.value.costNanos {
+                    return lhs.value.costNanos < rhs.value.costNanos
+                }
+                if lhs.value.totalTokens != rhs.value.totalTokens {
+                    return lhs.value.totalTokens < rhs.value.totalTokens
+                }
+                return lhs.key > rhs.key
+            }?
+            .key
     }
 }
