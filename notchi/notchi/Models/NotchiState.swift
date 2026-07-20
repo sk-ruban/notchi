@@ -141,13 +141,13 @@ struct NotchiState: Equatable {
     var spriteFamily: NotchiSpriteFamily = .claude
     private static var flippedSpriteSheetAvailability: [String: Bool] = [:]
 
-    private struct SpriteSheetMetadataKey: Hashable {
+    private nonisolated struct SpriteSheetMetadataKey: Hashable {
         let family: NotchiSpriteFamily
         let task: NotchiTask
         let emotion: NotchiEmotion
     }
 
-    private struct SpriteSheetMetadataCache {
+    private nonisolated struct SpriteSheetMetadataCache {
         var namesByKey: [SpriteSheetMetadataKey: String] = [:]
         var frameCountsBySheet: [String: Int?] = [:]
         var probeCount = 0

@@ -37,8 +37,8 @@ final class NotchiStateMachine {
     private static let waitingClearGuard: TimeInterval = 2.0
     private static let codexProcessMonitorInterval: Duration = .seconds(2)
     private static let codexThreadMetadataMonitorInterval: Duration = .seconds(5)
-    private static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
-    private static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
+    private nonisolated static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
+    private nonisolated static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
     private static let codexProcessMissLimit = 2
     private static let pendingSessionStartMaxAge: TimeInterval = 10 * 60
 
