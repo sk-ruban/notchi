@@ -197,6 +197,38 @@ private struct SpriteTapTarget: View {
     }
 }
 
+struct GrassSpriteMotion {
+    let state: NotchiState
+    let reduceMotion: Bool
+
+    static let sobTrembleAmplitude: CGFloat = 0.3
+
+    var bobAmplitude: CGFloat {
+        guard !reduceMotion, state.bobAmplitude > 0 else { return 0 }
+        return state.task == .working ? 1.5 : 1
+    }
+
+    var swayAmplitude: Double {
+        guard !reduceMotion else { return 0 }
+        return (state.task == .sleeping || state.task == .compacting) ? 0 : state.swayAmplitude
+    }
+
+    var trembleAmplitude: CGFloat {
+        guard !reduceMotion, state.emotion == .sob else { return 0 }
+        return Self.sobTrembleAmplitude
+    }
+
+    var isAnimating: Bool {
+        bobAmplitude > 0 || swayAmplitude > 0 || trembleAmplitude > 0
+    }
+
+    var frameInterval: Double { 1.0 / 30 }
+
+    var bobDuration: Double {
+        state.task == .working ? 1.0 : state.bobDuration
+    }
+}
+
 private struct GrassSpriteView: View {
     let state: NotchiState
     let sessionId: String
@@ -205,39 +237,27 @@ private struct GrassSpriteView: View {
     let totalWidth: CGFloat
     var glowOpacity: Double = 0
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var stateMirrorKey: String?
     @State private var stateMirrored = false
 
     private let swayDuration: Double = 2.0
-    private var bobAmplitude: CGFloat {
-        guard state.bobAmplitude > 0 else { return 0 }
-        return state.task == .working ? 1.5 : 1
-    }
     private let glowColor = Color(red: 0.4, green: 0.7, blue: 1.0)
 
-    private var swayAmplitude: Double {
-        (state.task == .sleeping || state.task == .compacting) ? 0 : state.swayAmplitude
-    }
-
-    private var isAnimatingMotion: Bool {
-        bobAmplitude > 0 || swayAmplitude > 0 || state.emotion == .sob
-    }
-
-    private var bobDuration: Double {
-        state.task == .working ? 1.0 : state.bobDuration
+    private var motion: GrassSpriteMotion {
+        GrassSpriteMotion(state: state, reduceMotion: reduceMotion)
     }
 
     private func swayDegrees(at date: Date) -> Double {
+        let swayAmplitude = motion.swayAmplitude
         guard swayAmplitude > 0 else { return 0 }
         let t = date.timeIntervalSinceReferenceDate
         let phase = (t / swayDuration).truncatingRemainder(dividingBy: 1.0)
         return sin(phase * .pi * 2) * swayAmplitude
     }
 
-    private static let sobTrembleAmplitude: CGFloat = 0.3
-
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isAnimatingMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: motion.frameInterval, paused: !motion.isAnimating)) { timeline in
             let presentation = spriteSheetPresentation(at: timeline.date)
             SpriteSheetView(
                 spriteSheet: presentation.spriteSheetName,
@@ -261,8 +281,8 @@ private struct GrassSpriteView: View {
             .rotationEffect(.degrees(swayDegrees(at: timeline.date)), anchor: .bottom)
             .offset(
                 x: SpriteLayout.xOffset(xPosition: xPosition, totalWidth: totalWidth)
-                    + trembleOffset(at: timeline.date, amplitude: state.emotion == .sob ? Self.sobTrembleAmplitude : 0),
-                y: yOffset + bobOffset(at: timeline.date, duration: bobDuration, amplitude: bobAmplitude)
+                    + trembleOffset(at: timeline.date, amplitude: motion.trembleAmplitude),
+                y: yOffset + bobOffset(at: timeline.date, duration: motion.bobDuration, amplitude: motion.bobAmplitude)
             )
         }
         .onAppear(perform: updateStateMirroring)
