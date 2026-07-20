@@ -22,10 +22,19 @@ enum CostStatFormatter {
         usdFormatter.string(from: NSNumber(value: amount)) ?? String(format: "$%.2f", amount)
     }
 
+    private static let gptPrefix = "GPT-"
+    private static let longestPrefixedGptName = "GPT-5.5"
+
     static func modelName(_ raw: String) -> String {
         var s = raw
         if let slash = s.lastIndex(of: "/") { s = String(s[s.index(after: slash)...]) }
-        if s.lowercased().hasPrefix("gpt") { return "GPT" + s.dropFirst(3) }
+        if s.lowercased().hasPrefix("gpt") {
+            let named = "GPT" + s.dropFirst(3)
+            guard named.count > longestPrefixedGptName.count, named.hasPrefix(gptPrefix) else {
+                return named
+            }
+            return String(named.dropFirst(gptPrefix.count))
+        }
         if s.hasPrefix("claude-") { s.removeFirst("claude-".count) }
         let parts = s.split(separator: "-").map(String.init)
         guard let family = parts.first, !family.isEmpty else { return raw }
@@ -86,14 +95,28 @@ struct CostDashboardView: View {
         ]
     }
 
+    private static let modelSizingReference = "Opus 4.8"
+
+    static func sizingValueSets(_ r: DailyCostReport) -> [[String]] {
+        let unselected = statItems(r, selected: nil).map(\.value)
+        var reference = unselected
+        reference[reference.count - 1] = modelSizingReference
+
+        let hoverStates = r.entries
+            .filter { $0.requestCount > 0 }
+            .map { statItems(r, selected: $0).map(\.value) }
+
+        return [unselected, reference] + hoverStates
+    }
+
     @ViewBuilder private func statsRow(_ r: DailyCostReport) -> some View {
         let items = Self.statItems(r, selected: selected)
-        let peerValues = sizingPeerStore?.report.map { Self.statItems($0, selected: nil).map(\.value) } ?? []
+        let peerValues = sizingPeerStore?.report.map { Self.sizingValueSets($0) } ?? []
         GeometryReader { geo in
             let available = geo.size.width - Self.statSpacing * CGFloat(items.count - 1)
             let widths = Self.statColumnWeights.map { $0 * available }
             let valueSize = Self.fittedValueFontSize(
-                valueSets: [items.map(\.value), peerValues],
+                valueSets: Self.sizingValueSets(r) + peerValues,
                 widths: widths
             )
             HStack(alignment: .top, spacing: Self.statSpacing) {

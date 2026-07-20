@@ -121,4 +121,21 @@ final class UsageDisplayTests: XCTestCase {
         XCTAssertEqual(CostStatFormatter.usd(3638.66), "$3,638.66")
         XCTAssertEqual(CostStatFormatter.usd(174.41), "$174.41")
     }
+
+    func testGptNamesLongerThanBaselineDropThePrefix() {
+        XCTAssertEqual(CostStatFormatter.modelName("gpt-5.6-sol"), "5.6-sol")
+        XCTAssertEqual(CostStatFormatter.modelName("gpt-5.5-pro"), "5.5-pro")
+        XCTAssertEqual(CostStatFormatter.modelName("gpt-5-codex"), "5-codex")
+    }
+
+    func testShortGptNamesKeepThePrefix() {
+        XCTAssertEqual(CostStatFormatter.modelName("gpt-5.5"), "GPT-5.5")
+        XCTAssertEqual(CostStatFormatter.modelName("gpt-5.4"), "GPT-5.4")
+        XCTAssertEqual(CostStatFormatter.modelName("gpt-5"), "GPT-5")
+    }
+
+    func testClaudeNamesAreUnaffectedByGptShortening() {
+        XCTAssertEqual(CostStatFormatter.modelName("claude-opus-4-8"), "Opus 4.8")
+        XCTAssertEqual(CostStatFormatter.modelName("claude-fable-5"), "Fable 5")
+    }
 }

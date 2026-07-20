@@ -120,6 +120,29 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(report.topModel, "claude-opus-4")
     }
 
+    @MainActor
+    func testSizingCoversEveryHoverStateAndTheModelReference() {
+        var buckets: DayModelBuckets = [:]
+        buckets["2026-06-22"] = ["gpt-5.6-sol": ModelTokenTotals(
+            input: 100, output: 50, costNanos: 8_000_000_000, requestCount: 1, pricedCount: 1)]
+        buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(
+            input: 300, output: 100, costNanos: 9_000_000_000, requestCount: 2, pricedCount: 2)]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.make(
+            provider: .codex, buckets: buckets,
+            windowStart: day("2026-06-20"), today: day("2026-06-24"), calendar: cal)
+
+        let sets = CostDashboardView.sizingValueSets(report)
+        let modelColumn = sets.map { $0[$0.count - 1] }
+
+        XCTAssertTrue(modelColumn.contains("Opus 4.8"))
+        XCTAssertTrue(modelColumn.contains("5.6-sol"))
+        XCTAssertTrue(modelColumn.contains("GPT-5.5"))
+        XCTAssertEqual(sets.count, 4, "unselected + reference + one per active day")
+    }
+
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {
         var buckets: DayModelBuckets = [:]
         buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(
