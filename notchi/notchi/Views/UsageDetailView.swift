@@ -8,6 +8,7 @@ struct UsageDetailView: View {
     let defaultProvider: AgentProvider
 
     @State private var selectedProvider: AgentProvider
+    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
 
     init(
         claudeUsage: ClaudeUsageService,
@@ -126,7 +127,7 @@ struct UsageDetailView: View {
             )
             .padding(.bottom, 2)
 
-            if usageRowCount >= 3 {
+            if usageRowCount >= 3 && !hideGrassIsland {
                 LazyVGrid(
                     columns: [
                         GridItem(.flexible(), spacing: 14, alignment: .topLeading),
@@ -212,21 +213,25 @@ struct UsagePeriodRowView: View {
                 Text(display.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(TerminalColors.primaryText)
+                    .lineLimit(1)
+                    .layoutPriority(1)
                 if display.isStale {
                     Text("stale data")
                         .font(.system(size: 10))
                         .foregroundColor(TerminalColors.secondaryText)
+                        .lineLimit(1)
                 } else if let resetText = display.resetText {
                     Text(resetText)
                         .font(.system(size: 10))
                         .foregroundColor(TerminalColors.secondaryText)
                         .lineLimit(1)
-                        .fixedSize()
                 }
-                Spacer()
+                Spacer(minLength: 4)
                 Text("\(display.percentUsed)%")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundColor(color)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             UsageProgressBar(percentUsed: display.percentUsed, color: color)
         }
