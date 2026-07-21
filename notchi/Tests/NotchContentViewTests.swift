@@ -71,7 +71,8 @@ final class NotchContentViewTests: XCTestCase {
         XCTAssertTrue(
             NotchContentView.shouldRenderGrassIsland(
                 isExpanded: true,
-                showingPanelSettings: false
+                showingPanelSettings: false,
+                mode: .full
             )
         )
     }
@@ -81,6 +82,7 @@ final class NotchContentViewTests: XCTestCase {
             NotchContentView.shouldRenderGrassIsland(
                 isExpanded: false,
                 showingPanelSettings: false,
+                mode: .full,
                 keepsGrassIslandRenderedForHandoff: true
             )
         )
@@ -90,14 +92,69 @@ final class NotchContentViewTests: XCTestCase {
         XCTAssertFalse(
             NotchContentView.shouldRenderGrassIsland(
                 isExpanded: false,
-                showingPanelSettings: false
+                showingPanelSettings: false,
+                mode: .full
             )
         )
         XCTAssertFalse(
             NotchContentView.shouldRenderGrassIsland(
                 isExpanded: true,
-                showingPanelSettings: true
+                showingPanelSettings: true,
+                mode: .full
             )
+        )
+    }
+
+    func testGrassIslandHiddenInCompactMode() {
+        XCTAssertFalse(
+            NotchContentView.shouldShowGrassIsland(
+                isExpanded: true,
+                showingPanelSettings: false,
+                mode: .compact
+            )
+        )
+        XCTAssertTrue(
+            NotchContentView.shouldShowGrassIsland(
+                isExpanded: true,
+                showingPanelSettings: false,
+                mode: .full
+            )
+        )
+        XCTAssertTrue(
+            NotchContentView.shouldShowGrassIsland(
+                isExpanded: true,
+                showingPanelSettings: false,
+                mode: .islandOnly
+            )
+        )
+    }
+
+    func testPanelSettingsHidesGrassInEveryMode() {
+        for mode in ExpandedPanelMode.allCases {
+            XCTAssertFalse(
+                NotchContentView.shouldShowGrassIsland(
+                    isExpanded: true,
+                    showingPanelSettings: true,
+                    mode: mode
+                )
+            )
+        }
+    }
+
+    func testExpandedPanelHeightPerMode() {
+        let notchHeight: CGFloat = 38
+        let fullHeight = NotchConstants.expandedPanelSize.height - notchHeight - 24
+        XCTAssertEqual(
+            NotchContentView.expandedPanelHeight(mode: .full, notchHeight: notchHeight),
+            fullHeight
+        )
+        XCTAssertEqual(
+            NotchContentView.expandedPanelHeight(mode: .compact, notchHeight: notchHeight),
+            fullHeight
+        )
+        XCTAssertEqual(
+            NotchContentView.expandedPanelHeight(mode: .islandOnly, notchHeight: notchHeight),
+            NotchContentView.islandOnlyPanelHeight
         )
     }
 }

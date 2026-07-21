@@ -57,6 +57,7 @@ struct PanelSettingsView: View {
     @Binding private var showingEmotionAnalysisSettings: Bool
     private let sessionStore: SessionStore
     @AppStorage(AppSettings.hideSpriteWhenIdleKey) private var hideSpriteWhenIdle = false
+    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
     @State private var panelToggleShortcut = AppSettings.panelToggleShortcut
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
@@ -149,6 +150,13 @@ struct PanelSettingsView: View {
             Button(action: toggleHideSpriteWhenIdle) {
                 SettingsRowView(icon: "pip.exit", title: "Hide Sprite When Idle") {
                     ToggleSwitch(isOn: hideSpriteWhenIdle)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: toggleHideGrassIsland) {
+                SettingsRowView(icon: "leaf", title: "Hide Grass Island") {
+                    ToggleSwitch(isOn: hideGrassIsland)
                 }
             }
             .buttonStyle(.plain)
@@ -307,6 +315,10 @@ struct PanelSettingsView: View {
 
     private func toggleHideSpriteWhenIdle() {
         hideSpriteWhenIdle.toggle()
+    }
+
+    private func toggleHideGrassIsland() {
+        hideGrassIsland.toggle()
     }
 
     private func beginPanelShortcutRecording() {

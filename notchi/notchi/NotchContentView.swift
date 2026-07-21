@@ -99,6 +99,7 @@ struct NotchContentView: View {
     @State private var showingSessionActivity = false
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
+    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
     @State private var hoveredSessionId: String?
     @State private var spriteHandoff: SpriteHandoff?
     @State private var spriteHandoffProgress: CGFloat = 0
@@ -117,6 +118,15 @@ struct NotchContentView: View {
 
     private var activeSession: SessionData? {
         sessionStore.effectiveSession
+    }
+
+    static func panelMode(hideGrassIsland: Bool, isActivityCollapsed: Bool) -> ExpandedPanelMode {
+        if hideGrassIsland { return .compact }
+        return isActivityCollapsed ? .islandOnly : .full
+    }
+
+    private var panelMode: ExpandedPanelMode {
+        Self.panelMode(hideGrassIsland: hideGrassIsland, isActivityCollapsed: isActivityCollapsed)
     }
 
     private var notchSize: CGSize { panelManager.notchSize }
@@ -175,26 +185,36 @@ struct NotchContentView: View {
     static func shouldRenderGrassIsland(
         isExpanded: Bool,
         showingPanelSettings: Bool,
+        mode: ExpandedPanelMode,
         keepsGrassIslandRenderedForHandoff: Bool = false
     ) -> Bool {
-        shouldShowGrassIsland(isExpanded: isExpanded, showingPanelSettings: showingPanelSettings)
+        shouldShowGrassIsland(isExpanded: isExpanded, showingPanelSettings: showingPanelSettings, mode: mode)
             || keepsGrassIslandRenderedForHandoff
     }
 
-    static func shouldShowGrassIsland(isExpanded: Bool, showingPanelSettings: Bool) -> Bool {
-        isExpanded && !showingPanelSettings
+    static func shouldShowGrassIsland(
+        isExpanded: Bool,
+        showingPanelSettings: Bool,
+        mode: ExpandedPanelMode
+    ) -> Bool {
+        isExpanded && !showingPanelSettings && mode != .compact
     }
 
     private var shouldRenderGrassIsland: Bool {
         Self.shouldRenderGrassIsland(
             isExpanded: isExpanded,
             showingPanelSettings: showingPanelSettings,
+            mode: panelMode,
             keepsGrassIslandRenderedForHandoff: spriteHandoff?.keepsGrassIslandRendered == true
         )
     }
 
     private var shouldShowGrassIsland: Bool {
-        Self.shouldShowGrassIsland(isExpanded: isExpanded, showingPanelSettings: showingPanelSettings)
+        Self.shouldShowGrassIsland(
+            isExpanded: isExpanded,
+            showingPanelSettings: showingPanelSettings,
+            mode: panelMode
+        )
     }
 
     private var collapsedHoverHorizontalInset: CGFloat {
@@ -362,14 +382,20 @@ struct NotchContentView: View {
 
     private var shouldShowBackButton: Bool {
         showingPanelSettings ||
-        (showingUsageDetail && !isActivityCollapsed) ||
+        (showingUsageDetail && panelMode != .islandOnly) ||
         (sessionStore.activeSessionCount >= 2 && showingSessionActivity)
     }
 
+    static let islandOnlyPanelHeight: CGFloat = 155
+
+    static func expandedPanelHeight(mode: ExpandedPanelMode, notchHeight: CGFloat) -> CGFloat {
+        mode == .islandOnly
+            ? islandOnlyPanelHeight
+            : NotchConstants.expandedPanelSize.height - notchHeight - 24
+    }
+
     private var expandedPanelHeight: CGFloat {
-        let fullHeight = NotchConstants.expandedPanelSize.height - notchSize.height - 24
-        let collapsedHeight: CGFloat = 155
-        return isActivityCollapsed ? collapsedHeight : fullHeight
+        Self.expandedPanelHeight(mode: panelMode, notchHeight: notchSize.height)
     }
 
     private var launchWavePreparationAnimation: Animation {
@@ -717,7 +743,7 @@ struct NotchContentView: View {
         spriteHandoffGeneration += 1
         let generation = spriteHandoffGeneration
 
-        guard let activeSession else {
+        guard let activeSession, panelMode != .compact else {
             spriteHandoff = nil
             spriteHandoffProgress = 0
             return

@@ -169,6 +169,11 @@ struct ExpandedPanelView: View {
     @Binding var showingUsageDetail: Bool
     @Binding var isActivityCollapsed: Bool
     @Binding var hoveredSessionId: String?
+    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
+
+    static let compactHeaderClearance: CGFloat = 0
+    static let compactFeedMaxHeight: CGFloat = 320
+    static let defaultFeedMaxHeight: CGFloat = 200
 
     init(
         sessionStore: SessionStore,
@@ -192,6 +197,13 @@ struct ExpandedPanelView: View {
         _showingUsageDetail = showingUsageDetail
         _isActivityCollapsed = isActivityCollapsed
         _hoveredSessionId = hoveredSessionId
+    }
+
+    private var panelMode: ExpandedPanelMode {
+        NotchContentView.panelMode(
+            hideGrassIsland: hideGrassIsland,
+            isActivityCollapsed: isActivityCollapsed
+        )
     }
 
     private var effectiveSession: SessionData? {
@@ -232,7 +244,7 @@ struct ExpandedPanelView: View {
     }
 
     private var isShowingUsageDetail: Bool {
-        showingUsageDetail && !isActivityCollapsed
+        showingUsageDetail && panelMode != .islandOnly
     }
 
     private var hasActivity: Bool {
@@ -388,20 +400,32 @@ struct ExpandedPanelView: View {
     }
 
     @ViewBuilder
+    private func headerClearanceSpacer(geometry: GeometryProxy) -> some View {
+        switch panelMode {
+        case .full:
+            Spacer()
+                .frame(height: geometry.size.height * 0.3)
+                .allowsHitTesting(false)
+        case .compact:
+            Spacer()
+                .frame(height: Self.compactHeaderClearance)
+                .allowsHitTesting(false)
+        case .islandOnly:
+            Spacer()
+                .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
     private func sessionPickerContent(geometry: GeometryProxy) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if isActivityCollapsed {
-                Spacer()
-                    .allowsHitTesting(false)
-            } else {
-                Spacer()
-                    .frame(height: geometry.size.height * 0.3)
-                    .allowsHitTesting(false)
-            }
+            headerClearanceSpacer(geometry: geometry)
 
             VStack(alignment: .leading, spacing: 0) {
-                if !isActivityCollapsed {
-                    Divider().background(Color.white.opacity(0.08))
+                if panelMode != .islandOnly {
+                    if panelMode != .compact {
+                        Divider().background(Color.white.opacity(0.08))
+                    }
 
                     SessionListView(
                         sessions: sessionStore.sortedSessions,
@@ -431,7 +455,11 @@ struct ExpandedPanelView: View {
 
     @ViewBuilder
     private func usageDetailContent(geometry: GeometryProxy) -> some View {
-        let headerClearance = isActivityCollapsed ? 8 : geometry.size.height * 0.3
+        let headerClearance: CGFloat = switch panelMode {
+        case .full: geometry.size.height * 0.3
+        case .compact: Self.compactHeaderClearance
+        case .islandOnly: 8
+        }
         VStack(spacing: 0) {
             Spacer()
                 .frame(height: headerClearance)
@@ -455,29 +483,24 @@ struct ExpandedPanelView: View {
     @ViewBuilder
     private func activityContent(geometry: GeometryProxy) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if isActivityCollapsed {
-                Spacer()
-                    .allowsHitTesting(false)
-            } else {
-                Spacer()
-                    .frame(height: geometry.size.height * 0.3)
-                    .allowsHitTesting(false)
-            }
+            headerClearanceSpacer(geometry: geometry)
 
             VStack(alignment: .leading, spacing: 0) {
                 if hasActivity {
-                    Divider().background(Color.white.opacity(0.08))
+                    if panelMode != .compact {
+                        Divider().background(Color.white.opacity(0.08))
+                    }
                     activitySection
-                } else if !isActivityCollapsed {
+                } else if panelMode != .islandOnly {
                     Spacer()
                     emptyState
                 }
 
-                if !isActivityCollapsed {
+                if panelMode != .islandOnly {
                     Spacer()
                 }
 
-                if showIndicator && !isActivityCollapsed {
+                if showIndicator && panelMode != .islandOnly {
                     WorkingIndicatorView(
                         state: state,
                         workingVerb: currentSpinnerVerb,
@@ -503,7 +526,7 @@ struct ExpandedPanelView: View {
                 recoveryAction: state.recoveryAction,
                 label: state.label,
                 resetLabelPrefix: sharedUsageResetLabelPrefix,
-                compact: !shouldShowSessionPicker && isActivityCollapsed,
+                compact: !shouldShowSessionPicker && panelMode == .islandOnly,
                 isEnabled: state.isProviderSpecific ? Self.sharedUsageBarIsEnabled(provider: state.provider) : true,
                 onConnect: state.provider == .claude && state.isProviderSpecific ? { usageService.connectAndStartPolling() } : nil,
                 onRetry: state.provider == .claude && state.isProviderSpecific ? { usageService.retryNow() } : nil,
@@ -600,7 +623,7 @@ struct ExpandedPanelView: View {
 
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !isActivityCollapsed {
+            if panelMode != .islandOnly {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         if let session = effectiveSession {
@@ -673,7 +696,7 @@ struct ExpandedPanelView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxHeight: 200)
+                        .frame(maxHeight: panelMode == .compact ? Self.compactFeedMaxHeight : Self.defaultFeedMaxHeight)
                         .onAppear {
                             if effectiveSession?.pendingQuestions.isEmpty == false {
                                 scrollToQuestionPrompt(proxy: proxy)

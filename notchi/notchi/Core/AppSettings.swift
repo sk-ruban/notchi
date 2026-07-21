@@ -135,8 +135,15 @@ enum NotchSlotContent: String, CaseIterable, Identifiable {
     }
 }
 
+enum ExpandedPanelMode: String, CaseIterable {
+    case full
+    case compact
+    case islandOnly
+}
+
 struct AppSettings {
     static let hideSpriteWhenIdleKey = "hideSpriteWhenIdle"
+    static let hideGrassIslandKey = "hideGrassIsland"
     static let panelToggleShortcutKey = "panelToggleShortcut"
     static let notchLeftContentKey = "notchLeftContent"
     static let notchRightContentKey = "notchRightContent"
@@ -221,6 +228,11 @@ struct AppSettings {
     static var hideSpriteWhenIdle: Bool {
         get { UserDefaults.standard.bool(forKey: hideSpriteWhenIdleKey) }
         set { UserDefaults.standard.set(newValue, forKey: hideSpriteWhenIdleKey) }
+    }
+
+    static var hideGrassIsland: Bool {
+        get { UserDefaults.standard.bool(forKey: hideGrassIslandKey) }
+        set { UserDefaults.standard.set(newValue, forKey: hideGrassIslandKey) }
     }
 
     static var panelToggleShortcut: GlobalShortcut {
