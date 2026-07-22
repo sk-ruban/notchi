@@ -527,6 +527,51 @@ final class NotchPanelManagerTests: XCTestCase {
         XCTAssertTrue(manager.isCollapsedHovered)
     }
 
+    func testDisablingSettingDuringDwellPreventsExpand() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let mouseLocation = MouseLocationBox(.zero)
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            hoverExpandDelay: .milliseconds(20),
+            mouseLocation: mouseLocation
+        )
+
+        configureGeometry(for: manager)
+        let insidePoint = CGPoint(x: manager.notchRect.midX, y: manager.notchRect.midY)
+        mouseLocation.value = insidePoint
+        manager.handleMouseLocationChanged(insidePoint)
+        XCTAssertFalse(manager.isExpanded)
+
+        defaults.set(false, forKey: AppSettings.expandOnHoverKey)
+        try? await Task.sleep(for: .milliseconds(60))
+
+        XCTAssertFalse(manager.isExpanded)
+    }
+
+    func testDisablingSettingDuringGracePreventsCollapse() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            hoverCollapseDelay: .milliseconds(20)
+        )
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+        manager.handleExpandedPanelHoverExited()
+
+        defaults.set(false, forKey: AppSettings.expandOnHoverKey)
+        try? await Task.sleep(for: .milliseconds(60))
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
     func testExpandedPanelHoverExitCollapsesAfterGrace() async {
         let defaults = makeDefaults()
         defaults.set(true, forKey: AppSettings.expandOnHoverKey)

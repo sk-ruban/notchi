@@ -371,7 +371,7 @@ final class NotchPanelManager {
     }
 
     private func expandFromHoverIfStillEligible() {
-        guard !isExpanded, isCollapsedHovered else { return }
+        guard isExpandOnHoverEnabled, !isExpanded, isCollapsedHovered else { return }
         guard activeCollapsedRect.contains(mouseLocationProvider()) else { return }
         expand()
     }
@@ -410,7 +410,7 @@ final class NotchPanelManager {
     }
 
     private func collapseFromHoverIfStillEligible() {
-        guard isExpanded, !isPinned else { return }
+        guard isExpandOnHoverEnabled, isExpanded, !isPinned else { return }
         if isTextEditingActive() {
             guard hoverCollapseDelay != .zero else { return }
             scheduleHoverCollapse()
