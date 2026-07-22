@@ -34,6 +34,9 @@ final class NotchPanelManager {
     private let notificationCenter: NotificationCenter
     private let userDefaults: UserDefaults
     private let hoverExitDelay: Duration
+    private let hoverExpandDelay: Duration
+    private let hoverCollapseDelay: Duration
+    private let isTextEditingActive: @MainActor () -> Bool
     private let activeSessionCountProvider: @MainActor () -> Int
     private let mouseLocationProvider: @MainActor () -> CGPoint
     private let collapsedHoverEnterFeedback: @MainActor () -> Void
@@ -43,6 +46,9 @@ final class NotchPanelManager {
     private var cachedShouldUseCompactIdle = false
     private var observedHideSpriteWhenIdle = false
     private var pendingHoverExitTask: Task<Void, Never>?
+    private var pendingHoverExpandTask: Task<Void, Never>?
+    private var pendingHoverCollapseTask: Task<Void, Never>?
+    private var hasCursorEnteredExpandedPanel = false
     private var mouseDownMonitor: EventMonitor?
 
     private(set) var isExpanded = false
@@ -72,8 +78,13 @@ final class NotchPanelManager {
         notificationCenter: NotificationCenter = .default,
         userDefaults: UserDefaults = .standard,
         hoverExitDelay: Duration = .zero,
+        hoverExpandDelay: Duration = .milliseconds(300),
+        hoverCollapseDelay: Duration = .milliseconds(500),
         activeSessionCountProvider: @escaping @MainActor () -> Int = { SessionStore.shared.activeSessionCount },
         mouseLocationProvider: @escaping @MainActor () -> CGPoint = { NSEvent.mouseLocation },
+        isTextEditingActive: @escaping @MainActor () -> Bool = {
+            (NSApp.keyWindow as? NotchPanel)?.firstResponder is NSTextView
+        },
         collapsedHoverEnterFeedback: @escaping @MainActor () -> Void = { HapticService.shared.playHoverClick() },
         pinToggleFeedback: @escaping @MainActor () -> Void = { HapticService.shared.playToggle() },
         startEventMonitors: Bool = true,
@@ -82,6 +93,9 @@ final class NotchPanelManager {
         self.notificationCenter = notificationCenter
         self.userDefaults = userDefaults
         self.hoverExitDelay = hoverExitDelay
+        self.hoverExpandDelay = hoverExpandDelay
+        self.hoverCollapseDelay = hoverCollapseDelay
+        self.isTextEditingActive = isTextEditingActive
         self.activeSessionCountProvider = activeSessionCountProvider
         self.mouseLocationProvider = mouseLocationProvider
         self.collapsedHoverEnterFeedback = collapsedHoverEnterFeedback
@@ -102,6 +116,8 @@ final class NotchPanelManager {
         MainActor.assumeIsolated {
             observerTokens.forEach { notificationCenter.removeObserver($0) }
             pendingHoverExitTask?.cancel()
+            pendingHoverExpandTask?.cancel()
+            pendingHoverCollapseTask?.cancel()
         }
     }
 
@@ -158,6 +174,9 @@ final class NotchPanelManager {
     func expand() {
         guard !isExpanded else { return }
         cancelPendingHoverExitTask()
+        cancelPendingHoverExpandTask()
+        cancelPendingHoverCollapseTask()
+        hasCursorEnteredExpandedPanel = false
         setCollapsedHovered(false)
         isExpanded = true
         refreshIdleMode()
@@ -166,6 +185,9 @@ final class NotchPanelManager {
     func collapse() {
         guard isExpanded else { return }
         cancelPendingHoverExitTask()
+        cancelPendingHoverExpandTask()
+        cancelPendingHoverCollapseTask()
+        hasCursorEnteredExpandedPanel = false
         isExpanded = false
         isPinned = false
         setCollapsedHovered(false)
@@ -183,6 +205,9 @@ final class NotchPanelManager {
     func togglePin() {
         isPinned.toggle()
         pinToggleFeedback()
+        if isPinned {
+            cancelPendingHoverCollapseTask()
+        }
     }
 
     private func handleCollapsedHoverEntered() {
@@ -321,6 +346,82 @@ final class NotchPanelManager {
         pendingHoverExitTask = nil
     }
 
+    private var isExpandOnHoverEnabled: Bool {
+        userDefaults.bool(forKey: AppSettings.expandOnHoverKey)
+    }
+
+    private func scheduleHoverExpand() {
+        guard isExpandOnHoverEnabled, !isExpanded else { return }
+        cancelPendingHoverExpandTask()
+        if hoverExpandDelay == .zero {
+            expandFromHoverIfStillEligible()
+            return
+        }
+
+        pendingHoverExpandTask = Task { [weak self, hoverExpandDelay] in
+            try? await Task.sleep(for: hoverExpandDelay)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                self?.expandFromHoverIfStillEligible()
+            }
+        }
+    }
+
+    private func expandFromHoverIfStillEligible() {
+        guard !isExpanded, isCollapsedHovered else { return }
+        guard activeCollapsedRect.contains(mouseLocationProvider()) else { return }
+        expand()
+    }
+
+    private func cancelPendingHoverExpandTask() {
+        pendingHoverExpandTask?.cancel()
+        pendingHoverExpandTask = nil
+    }
+
+    func handleExpandedPanelHoverEntered() {
+        guard isExpanded else { return }
+        hasCursorEnteredExpandedPanel = true
+        cancelPendingHoverCollapseTask()
+    }
+
+    func handleExpandedPanelHoverExited() {
+        guard isExpanded, isExpandOnHoverEnabled, hasCursorEnteredExpandedPanel, !isPinned else { return }
+        scheduleHoverCollapse()
+    }
+
+    private func scheduleHoverCollapse() {
+        cancelPendingHoverCollapseTask()
+        if hoverCollapseDelay == .zero {
+            collapseFromHoverIfStillEligible()
+            return
+        }
+
+        pendingHoverCollapseTask = Task { [weak self, hoverCollapseDelay] in
+            try? await Task.sleep(for: hoverCollapseDelay)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                self?.collapseFromHoverIfStillEligible()
+            }
+        }
+    }
+
+    private func collapseFromHoverIfStillEligible() {
+        guard isExpanded, !isPinned else { return }
+        if isTextEditingActive() {
+            guard hoverCollapseDelay != .zero else { return }
+            scheduleHoverCollapse()
+            return
+        }
+        collapse()
+    }
+
+    private func cancelPendingHoverCollapseTask() {
+        pendingHoverCollapseTask?.cancel()
+        pendingHoverCollapseTask = nil
+    }
+
     private func resyncCollapsedHoverIfNeeded() {
         guard isCollapsedHovered, !isExpanded else { return }
         handleMouseLocationChanged(mouseLocationProvider())
@@ -337,6 +438,9 @@ final class NotchPanelManager {
 
         if newValue {
             collapsedHoverEnterFeedback()
+            scheduleHoverExpand()
+        } else {
+            cancelPendingHoverExpandTask()
         }
     }
 }

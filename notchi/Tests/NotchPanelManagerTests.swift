@@ -28,6 +28,10 @@ final class NotchPanelManagerTests: XCTestCase {
         var count = 0
     }
 
+    private final class TextEditingBox {
+        var value = false
+    }
+
     private var defaultsSuiteNames: [String] = []
 
     override func tearDown() {
@@ -421,6 +425,208 @@ final class NotchPanelManagerTests: XCTestCase {
         XCTAssertEqual(manager.collapsedMode, .normalCollapsed)
     }
 
+    func testExpandOnHoverExpandsWhenCursorRestsOnNotch() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let mouseLocation = MouseLocationBox(.zero)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, mouseLocation: mouseLocation)
+
+        configureGeometry(for: manager)
+        let insidePoint = CGPoint(x: manager.notchRect.midX, y: manager.notchRect.midY)
+        mouseLocation.value = insidePoint
+
+        manager.handleMouseLocationChanged(insidePoint)
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
+    func testExpandOnHoverDoesNotExpandWhenSettingOff() async {
+        let defaults = makeDefaults()
+        defaults.set(false, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let mouseLocation = MouseLocationBox(.zero)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, mouseLocation: mouseLocation)
+
+        configureGeometry(for: manager)
+        let insidePoint = CGPoint(x: manager.notchRect.midX, y: manager.notchRect.midY)
+        mouseLocation.value = insidePoint
+
+        manager.handleMouseLocationChanged(insidePoint)
+
+        XCTAssertFalse(manager.isExpanded)
+        XCTAssertTrue(manager.isCollapsedHovered)
+    }
+
+    func testExpandOnHoverCancelsWhenCursorLeavesBeforeDwellElapses() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let mouseLocation = MouseLocationBox(.zero)
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            hoverExitDelay: .zero,
+            hoverExpandDelay: .milliseconds(20),
+            mouseLocation: mouseLocation
+        )
+
+        configureGeometry(for: manager)
+        let insidePoint = CGPoint(x: manager.notchRect.midX, y: manager.notchRect.midY)
+        mouseLocation.value = insidePoint
+        manager.handleMouseLocationChanged(insidePoint)
+        XCTAssertFalse(manager.isExpanded)
+
+        mouseLocation.value = outsideNotchPoint(for: manager)
+        manager.handleMouseLocationChanged(outsideNotchPoint(for: manager))
+        try? await Task.sleep(for: .milliseconds(60))
+
+        XCTAssertFalse(manager.isExpanded)
+    }
+
+    func testExpandOnHoverAbortsWhenCursorAlreadyLeftAtFireTime() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let mouseLocation = MouseLocationBox(.zero)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, mouseLocation: mouseLocation)
+
+        configureGeometry(for: manager)
+        mouseLocation.value = outsideNotchPoint(for: manager)
+
+        manager.handleMouseLocationChanged(CGPoint(x: manager.notchRect.midX, y: manager.notchRect.midY))
+
+        XCTAssertFalse(manager.isExpanded)
+        XCTAssertTrue(manager.isCollapsedHovered)
+    }
+
+    func testExpandedPanelHoverExitCollapsesAfterGrace() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+
+        manager.handleExpandedPanelHoverExited()
+
+        XCTAssertFalse(manager.isExpanded)
+    }
+
+    func testExpandedPanelHoverExitWithoutPriorEntryDoesNotCollapse() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+
+        configureGeometry(for: manager)
+        manager.expand()
+
+        manager.handleExpandedPanelHoverExited()
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
+    func testExpandedPanelHoverExitDoesNotCollapseWhenSettingOff() async {
+        let defaults = makeDefaults()
+        defaults.set(false, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+
+        manager.handleExpandedPanelHoverExited()
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
+    func testPinBlocksHoverCollapse() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+        manager.togglePin()
+
+        manager.handleExpandedPanelHoverExited()
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
+    func testReEnterCancelsPendingHoverCollapse() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            hoverCollapseDelay: .milliseconds(20)
+        )
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+
+        manager.handleExpandedPanelHoverExited()
+        manager.handleExpandedPanelHoverEntered()
+        try? await Task.sleep(for: .milliseconds(60))
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
+    func testTextEditingBlocksHoverCollapse() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            isTextEditingActive: { true }
+        )
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+
+        manager.handleExpandedPanelHoverExited()
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
+    func testHoverCollapseResumesAfterTextEditingEnds() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let editing = TextEditingBox()
+        editing.value = true
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            hoverCollapseDelay: .milliseconds(10),
+            isTextEditingActive: { editing.value }
+        )
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.handleExpandedPanelHoverEntered()
+        manager.handleExpandedPanelHoverExited()
+
+        try? await Task.sleep(for: .milliseconds(40))
+        XCTAssertTrue(manager.isExpanded)
+
+        editing.value = false
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertFalse(manager.isExpanded)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "NotchPanelManagerTests-\(UUID().uuidString)"
         defaultsSuiteNames.append(suiteName)
@@ -449,16 +655,23 @@ final class NotchPanelManagerTests: XCTestCase {
         sessionCount: SessionCountBox,
         defaults: UserDefaults,
         hoverExitDelay: Duration = .milliseconds(10),
+        hoverExpandDelay: Duration = .zero,
+        hoverCollapseDelay: Duration = .zero,
+        notificationCenter: NotificationCenter = NotificationCenter(),
         mouseLocation: MouseLocationBox? = nil,
         hoverFeedback: HoverFeedbackBox? = nil,
-        pinFeedback: PinFeedbackBox? = nil
+        pinFeedback: PinFeedbackBox? = nil,
+        isTextEditingActive: @escaping @MainActor () -> Bool = { false }
     ) -> NotchPanelManager {
         NotchPanelManager(
-            notificationCenter: NotificationCenter(),
+            notificationCenter: notificationCenter,
             userDefaults: defaults,
             hoverExitDelay: hoverExitDelay,
+            hoverExpandDelay: hoverExpandDelay,
+            hoverCollapseDelay: hoverCollapseDelay,
             activeSessionCountProvider: { sessionCount.value },
             mouseLocationProvider: { mouseLocation?.value ?? .zero },
+            isTextEditingActive: isTextEditingActive,
             collapsedHoverEnterFeedback: {
                 hoverFeedback?.count += 1
             },

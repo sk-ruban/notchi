@@ -144,6 +144,7 @@ enum ExpandedPanelMode: String, CaseIterable {
 struct AppSettings {
     static let hideSpriteWhenIdleKey = "hideSpriteWhenIdle"
     static let hideGrassIslandKey = "hideGrassIsland"
+    static let expandOnHoverKey = "expandOnHover"
     static let panelToggleShortcutKey = "panelToggleShortcut"
     static let notchLeftContentKey = "notchLeftContent"
     static let notchRightContentKey = "notchRightContent"
@@ -233,6 +234,11 @@ struct AppSettings {
     static var hideGrassIsland: Bool {
         get { UserDefaults.standard.bool(forKey: hideGrassIslandKey) }
         set { UserDefaults.standard.set(newValue, forKey: hideGrassIslandKey) }
+    }
+
+    static var expandOnHover: Bool {
+        get { UserDefaults.standard.bool(forKey: expandOnHoverKey) }
+        set { UserDefaults.standard.set(newValue, forKey: expandOnHoverKey) }
     }
 
     static var panelToggleShortcut: GlobalShortcut {
