@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
     private let integrationCoordinator = IntegrationCoordinator.shared
     private let globalShortcutService = GlobalShortcutService.shared
     private var minimizeShortcutMonitor: Any?
+    private var defaultsObserverToken: NSObjectProtocol?
 
     private var updaterStarted = false
     private var temporarilyRegularForUpdateSession = false
@@ -45,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         globalShortcutService.start()
         installMinimizeShortcutGuard()
         observeScreenChanges()
+        observePanelExpansionChanges()
         observeWakeNotifications()
         startProviderServices()
         startUpdater()
@@ -134,6 +136,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+    }
+
+    private func observePanelExpansionChanges() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshPanelTrackingAreas),
+            name: .notchiPanelExpansionDidChange,
+            object: nil
+        )
+        defaultsObserverToken = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshPanelTrackingAreas()
+            }
+        }
+    }
+
+    @objc private func refreshPanelTrackingAreas() {
+        MainActor.assumeIsolated {
+            notchPanel?.contentView?.updateTrackingAreas()
+        }
     }
 
     private func observeWakeNotifications() {

@@ -180,6 +180,7 @@ final class NotchPanelManager {
         setCollapsedHovered(false)
         isExpanded = true
         refreshIdleMode()
+        notificationCenter.post(name: .notchiPanelExpansionDidChange, object: self)
     }
 
     func collapse() {
@@ -192,6 +193,7 @@ final class NotchPanelManager {
         isPinned = false
         setCollapsedHovered(false)
         refreshIdleMode()
+        notificationCenter.post(name: .notchiPanelExpansionDidChange, object: self)
     }
 
     func toggle() {
@@ -443,4 +445,8 @@ final class NotchPanelManager {
             cancelPendingHoverExpandTask()
         }
     }
+}
+
+extension Notification.Name {
+    static let notchiPanelExpansionDidChange = Notification.Name("notchiPanelExpansionDidChange")
 }

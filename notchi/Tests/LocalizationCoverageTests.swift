@@ -6,6 +6,7 @@ final class LocalizationCoverageTests: XCTestCase {
         "Launch at Login", "Working...", "Check for Updates", "Sessions", "Plan Mode",
         // Clusters found during render-check that auto-extraction missed (empty-state, cost, services):
         "Waiting for activity", "Today", "Top model", "Stale data", "Network error, retrying in %llds",
+        "Expand on Hover",
     ]
     private let targetLocales = ["ja", "zh-Hans", "zh-Hant"]
 

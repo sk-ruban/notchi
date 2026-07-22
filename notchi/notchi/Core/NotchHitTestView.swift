@@ -3,6 +3,7 @@ import AppKit
 final class NotchHitTestView: NSView {
     weak var panelManager: NotchPanelManager?
     private var collapsedHoverTrackingArea: NSTrackingArea?
+    private var expandedPanelTrackingArea: NSTrackingArea?
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let window, let manager = panelManager else { return nil }
@@ -19,7 +20,11 @@ final class NotchHitTestView: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
+        updateCollapsedHoverTrackingArea()
+        updateExpandedPanelTrackingArea()
+    }
 
+    private func updateCollapsedHoverTrackingArea() {
         if let collapsedHoverTrackingArea {
             removeTrackingArea(collapsedHoverTrackingArea)
             self.collapsedHoverTrackingArea = nil
@@ -40,7 +45,32 @@ final class NotchHitTestView: NSView {
         collapsedHoverTrackingArea = trackingArea
     }
 
+    private func updateExpandedPanelTrackingArea() {
+        if let expandedPanelTrackingArea {
+            removeTrackingArea(expandedPanelTrackingArea)
+            self.expandedPanelTrackingArea = nil
+        }
+
+        guard let window, let manager = panelManager else { return }
+        guard manager.isExpanded, AppSettings.expandOnHover else { return }
+        let screenRect = manager.panelRect
+        guard !screenRect.isEmpty else { return }
+
+        let viewRect = convert(window.convertFromScreen(screenRect), from: nil)
+        let trackingArea = NSTrackingArea(
+            rect: viewRect,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self
+        )
+        addTrackingArea(trackingArea)
+        expandedPanelTrackingArea = trackingArea
+    }
+
     override func mouseEntered(with event: NSEvent) {
+        if event.trackingArea === expandedPanelTrackingArea {
+            panelManager?.handleExpandedPanelHoverEntered()
+            return
+        }
         forwardMouseLocation(event)
     }
 
@@ -49,6 +79,10 @@ final class NotchHitTestView: NSView {
     }
 
     override func mouseExited(with event: NSEvent) {
+        if event.trackingArea === expandedPanelTrackingArea {
+            panelManager?.handleExpandedPanelHoverExited()
+            return
+        }
         panelManager?.handleCollapsedHoverExited()
     }
 

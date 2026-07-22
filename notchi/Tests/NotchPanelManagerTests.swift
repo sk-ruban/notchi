@@ -28,6 +28,10 @@ final class NotchPanelManagerTests: XCTestCase {
         var count = 0
     }
 
+    private final class NotificationCountBox {
+        var value = 0
+    }
+
     private final class TextEditingBox {
         var value = false
     }
@@ -484,6 +488,29 @@ final class NotchPanelManagerTests: XCTestCase {
         XCTAssertFalse(manager.isExpanded)
     }
 
+    func testExpandOnHoverExpandsAfterNonzeroDwellDelay() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.expandOnHoverKey)
+        let sessionCount = SessionCountBox(0)
+        let mouseLocation = MouseLocationBox(.zero)
+        let manager = makeManager(
+            sessionCount: sessionCount,
+            defaults: defaults,
+            hoverExpandDelay: .milliseconds(10),
+            mouseLocation: mouseLocation
+        )
+
+        configureGeometry(for: manager)
+        let insidePoint = CGPoint(x: manager.notchRect.midX, y: manager.notchRect.midY)
+        mouseLocation.value = insidePoint
+        manager.handleMouseLocationChanged(insidePoint)
+        XCTAssertFalse(manager.isExpanded)
+
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(manager.isExpanded)
+    }
+
     func testExpandOnHoverAbortsWhenCursorAlreadyLeftAtFireTime() async {
         let defaults = makeDefaults()
         defaults.set(true, forKey: AppSettings.expandOnHoverKey)
@@ -625,6 +652,28 @@ final class NotchPanelManagerTests: XCTestCase {
         try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertFalse(manager.isExpanded)
+    }
+
+    func testExpandAndCollapsePostExpansionChangeNotification() async {
+        let defaults = makeDefaults()
+        let sessionCount = SessionCountBox(0)
+        let center = NotificationCenter()
+        let received = NotificationCountBox()
+        let token = center.addObserver(
+            forName: .notchiPanelExpansionDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            received.value += 1
+        }
+        defer { center.removeObserver(token) }
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, notificationCenter: center)
+
+        configureGeometry(for: manager)
+        manager.expand()
+        manager.collapse()
+
+        XCTAssertEqual(received.value, 2)
     }
 
     private func makeDefaults() -> UserDefaults {

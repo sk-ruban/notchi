@@ -58,6 +58,7 @@ struct PanelSettingsView: View {
     private let sessionStore: SessionStore
     @AppStorage(AppSettings.hideSpriteWhenIdleKey) private var hideSpriteWhenIdle = false
     @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
+    @AppStorage(AppSettings.expandOnHoverKey) private var expandOnHover = false
     @State private var panelToggleShortcut = AppSettings.panelToggleShortcut
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
@@ -157,6 +158,13 @@ struct PanelSettingsView: View {
             Button(action: toggleHideGrassIsland) {
                 SettingsRowView(icon: "leaf", title: "Hide Grass Island") {
                     ToggleSwitch(isOn: hideGrassIsland)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: toggleExpandOnHover) {
+                SettingsRowView(icon: "cursorarrow.motionlines", title: "Expand on Hover") {
+                    ToggleSwitch(isOn: expandOnHover)
                 }
             }
             .buttonStyle(.plain)
@@ -319,6 +327,10 @@ struct PanelSettingsView: View {
 
     private func toggleHideGrassIsland() {
         hideGrassIsland.toggle()
+    }
+
+    private func toggleExpandOnHover() {
+        expandOnHover.toggle()
     }
 
     private func beginPanelShortcutRecording() {
