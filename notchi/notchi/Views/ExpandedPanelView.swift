@@ -164,7 +164,7 @@ struct ExpandedPanelView: View {
     let codexUsageService: CodexUsageService
     let usageDetailProvider: AgentProvider?
     @Binding var showingSettings: Bool
-    @Binding var showingSettingsDetail: Bool
+    @Binding var settingsPath: [SettingsScreen]
     @Binding var showingSessionActivity: Bool
     @Binding var showingUsageDetail: Bool
     @Binding var isActivityCollapsed: Bool
@@ -181,7 +181,7 @@ struct ExpandedPanelView: View {
         codexUsageService: CodexUsageService,
         usageDetailProvider: AgentProvider?,
         showingSettings: Binding<Bool>,
-        showingSettingsDetail: Binding<Bool>,
+        settingsPath: Binding<[SettingsScreen]>,
         showingSessionActivity: Binding<Bool>,
         showingUsageDetail: Binding<Bool>,
         isActivityCollapsed: Binding<Bool>,
@@ -192,7 +192,7 @@ struct ExpandedPanelView: View {
         self.codexUsageService = codexUsageService
         self.usageDetailProvider = usageDetailProvider
         _showingSettings = showingSettings
-        _showingSettingsDetail = showingSettingsDetail
+        _settingsPath = settingsPath
         _showingSessionActivity = showingSessionActivity
         _showingUsageDetail = showingUsageDetail
         _isActivityCollapsed = isActivityCollapsed
@@ -379,7 +379,7 @@ struct ExpandedPanelView: View {
                 }
 
                 if showingSettings {
-                    PanelSettingsView(showingEmotionAnalysisSettings: $showingSettingsDetail)
+                    PanelSettingsView(path: $settingsPath)
                         .frame(width: geometry.size.width)
                         .transition(settingsContentTransition)
                 }
@@ -390,7 +390,7 @@ struct ExpandedPanelView: View {
         .animation(.easeInOut(duration: 0.25), value: shouldShowSessionPicker)
         .onChange(of: showingSettings) { _, isShowing in
             if !isShowing {
-                showingSettingsDetail = false
+                settingsPath = []
                 UpdateManager.shared.clearTransientStatus()
             }
             if isShowing {

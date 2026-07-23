@@ -1,8 +1,4 @@
-import ServiceManagement
 import SwiftUI
-import os.log
-
-private let logger = Logger(subsystem: "com.ruban.notchi", category: "PanelSettingsView")
 
 private struct StatusBadge {
     let text: String
@@ -54,13 +50,8 @@ enum PanelUsageBadgeState: Equatable {
 }
 
 struct PanelSettingsView: View {
-    @Binding private var showingEmotionAnalysisSettings: Bool
+    @Binding private var path: [SettingsScreen]
     private let sessionStore: SessionStore
-    @AppStorage(AppSettings.hideSpriteWhenIdleKey) private var hideSpriteWhenIdle = false
-    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
-    @AppStorage(AppSettings.expandOnHoverKey) private var expandOnHover = false
-    @State private var panelToggleShortcut = AppSettings.panelToggleShortcut
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
     @State private var codexHooksStatus = IntegrationCoordinator.shared.installStatus(for: .codex)
     @State private var claudeHooksEnabled = AppSettings.areHooksEnabled(for: .claude)
@@ -70,16 +61,16 @@ struct PanelSettingsView: View {
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
 
     init(
-        showingEmotionAnalysisSettings: Binding<Bool> = .constant(false),
+        path: Binding<[SettingsScreen]> = .constant([]),
         sessionStore: SessionStore? = nil
     ) {
-        _showingEmotionAnalysisSettings = showingEmotionAnalysisSettings
+        _path = path
         self.sessionStore = sessionStore ?? .shared
     }
 
     var body: some View {
         ZStack {
-            if !showingEmotionAnalysisSettings {
+            if path.isEmpty {
                 mainSettings
                     .transition(.asymmetric(
                         insertion: .move(edge: .leading).combined(with: .opacity),
@@ -87,21 +78,32 @@ struct PanelSettingsView: View {
                     ))
             }
 
-            if showingEmotionAnalysisSettings {
-                EmotionAnalysisSettingsView()
+            if let screen = path.last {
+                subScreen(for: screen)
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: showingEmotionAnalysisSettings)
+        .animation(.easeInOut(duration: 0.2), value: path)
         .padding(.horizontal, SettingsLayout.panelHorizontalPadding)
         .padding(.top, SettingsLayout.topPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             refreshHookStatuses()
-            panelToggleShortcut = AppSettings.panelToggleShortcut
+        }
+    }
+
+    @ViewBuilder
+    private func subScreen(for screen: SettingsScreen) -> some View {
+        switch screen {
+        case .general:
+            SettingsGeneralView()
+        case .appearance:
+            SettingsAppearanceView()
+        case .emotionAnalysis:
+            EmotionAnalysisSettingsView()
         }
     }
 
@@ -109,7 +111,8 @@ struct PanelSettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
-                    systemSection
+                    navigationRow(icon: "gearshape", title: "General", screen: .general)
+                    navigationRow(icon: "paintbrush", title: "Appearance", screen: .appearance)
                     Divider().background(Color.white.opacity(0.08))
                     integrationsSection
                     Divider().background(Color.white.opacity(0.08))
@@ -125,52 +128,15 @@ struct PanelSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var systemSection: some View {
-        VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
-            ScreenPickerRow(screenSelector: ScreenSelector.shared)
-
-            SoundPickerView()
-
-            SettingsRowView(icon: "keyboard", title: "Toggle Panel") {
-                ShortcutRecorderView(
-                    shortcut: panelToggleShortcut,
-                    onBeginRecording: beginPanelShortcutRecording,
-                    onCancelRecording: endPanelShortcutRecording,
-                    onReset: resetPanelToggleShortcut,
-                    onShortcutChange: updatePanelToggleShortcut
-                )
+    private func navigationRow(icon: String, title: LocalizedStringKey, screen: SettingsScreen) -> some View {
+        Button(action: { path.append(screen) }) {
+            SettingsRowView(icon: icon, title: title) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(TerminalColors.dimmedText)
             }
-
-            Button(action: toggleLaunchAtLogin) {
-                SettingsRowView(icon: "power", title: "Launch at Login") {
-                    ToggleSwitch(isOn: launchAtLogin)
-                }
-            }
-            .buttonStyle(.plain)
-
-            Button(action: toggleHideSpriteWhenIdle) {
-                SettingsRowView(icon: "pip.exit", title: "Hide Sprite When Idle") {
-                    ToggleSwitch(isOn: hideSpriteWhenIdle)
-                }
-            }
-            .buttonStyle(.plain)
-
-            Button(action: toggleHideGrassIsland) {
-                SettingsRowView(icon: "leaf", title: "Hide Grass Island") {
-                    ToggleSwitch(isOn: hideGrassIsland)
-                }
-            }
-            .buttonStyle(.plain)
-
-            Button(action: toggleExpandOnHover) {
-                SettingsRowView(icon: "cursorarrow.motionlines", title: "Expand on Hover") {
-                    ToggleSwitch(isOn: expandOnHover)
-                }
-            }
-            .buttonStyle(.plain)
-
-            NotchLayoutSettingsView()
         }
+        .buttonStyle(.plain)
     }
 
     private var integrationsSection: some View {
@@ -238,7 +204,7 @@ struct PanelSettingsView: View {
     }
 
     private var emotionAnalysisRow: some View {
-        Button(action: { showingEmotionAnalysisSettings = true }) {
+        Button(action: { path.append(.emotionAnalysis) }) {
             SettingsRowView(icon: "brain", title: "Emotion Analysis") {
                 HStack(spacing: 6) {
                     let status = emotionAnalysisStatus()
@@ -304,51 +270,8 @@ struct PanelSettingsView: View {
         .buttonStyle(.plain)
     }
 
-    private func toggleLaunchAtLogin() {
-        do {
-            if launchAtLogin {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
-            }
-            launchAtLogin = SMAppService.mainApp.status == .enabled
-        } catch {
-            logger.error("Failed to toggle launch at login: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
     private func connectUsage() {
         ClaudeUsageService.shared.connectAndStartPolling()
-    }
-
-    private func toggleHideSpriteWhenIdle() {
-        hideSpriteWhenIdle.toggle()
-    }
-
-    private func toggleHideGrassIsland() {
-        hideGrassIsland.toggle()
-    }
-
-    private func toggleExpandOnHover() {
-        expandOnHover.toggle()
-    }
-
-    private func beginPanelShortcutRecording() {
-        GlobalShortcutService.shared.suspendShortcut()
-    }
-
-    private func endPanelShortcutRecording() {
-        GlobalShortcutService.shared.reloadShortcut()
-    }
-
-    private func updatePanelToggleShortcut(_ shortcut: GlobalShortcut) {
-        panelToggleShortcut = shortcut
-        AppSettings.panelToggleShortcut = shortcut
-        GlobalShortcutService.shared.reloadShortcut()
-    }
-
-    private func resetPanelToggleShortcut() {
-        updatePanelToggleShortcut(.defaultTogglePanel)
     }
 
     private func toggleHooksExpanded() {
@@ -521,121 +444,6 @@ struct PanelSettingsView: View {
                 .font(.system(size: 10))
                 .foregroundColor(TerminalColors.dimmedText)
         }
-    }
-}
-
-private struct NotchLayoutSettingsView: View {
-    private enum Side { case left, right }
-
-    @AppStorage(AppSettings.notchLeftContentKey) private var leftRaw = NotchSlotContent.ring.rawValue
-    @AppStorage(AppSettings.notchRightContentKey) private var rightRaw = NotchSlotContent.latest.rawValue
-    @State private var isLeftExpanded = false
-    @State private var isRightExpanded = false
-
-    private var left: NotchSlotContent { NotchSlotContent(rawValue: leftRaw) ?? .ring }
-    private var right: NotchSlotContent { NotchSlotContent(rawValue: rightRaw) ?? .latest }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
-            sideRow(.left, icon: "rectangle.lefthalf.filled", title: "Notch Left", isExpanded: $isLeftExpanded)
-            sideRow(.right, icon: "rectangle.righthalf.filled", title: "Notch Right", isExpanded: $isRightExpanded)
-        }
-        .animation(.spring(response: 0.3), value: isLeftExpanded)
-        .animation(.spring(response: 0.3), value: isRightExpanded)
-    }
-
-    @ViewBuilder
-    private func sideRow(_ side: Side, icon: String, title: LocalizedStringKey, isExpanded: Binding<Bool>) -> some View {
-        let selection = side == .left ? left : right
-        VStack(alignment: .leading, spacing: 0) {
-            Button(action: { isExpanded.wrappedValue.toggle() }) {
-                SettingsRowView(icon: icon, title: title) {
-                    HStack(spacing: 4) {
-                        Text(selection.displayName)
-                            .font(.system(size: 11))
-                            .foregroundColor(TerminalColors.secondaryText)
-                        Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 9))
-                            .foregroundColor(TerminalColors.dimmedText)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded.wrappedValue {
-                picker(side)
-            }
-        }
-    }
-
-    private func picker(_ side: Side) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(NotchSlotContent.allCases) { option in
-                    optionRow(side, option: option)
-                }
-            }
-            .padding(.vertical, SettingsLayout.pickerInset)
-        }
-        .frame(height: pickerHeight(optionCount: NotchSlotContent.allCases.count))
-        .background(TerminalColors.subtleBackground)
-        .cornerRadius(8)
-        .padding(.top, SettingsLayout.pickerInset)
-    }
-
-    private func optionRow(_ side: Side, option: NotchSlotContent) -> some View {
-        let selection = side == .left ? left : right
-        let other = side == .left ? right : left
-        let isSelected = selection == option
-        let hint = pickHint(option: option, isSelected: isSelected, other: other)
-        return Button(action: { select(option, for: side) }) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isSelected ? TerminalColors.green : Color.clear)
-                    .frame(width: 6, height: 6)
-                Text(option.displayName)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(isSelected ? TerminalColors.primaryText : TerminalColors.secondaryText)
-                    .lineLimit(1)
-                Spacer()
-                if let hint {
-                    Text(hint)
-                        .font(.system(size: 9))
-                        .foregroundColor(TerminalColors.dimmedText)
-                }
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .background(isSelected ? TerminalColors.hoverBackground : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func pickHint(option: NotchSlotContent, isSelected: Bool, other: NotchSlotContent) -> String? {
-        guard !isSelected else { return nil }
-        if option == other, other != .nothing { return String(localized: "swap") }
-        if NotchSlotContent.conflict(option, other) { return String(localized: "replace") }
-        return nil
-    }
-
-    private func select(_ option: NotchSlotContent, for side: Side) {
-        switch side {
-        case .left:
-            AppSettings.notchLeftContent = option
-            isLeftExpanded = false
-        case .right:
-            AppSettings.notchRightContent = option
-            isRightExpanded = false
-        }
-    }
-
-    private func pickerHeight(optionCount: Int) -> CGFloat {
-        let rowHeight: CGFloat = 28
-        let rowSpacing: CGFloat = 4
-        let visibleCount = min(optionCount, 6)
-        return CGFloat(visibleCount) * rowHeight + CGFloat(max(visibleCount - 1, 0)) * rowSpacing
     }
 }
 

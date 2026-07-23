@@ -93,7 +93,7 @@ struct NotchContentView: View {
     @AppStorage(AppSettings.notchLeftContentKey) private var leftContentRaw = NotchSlotContent.ring.rawValue
     @AppStorage(AppSettings.notchRightContentKey) private var rightContentRaw = NotchSlotContent.latest.rawValue
     @State private var showingPanelSettings = false
-    @State private var showingPanelSettingsDetail = false
+    @State private var settingsPath: [SettingsScreen] = []
     @State private var showingUsageDetail = false
     @State private var usageDetailProvider: AgentProvider?
     @State private var showingSessionActivity = false
@@ -511,7 +511,7 @@ struct NotchContentView: View {
             updateKeyboardFocus(for: expanded)
             if !expanded {
                 showingPanelSettings = false
-                showingPanelSettingsDetail = false
+                settingsPath = []
                 showingSessionActivity = false
                 showingUsageDetail = false
                 usageDetailProvider = nil
@@ -539,7 +539,7 @@ struct NotchContentView: View {
                         codexUsageService: CodexUsageService.shared,
                         usageDetailProvider: usageDetailProvider,
                         showingSettings: $showingPanelSettings,
-                        showingSettingsDetail: $showingPanelSettingsDetail,
+                        settingsPath: $settingsPath,
                         showingSessionActivity: $showingSessionActivity,
                         showingUsageDetail: $showingUsageDetail,
                         isActivityCollapsed: $isActivityCollapsed,
@@ -590,7 +590,7 @@ struct NotchContentView: View {
                     showsIndicator: updateManager.hasPendingUpdate,
                     action: {
                         haptics.playNavigationTap()
-                        showingPanelSettingsDetail = false
+                        settingsPath = []
                         showingPanelSettings = true
                     }
                 )
@@ -620,9 +620,10 @@ struct NotchContentView: View {
 
     private func goBack() {
         if showingPanelSettings {
-            if showingPanelSettingsDetail {
-                showingPanelSettingsDetail = false
-            } else {
+            switch SettingsScreen.backAction(for: settingsPath) {
+            case .popScreen:
+                settingsPath.removeLast()
+            case .exitSettings:
                 showingPanelSettings = false
             }
         } else if showingUsageDetail {
