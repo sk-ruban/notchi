@@ -214,13 +214,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 토큰"
+            "value" : "토큰"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ token"
+            "value" : "Token"
           }
         }
       }
@@ -348,7 +348,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Token 30 ngày"
+            "value" : "Tok 30 ngày"
           }
         }
       }
@@ -972,13 +972,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claude 인증에 주의가 필요합니다."
+            "value" : "Claude 인증을 확인해 주세요."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Xác thực Claude cần được xử lý."
+            "value" : "Cần kiểm tra lại xác thực Claude."
           }
         }
       }
@@ -2995,7 +2995,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đã giới hạn tốc độ, thử lại sau %lld giây"
+            "value" : "Bị giới hạn tốc độ, thử lại sau %lld giây"
           }
         }
       }
@@ -3269,7 +3269,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Review"
+            "value" : "Đánh giá mã"
           }
         }
       }
@@ -3509,13 +3509,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "일부 모델은 가격 정보가 없어 비용이 부분적입니다"
+            "value" : "일부 모델의 가격 정보가 없어 비용이 일부만 집계됩니다"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Một số mô hình thiếu thông tin giá — chi phí chỉ là một phần"
+            "value" : "Một số mô hình chưa có thông tin giá — chi phí hiển thị chưa đầy đủ"
           }
         }
       }
@@ -3823,7 +3823,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@을(를) %@(으)로 테스트 중..."
+            "value" : "%@에서 %@ 테스트 중..."
           }
         },
         "vi" : {
@@ -3931,7 +3931,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Token hôm nay"
+            "value" : "Token ngày"
           }
         }
       }
@@ -3993,13 +3993,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "최다 사용 모델"
+            "value" : "비용 상위 모델"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mô hình dùng nhiều nhất"
+            "value" : "Tốn nhất"
           }
         }
       }
