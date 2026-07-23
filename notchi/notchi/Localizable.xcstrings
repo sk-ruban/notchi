@@ -31,6 +31,18 @@
             "state" : "needs_review",
             "value" : "%@ API 傳回了 HTTP %lld"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ API가 HTTP %lld를 반환했습니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API %@ đã trả về HTTP %lld"
+          }
         }
       }
     },
@@ -52,6 +64,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "%@ 使用情況"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 사용량"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mức sử dụng %@"
           }
         }
       }
@@ -77,6 +101,18 @@
             "state" : "needs_review",
             "value" : "%@ 上限"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 한도"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giới hạn %@"
+          }
         }
       }
     },
@@ -98,6 +134,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "剩餘 %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 남음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Còn lại %@"
           }
         }
       }
@@ -127,6 +175,18 @@
             "state" : "needs_review",
             "value" : "%@ · 剩餘 %@"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ 남음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · còn lại %@"
+          }
         }
       }
     },
@@ -149,6 +209,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "詞元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 토큰"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ token"
           }
         }
       }
@@ -173,6 +245,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已使用 %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 사용됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã dùng %@"
           }
         }
       }
@@ -220,6 +304,18 @@
             "state" : "needs_review",
             "value" : "30天"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 30일"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 ngày qua"
+          }
         }
       }
     },
@@ -241,6 +337,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "30天詞元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30일 토큰"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token 30 ngày"
           }
         }
       }
@@ -266,6 +374,18 @@
             "state" : "needs_review",
             "value" : "API 金鑰"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khóa API"
+          }
         }
       }
     },
@@ -289,6 +409,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "接受編輯"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "편집 허용"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chấp nhận chỉnh sửa"
           }
         }
       }
@@ -314,6 +446,18 @@
             "state" : "needs_review",
             "value" : "新增"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm"
+          }
         }
       }
     },
@@ -336,6 +480,18 @@
             "state" : "needs_review",
             "value" : "請新增 API 金鑰以測試此設定。"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 구성을 테스트하려면 API 키를 추가해 주세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm khóa API để kiểm tra cấu hình này."
+          }
         }
       }
     },
@@ -357,6 +513,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "代理鉤子"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "에이전트 후크"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hook agent"
           }
         }
       }
@@ -382,6 +550,18 @@
             "state" : "needs_review",
             "value" : "Anthropic API 金鑰"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anthropic API 키"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khóa API Anthropic"
+          }
         }
       }
     },
@@ -406,6 +586,18 @@
             "state" : "needs_review",
             "value" : "附件"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "첨부 파일"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp đính kèm"
+          }
         }
       }
     },
@@ -428,6 +620,18 @@
             "state" : "needs_review",
             "value" : "自動"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự động"
+          }
         }
       }
     },
@@ -449,6 +653,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "自動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự động"
           }
         }
       }
@@ -474,6 +690,18 @@
             "state" : "needs_review",
             "value" : "返回"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "뒤로"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quay lại"
+          }
         }
       }
     },
@@ -495,6 +723,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "無效 URL"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 URL"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL không hợp lệ"
           }
         }
       }
@@ -520,6 +760,18 @@
             "state" : "needs_review",
             "value" : "基礎 URL"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 URL"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL cơ sở"
+          }
         }
       }
     },
@@ -542,6 +794,18 @@
             "state" : "needs_review",
             "value" : "內建"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내장"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Màn hình tích hợp"
+          }
         }
       }
     },
@@ -563,6 +827,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "內建或主螢幕"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내장 또는 메인"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Màn hình tích hợp hoặc màn hình chính"
           }
         }
       }
@@ -588,6 +864,18 @@
             "state" : "needs_review",
             "value" : "繞過"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "우회"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bỏ qua"
+          }
         }
       }
     },
@@ -609,6 +897,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "檢查更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 확인"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiểm tra bản cập nhật"
           }
         }
       }
@@ -634,6 +934,18 @@
             "state" : "needs_review",
             "value" : "檢查中…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인 중..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang kiểm tra..."
+          }
         }
       }
     },
@@ -655,6 +967,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "Claude 驗證需要處理。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 인증에 주의가 필요합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xác thực Claude cần được xử lý."
           }
         }
       }
@@ -680,6 +1004,18 @@
             "state" : "needs_review",
             "value" : "壓縮中…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "압축 중..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang nén..."
+          }
         }
       }
     },
@@ -704,6 +1040,18 @@
             "state" : "needs_review",
             "value" : "已完成"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã hoàn tất"
+          }
         }
       }
     },
@@ -725,6 +1073,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已連線"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã kết nối"
           }
         }
       }
@@ -750,6 +1110,18 @@
             "state" : "needs_review",
             "value" : "費用"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비용"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chi phí"
+          }
         }
       }
     },
@@ -771,6 +1143,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "無法驗證此設定。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 구성을 확인할 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể xác minh cấu hình này."
           }
         }
       }
@@ -796,6 +1180,18 @@
             "state" : "needs_review",
             "value" : "天"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngày"
+          }
         }
       }
     },
@@ -819,6 +1215,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "不詢問"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "묻지 않음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không hỏi"
           }
         }
       }
@@ -844,6 +1252,18 @@
             "state" : "needs_review",
             "value" : "下載中…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드 중..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang tải xuống..."
+          }
         }
       }
     },
@@ -865,6 +1285,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "情緒分析"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "감정 분석"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phân tích cảm xúc"
           }
         }
       }
@@ -888,6 +1320,18 @@
             "state" : "needs_review",
             "value" : "錯誤"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오류"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lỗi"
+          }
         }
       }
     },
@@ -909,6 +1353,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "懸停時展開"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호버 시 확장"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở rộng khi di chuột"
           }
         }
       }
@@ -934,6 +1390,18 @@
             "state" : "needs_review",
             "value" : "額外用量"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 사용량"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mức sử dụng thêm"
+          }
         }
       }
     },
@@ -957,6 +1425,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "額外用量"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 사용량"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mức sử dụng thêm"
           }
         }
       }
@@ -982,6 +1462,18 @@
             "state" : "needs_review",
             "value" : "失敗"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실패"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thất bại"
+          }
         }
       }
     },
@@ -1003,6 +1495,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "取得 API 金鑰"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키 받기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lấy khóa API"
           }
         }
       }
@@ -1026,6 +1530,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "HTTP %lld，%lld 秒後重試"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP %lld, %lld초 후 다시 시도합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTP %lld, thử lại sau %lld giây"
           }
         }
       }
@@ -1053,6 +1569,18 @@
             "state" : "needs_review",
             "value" : "隱藏草地"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잔디 섬 숨기기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ẩn đảo cỏ"
+          }
         }
       }
     },
@@ -1075,6 +1603,18 @@
             "state" : "needs_review",
             "value" : "閒置時隱藏精靈"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유휴 시 스프라이트 숨기기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ẩn sprite khi nhàn rỗi"
+          }
         }
       }
     },
@@ -1096,6 +1636,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "未安裝鉤子"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "후크가 설치되지 않음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa cài đặt hook"
           }
         }
       }
@@ -1121,6 +1673,18 @@
             "state" : "needs_review",
             "value" : "閒置"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유휴"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhàn rỗi"
+          }
         }
       }
     },
@@ -1142,6 +1706,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "安裝"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt"
           }
         }
       }
@@ -1165,6 +1741,18 @@
             "state" : "needs_review",
             "value" : "請安裝 Claude Code CLI 以繼續"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "계속하려면 Claude Code CLI를 설치해 주세요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt Claude Code CLI để tiếp tục"
+          }
         }
       }
     },
@@ -1186,6 +1774,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已安裝"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã cài đặt"
           }
         }
       }
@@ -1209,6 +1809,18 @@
             "state" : "needs_review",
             "value" : "無效"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không hợp lệ"
+          }
         }
       }
     },
@@ -1230,6 +1842,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "無效的 API 基礎 URL"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 API 기본 URL"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL cơ sở API không hợp lệ"
           }
         }
       }
@@ -1253,6 +1877,18 @@
             "state" : "needs_review",
             "value" : "無效的情緒分析回應"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 감정 분석 응답"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phản hồi phân tích cảm xúc không hợp lệ"
+          }
         }
       }
     },
@@ -1274,6 +1910,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "回應無效，%lld 秒後重試"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘못된 응답. %lld초 후 다시 시도합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phản hồi không hợp lệ, thử lại sau %lld giây"
           }
         }
       }
@@ -1299,6 +1947,18 @@
             "state" : "needs_review",
             "value" : "最新工作階段"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최신 세션"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phiên mới nhất"
+          }
         }
       }
     },
@@ -1320,6 +1980,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "登入時啟動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인 시 실행"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi chạy khi đăng nhập"
           }
         }
       }
@@ -1343,6 +2015,18 @@
             "state" : "needs_review",
             "value" : "主螢幕"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메인"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Màn hình chính"
+          }
         }
       }
     },
@@ -1364,6 +2048,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "未設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "누락됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiếu"
           }
         }
       }
@@ -1387,6 +2083,18 @@
             "state" : "needs_review",
             "value" : "缺少 %@ API 金鑰"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ API 키 누락"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiếu khóa API %@"
+          }
         }
       }
     },
@@ -1408,6 +2116,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "缺少金鑰"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 누락"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiếu khóa"
           }
         }
       }
@@ -1431,6 +2151,18 @@
             "state" : "needs_review",
             "value" : "模型"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình"
+          }
         }
       }
     },
@@ -1452,6 +2184,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "靜音"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음소거됨"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã tắt tiếng"
           }
         }
       }
@@ -1475,6 +2219,18 @@
             "state" : "needs_review",
             "value" : "網路錯誤，%lld 秒後重試"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네트워크 오류. %lld초 후 다시 시도합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lỗi mạng, thử lại sau %lld giây"
+          }
         }
       }
     },
@@ -1496,6 +2252,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "無金鑰"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có khóa"
           }
         }
       }
@@ -1521,6 +2289,18 @@
             "state" : "needs_review",
             "value" : "尚無費用記錄"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 비용 기록이 없습니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa có lịch sử chi phí"
+          }
         }
       }
     },
@@ -1542,6 +2322,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "無速率限制標頭，%lld 秒後重試"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "속도 제한 헤더 없음. %lld초 후 다시 시도합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có header giới hạn tốc độ, thử lại sau %lld giây"
           }
         }
       }
@@ -1567,6 +2359,18 @@
             "state" : "needs_review",
             "value" : "無"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có"
+          }
         }
       }
     },
@@ -1588,6 +2392,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "找不到"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "찾을 수 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không tìm thấy"
           }
         }
       }
@@ -1611,6 +2427,18 @@
             "state" : "needs_review",
             "value" : "瀏海左側"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "노치 왼쪽"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notch bên trái"
+          }
         }
       }
     },
@@ -1632,6 +2460,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "瀏海右側"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "노치 오른쪽"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notch bên phải"
           }
         }
       }
@@ -1657,6 +2497,18 @@
             "state" : "needs_review",
             "value" : "無"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có gì"
+          }
         }
       }
     },
@@ -1680,6 +2532,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "通知聲音"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알림 소리"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Âm thanh thông báo"
           }
         }
       }
@@ -1705,6 +2569,18 @@
             "state" : "needs_review",
             "value" : "好"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
         }
       }
     },
@@ -1726,6 +2602,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "關閉"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "끔"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tắt"
           }
         }
       }
@@ -1749,6 +2637,18 @@
             "state" : "needs_review",
             "value" : "離線"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오프라인"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngoại tuyến"
+          }
         }
       }
     },
@@ -1771,6 +2671,18 @@
             "state" : "needs_review",
             "value" : "開啟 Claude Code"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 열기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở Claude Code"
+          }
         }
       }
     },
@@ -1792,6 +2704,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "開啟設定以完成 Claude Code 和 Codex 整合"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정을 열어 Claude Code와 Codex 연동을 설정하세요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở cài đặt để thiết lập tích hợp Claude Code và Codex"
           }
         }
       }
@@ -1817,6 +2741,18 @@
             "state" : "needs_review",
             "value" : "OpenAI API 金鑰"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI API 키"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khóa API OpenAI"
+          }
         }
       }
     },
@@ -1838,6 +2774,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "部分"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một phần"
           }
         }
       }
@@ -1863,6 +2811,18 @@
             "state" : "needs_review",
             "value" : "計畫模式"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "플랜 모드"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chế độ lập kế hoạch"
+          }
         }
       }
     },
@@ -1884,6 +2844,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "按下按鍵"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 누르기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhấn phím"
           }
         }
       }
@@ -1909,6 +2881,18 @@
             "state" : "needs_review",
             "value" : "提示詞將傳送至所選供應商進行情緒分類。"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프롬프트는 감정 분류를 위해 선택한 제공업체로 전송됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt được gửi đến nhà cung cấp đã chọn để phân loại cảm xúc."
+          }
         }
       }
     },
@@ -1930,6 +2914,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "供應商"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제공업체"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhà cung cấp"
           }
         }
       }
@@ -1955,6 +2951,18 @@
             "state" : "needs_review",
             "value" : "結束 Notchi"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notchi 종료"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thoát Notchi"
+          }
         }
       }
     },
@@ -1976,6 +2984,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已達速率限制，%lld 秒後重試"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "속도 제한됨. %lld초 후 다시 시도합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã giới hạn tốc độ, thử lại sau %lld giây"
           }
         }
       }
@@ -1999,6 +3019,18 @@
             "state" : "needs_review",
             "value" : "可安裝"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치 준비 완료"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sẵn sàng cài đặt"
+          }
         }
       }
     },
@@ -2021,6 +3053,18 @@
             "state" : "needs_review",
             "value" : "重新連線"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 연결"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối lại"
+          }
         }
       }
     },
@@ -2042,6 +3086,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "請直接在 Codex 應用程式或 CLI 中回覆"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 앱 또는 CLI에서 직접 응답해 주세요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trả lời trực tiếp trong ứng dụng Codex hoặc CLI"
           }
         }
       }
@@ -2067,6 +3123,18 @@
             "state" : "needs_review",
             "value" : "重設快捷鍵"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단축키 재설정"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt lại phím tắt"
+          }
         }
       }
     },
@@ -2088,6 +3156,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "剩餘 %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 남음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Còn lại %@"
           }
         }
       }
@@ -2111,6 +3191,18 @@
             "state" : "needs_review",
             "value" : "結果：%@"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "결과: %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết quả: %@"
+          }
         }
       }
     },
@@ -2133,6 +3225,18 @@
             "state" : "needs_review",
             "value" : "重試"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 시도"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thử lại"
+          }
         }
       }
     },
@@ -2154,6 +3258,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "審查"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리뷰"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review"
           }
         }
       }
@@ -2179,6 +3295,18 @@
             "state" : "needs_review",
             "value" : "正在掃描用量…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용량 스캔 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang quét mức sử dụng…"
+          }
         }
       }
     },
@@ -2203,6 +3331,18 @@
             "state" : "needs_review",
             "value" : "螢幕"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "화면"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Màn hình"
+          }
         }
       }
     },
@@ -2224,6 +3364,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "工作階段"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phiên"
           }
         }
       }
@@ -2249,6 +3401,18 @@
             "state" : "needs_review",
             "value" : "工作階段"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phiên"
+          }
         }
       }
     },
@@ -2271,6 +3435,18 @@
             "state" : "needs_review",
             "value" : "需設定"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 필요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cần thiết lập"
+          }
         }
       }
     },
@@ -2292,6 +3468,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "睡眠中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잠자는 중"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang ngủ"
           }
         }
       }
@@ -2317,6 +3505,18 @@
             "state" : "needs_review",
             "value" : "部分模型缺少定價，費用為部分統計"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 모델은 가격 정보가 없어 비용이 부분적입니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một số mô hình thiếu thông tin giá — chi phí chỉ là một phần"
+          }
         }
       }
     },
@@ -2341,6 +3541,18 @@
             "state" : "needs_review",
             "value" : "聲音匯入失敗"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사운드 가져오기 실패"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập âm thanh thất bại"
+          }
         }
       }
     },
@@ -2362,6 +3574,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "過期資料"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오래된 데이터"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dữ liệu cũ"
           }
         }
       }
@@ -2385,6 +3609,18 @@
             "state" : "needs_review",
             "value" : "在 GitHub 上加星標"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub에서 스타"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gắn sao trên GitHub"
+          }
         }
       }
     },
@@ -2406,6 +3642,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "啟動 Claude Code 或 Codex 以開始追蹤"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 또는 Codex를 실행하여 추적을 시작하세요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khởi động Claude Code hoặc Codex để bắt đầu theo dõi"
           }
         }
       }
@@ -2429,6 +3677,18 @@
             "state" : "needs_review",
             "value" : "開始 Claude Code 工作階段以追蹤用量"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용량을 추적하려면 Claude Code 세션을 시작해 주세요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bắt đầu phiên Claude Code để theo dõi mức sử dụng"
+          }
         }
       }
     },
@@ -2450,6 +3710,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "開始工作階段以追蹤用量"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용량을 추적하려면 세션을 시작해 주세요"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bắt đầu phiên để theo dõi mức sử dụng"
           }
         }
       }
@@ -2473,6 +3745,18 @@
             "state" : "needs_review",
             "value" : "點按以顯示 Claude 用量"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클릭하여 Claude 사용량 표시"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhấn để hiển thị mức sử dụng Claude"
+          }
         }
       }
     },
@@ -2494,6 +3778,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "測試"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "테스트"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiểm tra"
           }
         }
       }
@@ -2523,6 +3819,18 @@
             "state" : "needs_review",
             "value" : "正在測試 %@，使用 %@…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) %@(으)로 테스트 중..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang kiểm tra %@ với %@..."
+          }
         }
       }
     },
@@ -2544,6 +3852,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "逾時"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시간 초과"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hết thời gian"
           }
         }
       }
@@ -2567,6 +3887,18 @@
             "state" : "needs_review",
             "value" : "今日"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hôm nay"
+          }
         }
       }
     },
@@ -2588,6 +3920,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "今日詞元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘 토큰"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token hôm nay"
           }
         }
       }
@@ -2611,6 +3955,18 @@
             "state" : "needs_review",
             "value" : "切換面板"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패널 전환"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bật/tắt bảng"
+          }
         }
       }
     },
@@ -2633,6 +3989,18 @@
             "state" : "needs_review",
             "value" : "主要模型"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최다 사용 모델"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình dùng nhiều nhất"
+          }
         }
       }
     },
@@ -2654,6 +4022,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "輸入答案"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "답변 입력"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập câu trả lời"
           }
         }
       }
@@ -2679,6 +4059,18 @@
             "state" : "needs_review",
             "value" : "輸入內容"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무언가 입력"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhập nội dung"
+          }
         }
       }
     },
@@ -2700,6 +4092,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "無法使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 불가"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không khả dụng"
           }
         }
       }
@@ -2723,6 +4127,18 @@
             "state" : "needs_review",
             "value" : "已是最新"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최신 상태"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã là phiên bản mới nhất"
+          }
         }
       }
     },
@@ -2745,6 +4161,18 @@
             "state" : "needs_review",
             "value" : "有可用更新"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 있음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Có bản cập nhật"
+          }
         }
       }
     },
@@ -2766,6 +4194,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "%lld 秒後更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld초 후 업데이트합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cập nhật sau %lld giây"
           }
         }
       }
@@ -2791,6 +4231,18 @@
             "state" : "needs_review",
             "value" : "使用情況"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용량"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mức sử dụng"
+          }
         }
       }
     },
@@ -2812,6 +4264,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "正在等待活動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "활동 대기 중"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang chờ hoạt động"
           }
         }
       }
@@ -2837,6 +4301,18 @@
             "state" : "needs_review",
             "value" : "等待中…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대기 중..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang chờ..."
+          }
         }
       }
     },
@@ -2861,6 +4337,18 @@
             "state" : "needs_review",
             "value" : "揮手"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "손 흔들기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vẫy tay"
+          }
         }
       }
     },
@@ -2882,6 +4370,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "每週"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주간"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hàng tuần"
           }
         }
       }
@@ -2907,6 +4407,18 @@
             "state" : "needs_review",
             "value" : "工作中…"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 중..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang làm việc..."
+          }
         }
       }
     },
@@ -2929,6 +4441,18 @@
             "state" : "needs_review",
             "value" : "替換"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "바꾸기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "thay thế"
+          }
         }
       }
     },
@@ -2950,6 +4474,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "剩餘 %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 남음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "còn lại %@"
           }
         }
       }
@@ -2975,6 +4511,18 @@
             "state" : "needs_review",
             "value" : "過期資料"
           }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오래된 데이터"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dữ liệu cũ"
+          }
         }
       }
     },
@@ -2996,6 +4544,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "交換"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "맞바꾸기"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hoán đổi"
           }
         }
       }

@@ -150,6 +150,8 @@
 				en,
 				Base,
 				ja,
+				ko,
+				vi,
 				"zh-Hans",
 				"zh-Hant",
 			);

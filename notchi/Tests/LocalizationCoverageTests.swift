@@ -8,7 +8,7 @@ final class LocalizationCoverageTests: XCTestCase {
         "Waiting for activity", "Today", "Top model", "Stale data", "Network error, retrying in %llds",
         "Expand on Hover",
     ]
-    private let targetLocales = ["ja", "zh-Hans", "zh-Hant"]
+    private let targetLocales = ["ja", "zh-Hans", "zh-Hant", "ko", "vi"]
 
     func testSampledKeysAreTranslatedInEachLocale() throws {
         for locale in targetLocales {
