@@ -636,8 +636,8 @@ struct ExpandedPanelView: View {
 
                         Spacer()
 
-                        if let mode = effectiveSession?.currentModeDisplay {
-                            ModeBadgeView(mode: mode)
+                        if let session = effectiveSession, let mode = session.currentModeDisplay {
+                            ModeBadgeView(mode: mode, rawMode: session.permissionMode)
                         }
                     }
                     .padding(.top, 8)
@@ -801,11 +801,12 @@ struct PanelHeaderButton: View {
 
 struct ModeBadgeView: View {
     let mode: String
+    let rawMode: String
 
     var color: Color {
-        switch mode {
-        case "Plan Mode": TerminalColors.planMode
-        case "Accept Edits": TerminalColors.acceptEdits
+        switch rawMode {
+        case "plan": TerminalColors.planMode
+        case "acceptEdits": TerminalColors.acceptEdits
         default: TerminalColors.secondaryText
         }
     }
