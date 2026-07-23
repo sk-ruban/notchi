@@ -1,14 +1,17 @@
 import Foundation
 struct PendingQuestion {
     static let freeTextOptionLabel = String(localized: "Type something")
+    private static let rawFreeTextOptionLabel = "Type something"
 
     let question: String
     let header: String?
     let options: [(label: String, description: String?)]
 
-    static func isFreeTextOptionLabel(_ label: String) -> Bool {
-        normalizedFreeTextLabel(label)
-            .caseInsensitiveCompare(normalizedFreeTextLabel(freeTextOptionLabel)) == .orderedSame
+    static func isFreeTextOptionLabel(_ label: String, localizedLabel: String = freeTextOptionLabel) -> Bool {
+        let normalized = normalizedFreeTextLabel(label)
+        return [rawFreeTextOptionLabel, localizedLabel].contains {
+            normalized.caseInsensitiveCompare(normalizedFreeTextLabel($0)) == .orderedSame
+        }
     }
 
     private static func normalizedFreeTextLabel(_ label: String) -> String {

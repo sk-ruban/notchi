@@ -203,6 +203,32 @@ final class SessionStoreTests: XCTestCase {
         )
     }
 
+    func testAskUserQuestionNormalizesProvidedFreeTextOptionLabel() {
+        let store = SessionStore.shared
+        let session = store.process(makeEvent(
+            sessionId: "ask-user-question-free-text-normalize-\(UUID().uuidString)",
+            event: .preToolUse,
+            status: "running_tool",
+            tool: "AskUserQuestion",
+            toolInput: [
+                "questions": AnyCodable([
+                    [
+                        "question": "Which path?",
+                        "options": [
+                            ["label": "Fast"],
+                            ["label": "Type something."],
+                        ],
+                    ],
+                ]),
+            ]
+        ))
+
+        XCTAssertEqual(
+            session.pendingQuestions[0].options.map(\.label),
+            ["Fast", PendingQuestion.freeTextOptionLabel]
+        )
+    }
+
     func testAnswerPendingQuestionSubmitsClaudePreToolUseResponse() async throws {
         let store = SessionStore.shared
         let sessionId = "ask-user-question-answer-\(UUID().uuidString)"

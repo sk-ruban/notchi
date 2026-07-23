@@ -616,12 +616,8 @@ final class SessionStore {
     private static func optionsWithFreeTextChoice(
         _ options: [(label: String, description: String?)]
     ) -> [(label: String, description: String?)] {
-        let alreadyIncludesFreeText = options.contains { option in
-            PendingQuestion.isFreeTextOptionLabel(option.label)
-        }
-
-        guard !alreadyIncludesFreeText else { return options }
-        return options + [(label: PendingQuestion.freeTextOptionLabel, description: nil)]
+        let regularOptions = options.filter { !PendingQuestion.isFreeTextOptionLabel($0.label) }
+        return regularOptions + [(label: PendingQuestion.freeTextOptionLabel, description: nil)]
     }
 
     private static func buildQuestionResponseContext(
