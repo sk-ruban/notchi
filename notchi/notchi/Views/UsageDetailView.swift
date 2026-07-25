@@ -128,12 +128,10 @@ struct UsageDetailView: View {
                 : (main: costStore, peer: codexCostStore)
             CostDashboardView(
                 report: stores.main.report,
-                isScanning: stores.main.isScanning,
                 sizingPeerReports: [stores.peer.report, combinedReport].compactMap { $0 })
         case .all:
             CostDashboardView(
                 report: combinedReport,
-                isScanning: costStore.isScanning || codexCostStore.isScanning,
                 sizingPeerReports: [costStore.report, codexCostStore.report].compactMap { $0 },
                 combinesProviders: true)
         }

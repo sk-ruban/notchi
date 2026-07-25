@@ -47,15 +47,15 @@ enum CostStatFormatter {
 @MainActor
 struct CostDashboardView: View {
     let report: DailyCostReport?
-    let isScanning: Bool
     var sizingPeerReports: [DailyCostReport] = []
     var combinesProviders = false
 
     @State private var selected: DailyCostReport.DayEntry?
-    @State private var hoveringChart = false
+
+    private static let sectionSpacing: CGFloat = 8
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
             if let report {
                 statsRow(report)
                 chart(report)
@@ -64,10 +64,12 @@ struct CostDashboardView: View {
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
-            } else if isScanning {
-                ProgressView("Scanning usage…").font(.caption)
             } else {
-                Text("No cost history yet").font(.caption).foregroundStyle(TerminalColors.dimmedText)
+                Text("Scanning usage…")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TerminalColors.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.statRowHeight + Self.sectionSpacing + Self.chartHeight)
             }
         }
     }
@@ -129,8 +131,10 @@ struct CostDashboardView: View {
                 }
             }
         }
-        .frame(height: 34)
+        .frame(height: Self.statRowHeight)
     }
+
+    private static let statRowHeight: CGFloat = 34
 
     private static let statLayoutSafetyMargin: CGFloat = 2
 
@@ -206,6 +210,7 @@ struct CostDashboardView: View {
     private static let chartHeight: CGFloat = 105
     private static let segmentGapPixels = 1.0
     private static let hoverGracePixels: CGFloat = 12
+    private static let halfDay: TimeInterval = 43_200
 
     private static func stackedSegments(
         _ e: DailyCostReport.DayEntry, gap: Double) -> [StackedSegment]
@@ -221,42 +226,9 @@ struct CostDashboardView: View {
         return result
     }
 
-    @ViewBuilder private func legend(_ r: DailyCostReport) -> some View {
-        if !r.shadedModels.isEmpty {
-            HStack(spacing: 10) {
-                ForEach(Array(legendItems(r).enumerated()), id: \.offset) { _, item in
-                    HStack(spacing: 4) {
-                        Circle().fill(item.color).frame(width: 6, height: 6)
-                        Text(item.label)
-                            .font(.caption2)
-                            .foregroundStyle(TerminalColors.secondaryText)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .opacity(hoveringChart ? 1 : 0)
-            .animation(.easeOut(duration: 0.15), value: hoveringChart)
-        }
-    }
-
-    private func legendItems(_ r: DailyCostReport) -> [(color: Color, label: String)] {
-        var names = r.shadedModels.map(CostStatFormatter.modelName)
-        if r.hasOtherSegments { names.append(String(localized: "Other")) }
-        return names.enumerated().map { rank, name in
-            (shade(rank: rank, provider: r.provider), legendLabel(name: name, rank: rank))
-        }
-    }
-
-    private func legendLabel(name: String, rank: Int) -> String {
-        guard let selected else { return name }
-        let cost = selected.segments.first { $0.rank == rank }?.costUSD ?? 0
-        return "\(name) \(CostStatFormatter.usd(cost))"
-    }
-
     private static let tooltipRowHeight: CGFloat = 12
     private static let tooltipRowSpacing: CGFloat = 3
-    private static let tooltipPadding: CGFloat = 10
+    private static let tooltipVerticalPadding: CGFloat = 5
 
     private func tooltipRows(
         _ e: DailyCostReport.DayEntry, r: DailyCostReport) -> [(color: Color, label: String)]
@@ -289,7 +261,7 @@ struct CostDashboardView: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, Self.tooltipPadding / 2)
+        .padding(.vertical, Self.tooltipVerticalPadding)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color(red: 0.13, green: 0.13, blue: 0.13)))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.12), lineWidth: 1))
         .allowsHitTesting(false)
@@ -320,7 +292,6 @@ struct CostDashboardView: View {
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            hoveringChart = true
                             guard let plotFrame = proxy.plotFrame else { return }
                             let origin = geo[plotFrame].origin
                             let x = location.x - origin.x
@@ -334,14 +305,13 @@ struct CostDashboardView: View {
                             }
                             select(y >= barTop - Self.hoverGracePixels ? entry : nil)
                         case .ended:
-                            hoveringChart = false
-                            selected = nil
+                            select(nil)
                         }
                     }
                 if let selected, let plotFrame = proxy.plotFrame {
                     let rows = tooltipRows(selected, r: r)
                     if !rows.isEmpty,
-                       let barX = proxy.position(forX: selected.date.addingTimeInterval(43_200))
+                       let barX = proxy.position(forX: selected.date.addingTimeInterval(Self.halfDay))
                     {
                         let onLeftHalf = barX < geo[plotFrame].width / 2
                         tooltip(rows)

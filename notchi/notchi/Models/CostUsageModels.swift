@@ -26,6 +26,10 @@ nonisolated struct ModelTokenTotals: Equatable, Sendable, Codable {
             output: l.output + r.output, costNanos: l.costNanos + r.costNanos,
             requestCount: l.requestCount + r.requestCount, pricedCount: l.pricedCount + r.pricedCount)
     }
+
+    static func += (l: inout ModelTokenTotals, r: ModelTokenTotals) {
+        l = l + r
+    }
 }
 
 typealias DayModelBuckets = [String: [String: ModelTokenTotals]]
@@ -57,10 +61,6 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
     let topModel: String?
     let shadedModels: [String]
 
-    var hasOtherSegments: Bool {
-        entries.contains { e in e.segments.contains { $0.rank == shadedModels.count } }
-    }
-
     var windowCostUSD: Double { entries.reduce(0) { $0 + $1.costUSD } }
     var windowTokens: Int { entries.reduce(0) { $0 + $1.totalTokens } }
     var todayCostUSD: Double { entries.last?.costUSD ?? 0 }
@@ -83,7 +83,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
             let key = dayKey(cursor, calendar: calendar)
             let models = buckets[key] ?? [:]
             for (m, t) in models {
-                windowTotalsByModel[m] = (windowTotalsByModel[m] ?? ModelTokenTotals()) + t
+                windowTotalsByModel[m, default: ModelTokenTotals()] += t
             }
             days.append((key, cursor, models))
             cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
@@ -91,7 +91,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         let shadedModels = Array(rankedModels(in: windowTotalsByModel).prefix(shadedModelCount))
         let entries = days.map { day -> DayEntry in
             var totals = ModelTokenTotals()
-            for t in day.models.values { totals = totals + t }
+            for t in day.models.values { totals += t }
             let priced = totals.requestCount == 0 ? 1 : Double(totals.pricedCount) / Double(totals.requestCount)
             return DayEntry(
                 day: day.key, date: day.date, costUSD: totals.costUSD,
@@ -139,10 +139,8 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         for (provider, buckets) in perProvider {
             for (day, models) in buckets {
                 for (model, totals) in models {
-                    providerBuckets[day, default: [:]][provider.rawValue] =
-                        (providerBuckets[day]?[provider.rawValue] ?? ModelTokenTotals()) + totals
-                    modelBuckets[day, default: [:]][model] =
-                        (modelBuckets[day]?[model] ?? ModelTokenTotals()) + totals
+                    providerBuckets[day, default: [:]][provider.rawValue, default: ModelTokenTotals()] += totals
+                    modelBuckets[day, default: [:]][model, default: ModelTokenTotals()] += totals
                 }
             }
         }
@@ -152,7 +150,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         var windowTotalsByModel: [String: ModelTokenTotals] = [:]
         for entry in base.entries {
             for (model, totals) in modelBuckets[entry.day] ?? [:] {
-                windowTotalsByModel[model] = (windowTotalsByModel[model] ?? ModelTokenTotals()) + totals
+                windowTotalsByModel[model, default: ModelTokenTotals()] += totals
             }
         }
         let entries = base.entries.map { e in
