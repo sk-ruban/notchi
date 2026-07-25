@@ -170,6 +170,13 @@ struct CostDashboardView: View {
 
     private static let unselectedDayOpacity = 0.55
 
+    private func select(_ entry: DailyCostReport.DayEntry?) {
+        if let entry, entry.id != selected?.id, !entry.segments.isEmpty {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+        selected = entry
+    }
+
     private func nearest(to date: Date, in entries: [DailyCostReport.DayEntry]) -> DailyCostReport.DayEntry? {
         entries.min(by: {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
@@ -304,10 +311,10 @@ struct CostDashboardView: View {
                                   let entry = nearest(to: date, in: r.entries),
                                   let barTop = proxy.position(forY: entry.costUSD)
                             else {
-                                selected = nil
+                                select(nil)
                                 return
                             }
-                            selected = y >= barTop - Self.hoverGracePixels ? entry : nil
+                            select(y >= barTop - Self.hoverGracePixels ? entry : nil)
                         case .ended:
                             hoveringChart = false
                             selected = nil
