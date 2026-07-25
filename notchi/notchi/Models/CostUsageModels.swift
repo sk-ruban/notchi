@@ -31,6 +31,12 @@ nonisolated struct ModelTokenTotals: Equatable, Sendable, Codable {
 typealias DayModelBuckets = [String: [String: ModelTokenTotals]]
 
 nonisolated struct DailyCostReport: Equatable, Sendable {
+    nonisolated struct Segment: Equatable, Sendable, Identifiable {
+        let rank: Int
+        let costUSD: Double
+        var id: Int { rank }
+    }
+
     nonisolated struct DayEntry: Equatable, Sendable, Identifiable {
         let day: String
         let date: Date
@@ -39,8 +45,11 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         let requestCount: Int
         let pricedFraction: Double
         let topModel: String?
+        let segments: [Segment]
         var id: String { day }
     }
+
+    static let shadedModelCount = 2
 
     let provider: CostProvider
     let entries: [DayEntry]
@@ -60,41 +69,68 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         provider: CostProvider, buckets: DayModelBuckets,
         windowStart: Date, today: Date, calendar: Calendar) -> DailyCostReport
     {
-        var entries: [DayEntry] = []
+        var days: [(key: String, date: Date, models: [String: ModelTokenTotals])] = []
         var cursor = calendar.startOfDay(for: windowStart)
         let last = calendar.startOfDay(for: today)
         var windowTotalsByModel: [String: ModelTokenTotals] = [:]
         while cursor <= last {
             let key = dayKey(cursor, calendar: calendar)
             let models = buckets[key] ?? [:]
-            var totals = ModelTokenTotals()
             for (m, t) in models {
-                totals = totals + t
                 windowTotalsByModel[m] = (windowTotalsByModel[m] ?? ModelTokenTotals()) + t
             }
-            let priced = totals.requestCount == 0 ? 1 : Double(totals.pricedCount) / Double(totals.requestCount)
-            entries.append(DayEntry(
-                day: key, date: cursor, costUSD: totals.costUSD,
-                totalTokens: totals.totalTokens, requestCount: totals.requestCount,
-                pricedFraction: priced, topModel: topModel(in: models)))
+            days.append((key, cursor, models))
             cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
+        }
+        let shadedModels = Array(rankedModels(in: windowTotalsByModel).prefix(shadedModelCount))
+        let entries = days.map { day -> DayEntry in
+            var totals = ModelTokenTotals()
+            for t in day.models.values { totals = totals + t }
+            let priced = totals.requestCount == 0 ? 1 : Double(totals.pricedCount) / Double(totals.requestCount)
+            return DayEntry(
+                day: day.key, date: day.date, costUSD: totals.costUSD,
+                totalTokens: totals.totalTokens, requestCount: totals.requestCount,
+                pricedFraction: priced, topModel: topModel(in: day.models),
+                segments: segments(for: day.models, shadedModels: shadedModels))
         }
         return DailyCostReport(
             provider: provider, entries: entries,
-            topModel: topModel(in: windowTotalsByModel))
+            topModel: shadedModels.first)
+    }
+
+    static func segments(
+        for models: [String: ModelTokenTotals], shadedModels: [String]) -> [Segment]
+    {
+        var result: [Segment] = []
+        for (rank, model) in shadedModels.enumerated() {
+            if let cost = models[model]?.costUSD, cost > 0 {
+                result.append(Segment(rank: rank, costUSD: cost))
+            }
+        }
+        let otherCost = models
+            .filter { !shadedModels.contains($0.key) }
+            .values.reduce(0) { $0 + $1.costUSD }
+        if otherCost > 0 {
+            result.append(Segment(rank: shadedModels.count, costUSD: otherCost))
+        }
+        return result
+    }
+
+    static func rankedModels(in totalsByModel: [String: ModelTokenTotals]) -> [String] {
+        totalsByModel
+            .sorted { lhs, rhs in
+                if lhs.value.costNanos != rhs.value.costNanos {
+                    return lhs.value.costNanos > rhs.value.costNanos
+                }
+                if lhs.value.totalTokens != rhs.value.totalTokens {
+                    return lhs.value.totalTokens > rhs.value.totalTokens
+                }
+                return lhs.key < rhs.key
+            }
+            .map(\.key)
     }
 
     static func topModel(in totalsByModel: [String: ModelTokenTotals]) -> String? {
-        totalsByModel
-            .max { lhs, rhs in
-                if lhs.value.costNanos != rhs.value.costNanos {
-                    return lhs.value.costNanos < rhs.value.costNanos
-                }
-                if lhs.value.totalTokens != rhs.value.totalTokens {
-                    return lhs.value.totalTokens < rhs.value.totalTokens
-                }
-                return lhs.key > rhs.key
-            }?
-            .key
+        rankedModels(in: totalsByModel).first
     }
 }

@@ -155,11 +155,15 @@ struct CostDashboardView: View {
         }
     }
 
-    private func accent(_ provider: CostProvider) -> Color {
-        provider == .codex ? TerminalColors.codexAccentDeep : TerminalColors.claudeOrangeDeep
-    }
-    private func peak(_ provider: CostProvider) -> Color {
-        provider == .codex ? TerminalColors.codexAccent : TerminalColors.claudeOrange
+    private func shade(rank: Int, provider: CostProvider) -> Color {
+        switch (provider, rank) {
+        case (.claude, 0): TerminalColors.claudeOrangeDeep
+        case (.claude, 1): TerminalColors.claudeOrange
+        case (.claude, _): TerminalColors.claudeOrangeLight
+        case (.codex, 0): TerminalColors.codexAccentDeep
+        case (.codex, 1): TerminalColors.codexAccent
+        case (.codex, _): TerminalColors.codexAccentLight
+        }
     }
 
     private static let dayFormatter: DateFormatter = {
@@ -168,10 +172,7 @@ struct CostDashboardView: View {
         return f
     }()
 
-    private func barColor(for e: DailyCostReport.DayEntry, provider: CostProvider) -> Color {
-        if let s = selected, s.id == e.id { return peak(provider) }
-        return accent(provider)
-    }
+    private static let unselectedDayOpacity = 0.45
 
     private func nearest(to date: Date, in entries: [DailyCostReport.DayEntry]) -> DailyCostReport.DayEntry? {
         entries.min(by: {
@@ -181,8 +182,11 @@ struct CostDashboardView: View {
 
     @ViewBuilder private func chart(_ r: DailyCostReport) -> some View {
         Chart(r.entries) { e in
-            BarMark(x: .value("Day", e.date, unit: .day), y: .value("Cost", e.costUSD))
-                .foregroundStyle(barColor(for: e, provider: r.provider))
+            ForEach(e.segments) { s in
+                BarMark(x: .value("Day", e.date, unit: .day), y: .value("Cost", s.costUSD))
+                    .foregroundStyle(shade(rank: s.rank, provider: r.provider))
+                    .opacity(selected == nil || selected?.id == e.id ? 1 : Self.unselectedDayOpacity)
+            }
         }
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)

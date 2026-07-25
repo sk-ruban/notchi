@@ -143,6 +143,38 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(sets.count, 4, "unselected + reference + one per active day")
     }
 
+    func testSegmentsShadeWindowTopTwoModelsAndFoldRestIntoOther() {
+        var buckets: DayModelBuckets = [:]
+        buckets["2026-06-22"] = [
+            "claude-opus-4": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 9_000_000_000, requestCount: 1, pricedCount: 1),
+            "claude-sonnet-4": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 4_000_000_000, requestCount: 1, pricedCount: 1),
+            "claude-haiku-4": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 1_000_000_000, requestCount: 1, pricedCount: 1),
+            "claude-fable-5": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 2_000_000_000, requestCount: 1, pricedCount: 1)]
+        buckets["2026-06-24"] = [
+            "claude-sonnet-4": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 3_000_000_000, requestCount: 1, pricedCount: 1)]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.make(
+            provider: .claude, buckets: buckets,
+            windowStart: day("2026-06-22"), today: day("2026-06-24"), calendar: cal)
+
+        let first = report.entries[0].segments
+        XCTAssertEqual(first.map(\.rank), [0, 1, 2])
+        XCTAssertEqual(first[0].costUSD, 9.0, accuracy: 1e-9)
+        XCTAssertEqual(first[1].costUSD, 4.0, accuracy: 1e-9)
+        XCTAssertEqual(first[2].costUSD, 3.0, accuracy: 1e-9)
+
+        XCTAssertEqual(report.entries[2].segments, [DailyCostReport.Segment(rank: 1, costUSD: 3.0)])
+
+        XCTAssertEqual(report.entries[1].segments, [])
+    }
+
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {
         var buckets: DayModelBuckets = [:]
         buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(
