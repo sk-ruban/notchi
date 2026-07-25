@@ -46,15 +46,17 @@ enum CostStatFormatter {
 
 @MainActor
 struct CostDashboardView: View {
-    let store: CostHistoryStore
-    var sizingPeerStore: CostHistoryStore?
+    let report: DailyCostReport?
+    let isScanning: Bool
+    var sizingPeerReports: [DailyCostReport] = []
+    var combinesProviders = false
 
     @State private var selected: DailyCostReport.DayEntry?
     @State private var hoveringChart = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let report = store.report {
+            if let report {
                 statsRow(report)
                 chart(report)
                 if report.entries.contains(where: { $0.requestCount > 0 && $0.pricedFraction < 1 }) {
@@ -62,7 +64,7 @@ struct CostDashboardView: View {
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
-            } else if store.isScanning {
+            } else if isScanning {
                 ProgressView("Scanning usage…").font(.caption)
             } else {
                 Text("No cost history yet").font(.caption).foregroundStyle(TerminalColors.dimmedText)
@@ -112,7 +114,7 @@ struct CostDashboardView: View {
 
     @ViewBuilder private func statsRow(_ r: DailyCostReport) -> some View {
         let items = Self.statItems(r, selected: selected)
-        let peerValues = sizingPeerStore?.report.map { Self.sizingValueSets($0) } ?? []
+        let peerValues = sizingPeerReports.flatMap { Self.sizingValueSets($0) }
         GeometryReader { geo in
             let available = geo.size.width - Self.statSpacing * CGFloat(items.count - 1)
             let widths = Self.statColumnWeights.map { $0 * available }
@@ -162,6 +164,17 @@ struct CostDashboardView: View {
         return shades[min(rank, shades.count - 1)]
     }
 
+    private func segmentProvider(_ s: DailyCostReport.Segment) -> CostProvider? {
+        combinesProviders ? s.models.first.flatMap(CostProvider.init(rawValue:)) : nil
+    }
+
+    private func segmentColor(_ s: DailyCostReport.Segment, reportProvider: CostProvider) -> Color {
+        guard let provider = segmentProvider(s) else {
+            return shade(rank: s.rank, provider: reportProvider)
+        }
+        return provider == .codex ? TerminalColors.codexAccent : TerminalColors.claudeOrangeDeep
+    }
+
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.setLocalizedDateFormatFromTemplate("MMMd")
@@ -184,10 +197,10 @@ struct CostDashboardView: View {
     }
 
     private struct StackedSegment: Identifiable {
-        let rank: Int
+        let segment: DailyCostReport.Segment
         let yStart: Double
         let yEnd: Double
-        var id: Int { rank }
+        var id: Int { segment.rank }
     }
 
     private static let chartHeight: CGFloat = 105
@@ -202,7 +215,7 @@ struct CostDashboardView: View {
         for s in e.segments {
             let inset = result.isEmpty ? 0 : min(gap, s.costUSD / 2)
             result.append(StackedSegment(
-                rank: s.rank, yStart: cumulative + inset, yEnd: cumulative + s.costUSD))
+                segment: s, yStart: cumulative + inset, yEnd: cumulative + s.costUSD))
             cumulative += s.costUSD
         }
         return result
@@ -249,10 +262,15 @@ struct CostDashboardView: View {
         _ e: DailyCostReport.DayEntry, r: DailyCostReport) -> [(color: Color, label: String)]
     {
         e.segments.map { s in
-            let name = s.models.count == 1
-                ? CostStatFormatter.modelName(s.models[0])
-                : String(localized: "Other")
-            return (shade(rank: s.rank, provider: r.provider),
+            let name: String
+            if let provider = segmentProvider(s) {
+                name = provider == .codex ? "Codex" : "Claude"
+            } else if s.models.count == 1 {
+                name = CostStatFormatter.modelName(s.models[0])
+            } else {
+                name = String(localized: "Other")
+            }
+            return (segmentColor(s, reportProvider: r.provider),
                     "\(name) \(CostStatFormatter.usd(s.costUSD))")
         }
     }
@@ -285,7 +303,7 @@ struct CostDashboardView: View {
                     x: .value("Day", e.date, unit: .day),
                     yStart: .value("Cost", s.yStart),
                     yEnd: .value("Cost", s.yEnd))
-                    .foregroundStyle(shade(rank: s.rank, provider: r.provider))
+                    .foregroundStyle(segmentColor(s.segment, reportProvider: r.provider))
                     .opacity(selected == nil || selected?.id == e.id ? 1 : Self.unselectedDayOpacity)
             }
         }

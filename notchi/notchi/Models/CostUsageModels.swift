@@ -130,6 +130,51 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         return result
     }
 
+    static func combinedAcrossProviders(
+        _ perProvider: [(provider: CostProvider, buckets: DayModelBuckets)],
+        windowStart: Date, today: Date, calendar: Calendar) -> DailyCostReport
+    {
+        var providerBuckets: DayModelBuckets = [:]
+        var modelBuckets: DayModelBuckets = [:]
+        for (provider, buckets) in perProvider {
+            for (day, models) in buckets {
+                for (model, totals) in models {
+                    providerBuckets[day, default: [:]][provider.rawValue] =
+                        (providerBuckets[day]?[provider.rawValue] ?? ModelTokenTotals()) + totals
+                    modelBuckets[day, default: [:]][model] =
+                        (modelBuckets[day]?[model] ?? ModelTokenTotals()) + totals
+                }
+            }
+        }
+        let base = make(
+            provider: perProvider.first?.provider ?? .claude, buckets: providerBuckets,
+            windowStart: windowStart, today: today, calendar: calendar)
+        var windowTotalsByModel: [String: ModelTokenTotals] = [:]
+        for entry in base.entries {
+            for (model, totals) in modelBuckets[entry.day] ?? [:] {
+                windowTotalsByModel[model] = (windowTotalsByModel[model] ?? ModelTokenTotals()) + totals
+            }
+        }
+        let entries = base.entries.map { e in
+            DayEntry(
+                day: e.day, date: e.date, costUSD: e.costUSD,
+                totalTokens: e.totalTokens, requestCount: e.requestCount,
+                pricedFraction: e.pricedFraction,
+                topModel: topModel(in: modelBuckets[e.day] ?? [:]),
+                segments: e.segments.sorted { providerOrder($0) < providerOrder($1) })
+        }
+        return DailyCostReport(
+            provider: base.provider, entries: entries,
+            topModel: topModel(in: windowTotalsByModel),
+            shadedModels: base.shadedModels)
+    }
+
+    private static func providerOrder(_ segment: Segment) -> Int {
+        segment.models.first
+            .flatMap(CostProvider.init(rawValue:))
+            .flatMap(CostProvider.allCases.firstIndex(of:)) ?? CostProvider.allCases.count
+    }
+
     static func rankedModels(in totalsByModel: [String: ModelTokenTotals]) -> [String] {
         totalsByModel
             .sorted { lhs, rhs in

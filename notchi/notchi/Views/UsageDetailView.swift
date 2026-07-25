@@ -7,7 +7,12 @@ struct UsageDetailView: View {
     let codexCostStore: CostHistoryStore
     let defaultProvider: AgentProvider
 
-    @State private var selectedProvider: AgentProvider
+    enum UsageTab: Hashable {
+        case provider(AgentProvider)
+        case all
+    }
+
+    @State private var selectedTab: UsageTab
     @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
 
     init(
@@ -22,7 +27,7 @@ struct UsageDetailView: View {
         self.costStore = costStore
         self.codexCostStore = codexCostStore
         self.defaultProvider = defaultProvider
-        _selectedProvider = State(initialValue: defaultProvider)
+        _selectedTab = State(initialValue: .provider(defaultProvider))
     }
 
     private var claudeHasData: Bool {
@@ -37,12 +42,24 @@ struct UsageDetailView: View {
         claudeHasData && codexHasData
     }
 
+    private var resolvedTab: UsageTab {
+        switch selectedTab {
+        case .all where showsToggle:
+            return .all
+        case .all:
+            return .provider(Self.resolvedProvider(
+                selected: defaultProvider, claudeHasData: claudeHasData, codexHasData: codexHasData))
+        case .provider(let provider):
+            return .provider(Self.resolvedProvider(
+                selected: provider, claudeHasData: claudeHasData, codexHasData: codexHasData))
+        }
+    }
+
     private var resolvedProvider: AgentProvider {
-        Self.resolvedProvider(
-            selected: selectedProvider,
-            claudeHasData: claudeHasData,
-            codexHasData: codexHasData
-        )
+        switch resolvedTab {
+        case .provider(let provider): provider
+        case .all: defaultProvider
+        }
     }
 
     static func resolvedProvider(
@@ -91,10 +108,34 @@ struct UsageDetailView: View {
             : nil
     }
 
-    private var costDashboardStores: (store: CostHistoryStore, peer: CostHistoryStore) {
-        switch resolvedProvider {
-        case .claude: (costStore, codexCostStore)
-        case .codex: (codexCostStore, costStore)
+    private var combinedReport: DailyCostReport? {
+        guard showsToggle else { return nil }
+        let calendar = costStore.calendar
+        let today = Date()
+        let windowStart = calendar.date(
+            byAdding: .day, value: -(costStore.windowDays - 1),
+            to: calendar.startOfDay(for: today))!
+        return DailyCostReport.combinedAcrossProviders(
+            [(.claude, costStore.buckets), (.codex, codexCostStore.buckets)],
+            windowStart: windowStart, today: today, calendar: calendar)
+    }
+
+    @ViewBuilder private var costDashboard: some View {
+        switch resolvedTab {
+        case .provider(let provider):
+            let stores = provider == .codex
+                ? (main: codexCostStore, peer: costStore)
+                : (main: costStore, peer: codexCostStore)
+            CostDashboardView(
+                report: stores.main.report,
+                isScanning: stores.main.isScanning,
+                sizingPeerReports: [stores.peer.report, combinedReport].compactMap { $0 })
+        case .all:
+            CostDashboardView(
+                report: combinedReport,
+                isScanning: costStore.isScanning || codexCostStore.isScanning,
+                sizingPeerReports: [costStore.report, codexCostStore.report].compactMap { $0 },
+                combinesProviders: true)
         }
     }
 
@@ -121,24 +162,25 @@ struct UsageDetailView: View {
             header
                 .padding(.bottom, -4)
 
-            CostDashboardView(
-                store: costDashboardStores.store,
-                sizingPeerStore: costDashboardStores.peer
-            )
-            .padding(.bottom, 2)
+            costDashboard
+                .padding(.bottom, 2)
 
-            if usageRowCount >= 3 && !hideGrassIsland {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 14, alignment: .topLeading),
-                        GridItem(.flexible(), alignment: .topLeading),
-                    ],
-                    spacing: 12
-                ) {
+            if case .provider = resolvedTab {
+                if usageRowCount >= 3 && !hideGrassIsland {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 14, alignment: .topLeading),
+                            GridItem(.flexible(), alignment: .topLeading),
+                        ],
+                        spacing: 12
+                    ) {
+                        usageRows
+                    }
+                } else {
                     usageRows
                 }
             } else {
-                usageRows
+                providerBreakdown
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -158,14 +200,65 @@ struct UsageDetailView: View {
         }
     }
 
+    @ViewBuilder private var providerBreakdown: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            providerBreakdownRow(
+                name: AgentProvider.claude.displayName,
+                color: TerminalColors.claudeOrangeDeep,
+                report: costStore.report)
+            providerBreakdownRow(
+                name: AgentProvider.codex.displayName,
+                color: TerminalColors.codexAccent,
+                report: codexCostStore.report)
+        }
+        .padding(.top, 2)
+    }
+
+    @ViewBuilder private func providerBreakdownRow(
+        name: String, color: Color, report: DailyCostReport?) -> some View
+    {
+        if let report {
+            HStack(spacing: 6) {
+                Circle().fill(color).frame(width: 6, height: 6)
+                Text(name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(TerminalColors.primaryText)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(Self.breakdownDetail(report))
+                    .font(.system(size: 10))
+                    .foregroundColor(TerminalColors.secondaryText)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private static func breakdownDetail(_ report: DailyCostReport) -> String {
+        var parts = [
+            CostStatFormatter.usd(report.windowCostUSD),
+            String(localized: "\(CostStatFormatter.tokens(report.windowTokens)) toks"),
+        ]
+        if let topModel = report.topModel {
+            parts.append(CostStatFormatter.modelName(topModel))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func tabTitle(_ tab: UsageTab) -> String {
+        switch tab {
+        case .provider(let provider): provider.displayName
+        case .all: String(localized: "All")
+        }
+    }
+
     private var providerToggle: some View {
         HStack(spacing: 4) {
-            ForEach([AgentProvider.claude, .codex], id: \.self) { provider in
-                Button(action: { selectedProvider = provider }) {
-                    Text(provider.displayName)
+            ForEach([UsageTab.provider(.claude), .provider(.codex), .all], id: \.self) { tab in
+                Button(action: { selectedTab = tab }) {
+                    Text(Self.tabTitle(tab))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(
-                            resolvedProvider == provider
+                            resolvedTab == tab
                                 ? TerminalColors.primaryText
                                 : TerminalColors.dimmedText
                         )
@@ -173,7 +266,7 @@ struct UsageDetailView: View {
                         .padding(.vertical, 4)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(resolvedProvider == provider ? TerminalColors.hoverBackground : .clear)
+                                .fill(resolvedTab == tab ? TerminalColors.hoverBackground : .clear)
                         )
                 }
                 .buttonStyle(.plain)

@@ -179,6 +179,37 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(report.entries[1].segments, [])
     }
 
+    func testCombinedReportStacksProvidersAndRanksRealModels() {
+        var claude: DayModelBuckets = [:]
+        claude["2026-06-23"] = [
+            "claude-fable-5": ModelTokenTotals(
+                input: 100, output: 50, costNanos: 2_000_000_000, requestCount: 1, pricedCount: 1),
+            "claude-haiku-4": ModelTokenTotals(
+                input: 10, output: 5, costNanos: 1_000_000_000, requestCount: 1, pricedCount: 1)]
+        var codex: DayModelBuckets = [:]
+        codex["2026-06-23"] = ["gpt-5.5": ModelTokenTotals(
+            input: 200, output: 80, costNanos: 8_000_000_000, requestCount: 2, pricedCount: 2)]
+        codex["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(
+            input: 50, output: 20, costNanos: 1_000_000_000, requestCount: 1, pricedCount: 1)]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.combinedAcrossProviders(
+            [(.claude, claude), (.codex, codex)],
+            windowStart: day("2026-06-22"), today: day("2026-06-24"), calendar: cal)
+
+        let mixedDay = report.entries[1]
+        XCTAssertEqual(mixedDay.costUSD, 11.0, accuracy: 1e-9)
+        XCTAssertEqual(mixedDay.segments.map(\.models), [["claude"], ["codex"]])
+        XCTAssertEqual(mixedDay.segments[0].costUSD, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(mixedDay.segments[1].costUSD, 8.0, accuracy: 1e-9)
+
+        XCTAssertEqual(mixedDay.topModel, "gpt-5.5")
+        XCTAssertEqual(report.entries[2].topModel, "gpt-5.5")
+        XCTAssertEqual(report.topModel, "gpt-5.5")
+        XCTAssertEqual(report.windowCostUSD, 12.0, accuracy: 1e-9)
+    }
+
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {
         var buckets: DayModelBuckets = [:]
         buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(

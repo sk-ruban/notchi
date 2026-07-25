@@ -5,11 +5,12 @@ import Observation
 @Observable
 final class CostHistoryStore {
     private(set) var report: DailyCostReport?
+    private(set) var buckets: DayModelBuckets = [:]
     private(set) var isScanning = false
     private(set) var lastScan: Date?
 
-    private let windowDays: Int
-    private let calendar: Calendar
+    let windowDays: Int
+    let calendar: Calendar
     private let provider: CostProvider
     private let scanProvider: @Sendable (Date) async -> DayModelBuckets
     private var timer: Timer?
@@ -86,6 +87,7 @@ final class CostHistoryStore {
         let buckets = await scanProvider(now)
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
+        self.buckets = buckets
         report = DailyCostReport.make(
             provider: provider, buckets: buckets,
             windowStart: windowStart, today: now, calendar: calendar)
