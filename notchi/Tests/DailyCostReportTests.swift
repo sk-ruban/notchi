@@ -169,8 +169,12 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(first[0].costUSD, 9.0, accuracy: 1e-9)
         XCTAssertEqual(first[1].costUSD, 4.0, accuracy: 1e-9)
         XCTAssertEqual(first[2].costUSD, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(first[0].models, ["claude-opus-4"])
+        XCTAssertEqual(first[2].models, ["claude-fable-5", "claude-haiku-4"])
 
-        XCTAssertEqual(report.entries[2].segments, [DailyCostReport.Segment(rank: 1, costUSD: 3.0)])
+        XCTAssertEqual(
+            report.entries[2].segments,
+            [DailyCostReport.Segment(rank: 1, costUSD: 3.0, models: ["claude-sonnet-4"])])
 
         XCTAssertEqual(report.entries[1].segments, [])
     }

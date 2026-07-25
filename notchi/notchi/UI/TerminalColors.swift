@@ -11,7 +11,7 @@ struct TerminalColors {
 
     static let claudeChartShades = [
         claudeOrangeDeep,
-        Color(red: 0.89, green: 0.55, blue: 0.40),
+        Color(red: 0.86, green: 0.52, blue: 0.37),
         Color(red: 0.95, green: 0.70, blue: 0.52),
     ]
     static let codexChartShades = [

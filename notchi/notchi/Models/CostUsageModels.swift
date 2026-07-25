@@ -34,6 +34,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
     nonisolated struct Segment: Equatable, Sendable, Identifiable {
         let rank: Int
         let costUSD: Double
+        let models: [String]
         var id: Int { rank }
     }
 
@@ -54,6 +55,11 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
     let provider: CostProvider
     let entries: [DayEntry]
     let topModel: String?
+    let shadedModels: [String]
+
+    var hasOtherSegments: Bool {
+        entries.contains { e in e.segments.contains { $0.rank == shadedModels.count } }
+    }
 
     var windowCostUSD: Double { entries.reduce(0) { $0 + $1.costUSD } }
     var windowTokens: Int { entries.reduce(0) { $0 + $1.totalTokens } }
@@ -95,7 +101,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         }
         return DailyCostReport(
             provider: provider, entries: entries,
-            topModel: shadedModels.first)
+            topModel: shadedModels.first, shadedModels: shadedModels)
     }
 
     static func segments(
@@ -104,14 +110,22 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         var result: [Segment] = []
         for (rank, model) in shadedModels.enumerated() {
             if let cost = models[model]?.costUSD, cost > 0 {
-                result.append(Segment(rank: rank, costUSD: cost))
+                result.append(Segment(rank: rank, costUSD: cost, models: [model]))
             }
         }
-        let otherCost = models
-            .filter { !shadedModels.contains($0.key) }
-            .values.reduce(0) { $0 + $1.costUSD }
-        if otherCost > 0 {
-            result.append(Segment(rank: shadedModels.count, costUSD: otherCost))
+        let others = models.filter { !shadedModels.contains($0.key) && $0.value.costUSD > 0 }
+        if !others.isEmpty {
+            let names = others
+                .sorted { lhs, rhs in
+                    lhs.value.costUSD != rhs.value.costUSD
+                        ? lhs.value.costUSD > rhs.value.costUSD
+                        : lhs.key < rhs.key
+                }
+                .map(\.key)
+            result.append(Segment(
+                rank: shadedModels.count,
+                costUSD: others.values.reduce(0) { $0 + $1.costUSD },
+                models: names))
         }
         return result
     }
