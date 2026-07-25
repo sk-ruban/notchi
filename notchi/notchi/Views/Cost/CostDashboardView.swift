@@ -156,14 +156,9 @@ struct CostDashboardView: View {
     }
 
     private func shade(rank: Int, provider: CostProvider) -> Color {
-        switch (provider, rank) {
-        case (.claude, 0): TerminalColors.claudeOrangeDeep
-        case (.claude, 1): TerminalColors.claudeOrange
-        case (.claude, _): TerminalColors.claudeOrangeLight
-        case (.codex, 0): TerminalColors.codexAccentDeep
-        case (.codex, 1): TerminalColors.codexAccent
-        case (.codex, _): TerminalColors.codexAccentLight
-        }
+        let shades = provider == .codex
+            ? TerminalColors.codexChartShades : TerminalColors.claudeChartShades
+        return shades[min(rank, shades.count - 1)]
     }
 
     private static let dayFormatter: DateFormatter = {
@@ -172,7 +167,7 @@ struct CostDashboardView: View {
         return f
     }()
 
-    private static let unselectedDayOpacity = 0.45
+    private static let unselectedDayOpacity = 0.55
 
     private func nearest(to date: Date, in entries: [DailyCostReport.DayEntry]) -> DailyCostReport.DayEntry? {
         entries.min(by: {
@@ -180,10 +175,39 @@ struct CostDashboardView: View {
         })
     }
 
+    private struct StackedSegment: Identifiable {
+        let rank: Int
+        let yStart: Double
+        let yEnd: Double
+        var id: Int { rank }
+    }
+
+    private static let chartHeight: CGFloat = 105
+    private static let segmentGapPixels = 1.0
+    private static let hoverGracePixels: CGFloat = 12
+
+    private static func stackedSegments(
+        _ e: DailyCostReport.DayEntry, gap: Double) -> [StackedSegment]
+    {
+        var result: [StackedSegment] = []
+        var cumulative = 0.0
+        for s in e.segments {
+            let inset = result.isEmpty ? 0 : min(gap, s.costUSD / 2)
+            result.append(StackedSegment(
+                rank: s.rank, yStart: cumulative + inset, yEnd: cumulative + s.costUSD))
+            cumulative += s.costUSD
+        }
+        return result
+    }
+
     @ViewBuilder private func chart(_ r: DailyCostReport) -> some View {
+        let gap = (r.entries.map(\.costUSD).max() ?? 0) * Self.segmentGapPixels / Self.chartHeight
         Chart(r.entries) { e in
-            ForEach(e.segments) { s in
-                BarMark(x: .value("Day", e.date, unit: .day), y: .value("Cost", s.costUSD))
+            ForEach(Self.stackedSegments(e, gap: gap)) { s in
+                BarMark(
+                    x: .value("Day", e.date, unit: .day),
+                    yStart: .value("Cost", s.yStart),
+                    yEnd: .value("Cost", s.yEnd))
                     .foregroundStyle(shade(rank: s.rank, provider: r.provider))
                     .opacity(selected == nil || selected?.id == e.id ? 1 : Self.unselectedDayOpacity)
             }
@@ -191,7 +215,8 @@ struct CostDashboardView: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
-        .frame(height: 105)
+        .animation(.easeOut(duration: 0.15), value: selected)
+        .frame(height: Self.chartHeight)
         .chartOverlay { proxy in
             GeometryReader { geo in
                 Rectangle()
@@ -201,10 +226,17 @@ struct CostDashboardView: View {
                         switch phase {
                         case .active(let location):
                             guard let plotFrame = proxy.plotFrame else { return }
-                            let x = location.x - geo[plotFrame].origin.x
-                            if let date: Date = proxy.value(atX: x) {
-                                selected = nearest(to: date, in: r.entries)
+                            let origin = geo[plotFrame].origin
+                            let x = location.x - origin.x
+                            let y = location.y - origin.y
+                            guard let date: Date = proxy.value(atX: x),
+                                  let entry = nearest(to: date, in: r.entries),
+                                  let barTop = proxy.position(forY: entry.costUSD)
+                            else {
+                                selected = nil
+                                return
                             }
+                            selected = y >= barTop - Self.hoverGracePixels ? entry : nil
                         case .ended:
                             selected = nil
                         }

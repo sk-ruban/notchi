@@ -6,10 +6,19 @@ struct TerminalColors {
     static let red = Color(red: 1.0, green: 0.3, blue: 0.3)
     static let claudeOrange = Color(red: 0.85, green: 0.47, blue: 0.34)
     static let claudeOrangeDeep = Color(red: 0.78, green: 0.36, blue: 0.19)
-    static let claudeOrangeLight = Color(red: 0.93, green: 0.67, blue: 0.55)
     static let codexAccent = Color(red: 0.4, green: 0.435, blue: 0.945)
     static let codexAccentDeep = Color(red: 0.25, green: 0.28, blue: 0.72)
-    static let codexAccentLight = Color(red: 0.63, green: 0.66, blue: 0.98)
+
+    static let claudeChartShades = [
+        claudeOrangeDeep,
+        Color(red: 0.89, green: 0.55, blue: 0.40),
+        Color(red: 0.95, green: 0.70, blue: 0.52),
+    ]
+    static let codexChartShades = [
+        codexAccentDeep,
+        codexAccent,
+        Color(red: 0.62, green: 0.66, blue: 0.98),
+    ]
     static let iMessageBlue = Color(red: 0, green: 0.478, blue: 1)
     static let planMode = Color(red: 72.0 / 255.0, green: 150.0 / 255.0, blue: 140.0 / 255.0)
     static let acceptEdits = Color(red: 169.0 / 255.0, green: 137.0 / 255.0, blue: 248.0 / 255.0)
