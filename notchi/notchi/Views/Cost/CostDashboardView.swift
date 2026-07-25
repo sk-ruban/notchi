@@ -52,6 +52,10 @@ struct CostDashboardView: View {
 
     @State private var selected: DailyCostReport.DayEntry?
 
+    private func currentEntry(_ r: DailyCostReport) -> DailyCostReport.DayEntry? {
+        selected.flatMap { s in r.entries.first { $0.id == s.id } }
+    }
+
     private static let sectionSpacing: CGFloat = 8
 
     var body: some View {
@@ -115,7 +119,7 @@ struct CostDashboardView: View {
     }
 
     @ViewBuilder private func statsRow(_ r: DailyCostReport) -> some View {
-        let items = Self.statItems(r, selected: selected)
+        let items = Self.statItems(r, selected: currentEntry(r))
         let peerValues = sizingPeerReports.flatMap { Self.sizingValueSets($0) }
         GeometryReader { geo in
             let available = geo.size.width - Self.statSpacing * CGFloat(items.count - 1)
@@ -308,7 +312,7 @@ struct CostDashboardView: View {
                             select(nil)
                         }
                     }
-                if let selected, let plotFrame = proxy.plotFrame {
+                if let selected = currentEntry(r), let plotFrame = proxy.plotFrame {
                     let rows = tooltipRows(selected, r: r)
                     if !rows.isEmpty,
                        let barX = proxy.position(forX: selected.date.addingTimeInterval(Self.halfDay))
