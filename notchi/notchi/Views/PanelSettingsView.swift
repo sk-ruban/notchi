@@ -227,19 +227,67 @@ struct PanelSettingsView: View {
             }
             .buttonStyle(.plain)
 
-            Button(action: openGitHubRepo) {
-                SettingsRowView(icon: "star", title: "Star on GitHub") {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 10))
-                        .foregroundColor(TerminalColors.dimmedText)
-                }
-            }
-            .buttonStyle(.plain)
+            externalLinkRow(icon: "ladybug", title: "Report an Issue", action: openIssueTracker)
+
+            externalLinkRow(icon: "star", title: "Star on GitHub", action: openGitHubRepo)
+
+            externalLinkRow(icon: "heart", title: "Sponsor", action: openSponsorPage)
         }
+    }
+
+    private func externalLinkRow(
+        icon: String,
+        title: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            SettingsRowView(icon: icon, title: title) {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10))
+                    .foregroundColor(TerminalColors.dimmedText)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var reportedAgent: String {
+        switch (claudeHooksStatus != .providerUnavailable, codexHooksStatus != .providerUnavailable) {
+        case (true, true): "Both"
+        case (true, false): "Claude Code"
+        case (false, true): "Codex"
+        case (false, false): "Not sure"
+        }
+    }
+
+    private func openIssueTracker() {
+        guard var components = URLComponents(string: "https://github.com/sk-ruban/notchi/issues/new") else { return }
+        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
+        let agent = reportedAgent
+        components.queryItems = [
+            URLQueryItem(name: "template", value: "bug_report.yml"),
+            URLQueryItem(name: "app-version", value: appVersion),
+            URLQueryItem(name: "macos-version", value: osVersion),
+            URLQueryItem(name: "agent", value: agent),
+            URLQueryItem(name: "body", value: """
+            **What went wrong?**
+
+
+            **Notchi version:** \(appVersion)
+            **macOS version:** \(osVersion)
+            **Agent:** \(agent)
+            """)
+        ]
+        guard let url = components.url else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func openGitHubRepo() {
         NSWorkspace.shared.open(URL(string: "https://github.com/sk-ruban/notchi")!)
+    }
+
+    private func openSponsorPage() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/sk-ruban")!)
     }
 
     private func openLatestReleasePage() {
