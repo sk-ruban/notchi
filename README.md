@@ -54,6 +54,10 @@ Each session gets its own sprite on the grass island, drawn from the Claude or C
 
 If you have any bugs, ideas, or would like to contribute through pull requests, please check out [Contributing to Notchi](CONTRIBUTING.md).
 
+## Support
+
+Notchi is free and open source. If it's useful to you, you can [sponsor development](https://github.com/sponsors/sk-ruban), which helps cover the Apple Developer account that keeps builds signed and notarized.
+
 ## Community Ports
 
 - [notchi-for-windows](https://github.com/AptatoX/notchi-for-windows) by [@AptatoX](https://github.com/AptatoX), a community-made Windows port of Notchi
