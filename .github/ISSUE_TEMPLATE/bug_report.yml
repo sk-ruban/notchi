@@ -1,0 +1,50 @@
+name: Bug Report
+description: Something in Notchi is broken or behaving unexpectedly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What went wrong?
+      description: What you did, what happened, and what you expected instead.
+      placeholder: |
+        Started a second Claude Code session and its sprite never appeared on the island.
+        Expected both sessions to show up.
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: Notchi version
+      placeholder: 1.2.2
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: Version 15.5 (Build 24F74)
+    validations:
+      required: false
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options:
+        - Claude Code
+        - Codex
+        - Both
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: Optional, but screen recordings help a lot for notch and animation bugs.
+    validations:
+      required: false
