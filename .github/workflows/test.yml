@@ -30,6 +30,9 @@ jobs:
           xcodebuild -version
           xcrun swift --version
 
+      - name: Build whisper.xcframework
+        run: ./scripts/build-whisper-xcframework.sh
+
       - name: Build and test
         run: ./scripts/test.sh all
 

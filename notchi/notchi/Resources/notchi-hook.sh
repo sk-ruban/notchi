@@ -108,10 +108,12 @@ def claude_process_id():
 
     return None
 
-if hook_event in ('SessionStart', 'UserPromptSubmit'):
-    process_id = claude_process_id()
-    if process_id:
-        output['claude_process_id'] = process_id
+# Emit the Claude process id on every event so the app can always resolve the
+# session's terminal tab (dictation injection needs a fresh pid, not just one
+# captured at session start).
+process_id = claude_process_id()
+if process_id:
+    output['claude_process_id'] = process_id
 
 # Pass user prompt directly for UserPromptSubmit
 if hook_event == 'UserPromptSubmit':

@@ -11,6 +11,11 @@ nonisolated struct GlobalShortcut: Equatable, Sendable {
         modifiers: UInt32(cmdKey | optionKey)
     )
 
+    static let defaultDictationPushToTalk = GlobalShortcut(
+        keyCode: UInt32(kVK_ANSI_D),
+        modifiers: UInt32(cmdKey | optionKey | shiftKey)
+    )
+
     init(keyCode: UInt32, modifiers: UInt32) {
         self.keyCode = keyCode
         self.modifiers = modifiers

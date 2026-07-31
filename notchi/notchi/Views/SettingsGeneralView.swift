@@ -38,6 +38,8 @@ struct SettingsGeneralView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            DictationSettingsView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {

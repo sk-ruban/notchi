@@ -42,6 +42,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
+    private lazy var pushToTalkService = PushToTalkService(
+        onStart: { [weak self] in self?.beginDictation() },
+        onStop: { [weak self] in self?.endDictation() }
+    )
+    private var dictationMonitorRunning = false
+    private var observingDictationSetting = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppSettings.registerDefaults()
         guard !isRunningTests else { return }
@@ -49,12 +56,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         NSApplication.shared.setActivationPolicy(.accessory)
         setupNotchWindow()
         globalShortcutService.start()
+        syncDictationMonitor()
+        observeDictationSettingChanges()
         installMinimizeShortcutGuard()
         observeScreenChanges()
         observePanelExpansionChanges()
         observeWakeNotifications()
         startProviderServices()
         startUpdater()
+    }
+
+    // WHY: the push-to-talk monitor must start/stop when the user toggles Voice
+    // Dictation at runtime, not only at launch — otherwise enabling it does
+    // nothing until the next relaunch.
+    private func syncDictationMonitor() {
+        let enabled = AppSettings.dictationEnabled
+        if enabled, !dictationMonitorRunning {
+            pushToTalkService.start()
+            dictationMonitorRunning = true
+        } else if !enabled, dictationMonitorRunning {
+            pushToTalkService.stop()
+            dictationMonitorRunning = false
+        }
+    }
+
+    // WHY: KVO on the single key fires only when Voice Dictation is toggled —
+    // unlike UserDefaults.didChangeNotification, which wakes us on every
+    // app-wide defaults write. The callback arrives on the setting thread, so
+    // hop to main before touching the monitor.
+    private func observeDictationSettingChanges() {
+        UserDefaults.standard.addObserver(self, forKeyPath: AppSettings.dictationEnabledRawKey, options: [], context: nil)
+        observingDictationSetting = true
+    }
+
+    override nonisolated func observeValue(
+        forKeyPath keyPath: String?,
+        of object: Any?,
+        change: [NSKeyValueChangeKey: Any]?,
+        context: UnsafeMutableRawPointer?
+    ) {
+        guard keyPath == AppSettings.dictationEnabledRawKey else { return }
+        Task { @MainActor in self.syncDictationMonitor() }
+    }
+
+    @MainActor private func beginDictation() {
+        NotchPanelManager.shared.expandForDictation()
+        SpeechToTextService.shared.startRecording()
+    }
+
+    @MainActor private func endDictation() {
+        Task { await SpeechToTextService.shared.finishRecording() }
     }
 
     // WHY: launch preparation and hook installation can run shell probes with
@@ -82,6 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
     func applicationWillTerminate(_ notification: Notification) {
         removeMinimizeShortcutGuard()
         globalShortcutService.stop()
+        pushToTalkService.stop()
+        dictationMonitorRunning = false
+        if observingDictationSetting {
+            UserDefaults.standard.removeObserver(self, forKeyPath: AppSettings.dictationEnabledRawKey)
+            observingDictationSetting = false
+        }
         integrationCoordinator.stop()
         ClaudeUsageService.shared.stopPolling()
     }

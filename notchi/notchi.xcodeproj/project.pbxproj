@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		47C923A02F2CFA1F00EA1E18 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 47C923A12F2CFA1F00EA1E18 /* Sparkle */; };
+		B2F1A0110C3D4E5F60A17B01 /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = B2F1A0100C3D4E5F60A17B00 /* whisper.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -22,6 +23,7 @@
 
 /* Begin PBXFileReference section */
 		47C922822F2CFA1F00EA1E18 /* notchi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = notchi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2F1A0100C3D4E5F60A17B00 /* whisper.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = whisper.xcframework; path = "../third_party/whisper.xcframework"; sourceTree = SOURCE_ROOT; };
 		A11A00022F50000000EA1E18 /* Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -44,6 +46,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				47C923A02F2CFA1F00EA1E18 /* Sparkle in Frameworks */,
+				B2F1A0110C3D4E5F60A17B01 /* whisper.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -63,6 +66,7 @@
 				47C922842F2CFA1F00EA1E18 /* notchi */,
 				A11A00012F50000000EA1E18 /* Tests */,
 				47C922832F2CFA1F00EA1E18 /* Products */,
+				B2F1A0100C3D4E5F60A17B00 /* whisper.xcframework */,
 			);
 			sourceTree = "<group>";
 		};
@@ -354,6 +358,10 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../third_party",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -364,6 +372,11 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.2.5;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					CoreML,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ruban.notchi;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -390,6 +403,10 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../third_party",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -400,6 +417,11 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.2.5;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					CoreML,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ruban.notchi;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

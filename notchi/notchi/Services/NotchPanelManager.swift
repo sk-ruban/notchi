@@ -207,6 +207,8 @@ final class NotchPanelManager {
         notificationCenter.post(name: .notchiPanelExpansionDidChange, object: self)
     }
 
+    func expandForDictation() { expand() }
+
     func collapse() {
         guard isExpanded else { return }
         cancelPendingHoverExitTask()

@@ -196,6 +196,11 @@ struct AppSettings {
     static let expandedPanelScaleKey = "expandedPanelScale"
     static let mainUsageBarPeriodKey = "mainUsageBarPeriod"
 
+    static let dictationEnabledRawKey = "dictationEnabled"
+    private static let dictationPushToTalkShortcutKey = "dictationPushToTalkShortcut"
+    private static let dictationModelIdKey = "dictationModelId"
+    private static let dictationLanguageKey = "dictationLanguage"
+
     private static let notificationSoundKey = "notificationSound"
     private static let notificationSoundSelectionKey = "notificationSoundSelection"
     private static let customNotificationSoundsKey = "customNotificationSounds"
@@ -334,6 +339,32 @@ struct AppSettings {
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: panelToggleShortcutKey)
         }
+    }
+
+    static var dictationEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: dictationEnabledRawKey) }
+        set { UserDefaults.standard.set(newValue, forKey: dictationEnabledRawKey) }
+    }
+
+    static var dictationPushToTalkShortcut: GlobalShortcut {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: dictationPushToTalkShortcutKey),
+                  let shortcut = GlobalShortcut(rawValue: raw) else {
+                return .defaultDictationPushToTalk
+            }
+            return shortcut
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: dictationPushToTalkShortcutKey) }
+    }
+
+    static var dictationModelId: String {
+        get { UserDefaults.standard.string(forKey: dictationModelIdKey) ?? "base.en" }
+        set { UserDefaults.standard.set(newValue, forKey: dictationModelIdKey) }
+    }
+
+    static var dictationLanguage: String {
+        get { UserDefaults.standard.string(forKey: dictationLanguageKey) ?? "en" }
+        set { UserDefaults.standard.set(newValue, forKey: dictationLanguageKey) }
     }
 
     static var lastUsedAgentProvider: AgentProvider {
