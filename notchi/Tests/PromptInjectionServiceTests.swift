@@ -3,28 +3,13 @@ import XCTest
 
 @MainActor
 final class PromptInjectionServiceTests: XCTestCase {
-    private final class FakePasteboard: Pasteboarding {
-        var stored: String?
-        var setValues: [String] = []
-        func string() -> String? { stored }
-        func setString(_ value: String) { stored = value; setValues.append(value) }
-    }
-
     private final class FakePoster: KeyEventPosting {
-        var pasteCount = 0
+        var callCount = 0
+        var lastText: String?
         var lastPID: pid_t?
-        func postPasteAndReturn(toPID pid: pid_t) { pasteCount += 1; lastPID = pid }
-    }
-
-    /// Returns a scripted sequence of values from string(), so a test can make the
-    /// clipboard "change" between the saved-read and the restore-read.
-    private final class QueuedPasteboard: Pasteboarding {
-        private let reads: [String?]
-        private var idx = 0
-        var setValues: [String] = []
-        init(reads: [String?]) { self.reads = reads }
-        func string() -> String? { defer { idx += 1 }; return idx < reads.count ? reads[idx] : reads.last ?? nil }
-        func setString(_ value: String) { setValues.append(value) }
+        func postTextAndReturn(_ text: String, toPID pid: pid_t) {
+            callCount += 1; lastText = text; lastPID = pid
+        }
     }
 
     func testCanInjectRejectsCodexDesktopOnly() {
@@ -52,17 +37,14 @@ final class PromptInjectionServiceTests: XCTestCase {
 
     // MARK: - Background script path (preferred)
 
-    func testScriptInjectDeliversInBackgroundWithoutPasteOrClipboard() async {
-        let pasteboard = FakePasteboard(); pasteboard.stored = "original"
+    func testScriptInjectDeliversInBackgroundWithoutKeystrokes() async {
         let poster = FakePoster()
         let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
-        let service = makeService(pasteboard: pasteboard, poster: poster, scriptInject: { _, _ in true })
+        let service = makeService(poster: poster, scriptInject: { _, _ in true })
 
         let result = await service.inject("run tests", into: session)
         XCTAssertEqual(result, .sent)
-        XCTAssertEqual(poster.pasteCount, 0, "background path must not synthesize keystrokes")
-        XCTAssertTrue(pasteboard.setValues.isEmpty, "background path must not touch the clipboard")
-        XCTAssertEqual(pasteboard.stored, "original")
+        XCTAssertEqual(poster.callCount, 0, "background path must not synthesize keystrokes")
     }
 
     func testScriptInjectFailureReturnsFailed() async {
@@ -72,20 +54,18 @@ final class PromptInjectionServiceTests: XCTestCase {
         XCTAssertEqual(result, .failed)
     }
 
-    // MARK: - Fallback CGEvent path (non-scriptable terminals; scriptInject → nil)
+    // MARK: - Fallback keystroke path (non-scriptable terminals; scriptInject → nil)
 
-    func testFallbackPostsToResolvedPidAndRestoresPasteboard() async {
-        let pasteboard = FakePasteboard(); pasteboard.stored = "original"
+    func testFallbackTypesTextToResolvedPid() async {
         let poster = FakePoster()
         let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
-        let service = makeService(pasteboard: pasteboard, poster: poster, resolvePID: { _ in 4321 })
+        let service = makeService(poster: poster, resolvePID: { _ in 4321 })
 
         let result = await service.inject("run tests", into: session)
         XCTAssertEqual(result, .sent)
-        XCTAssertEqual(poster.pasteCount, 1)
+        XCTAssertEqual(poster.callCount, 1)
+        XCTAssertEqual(poster.lastText, "run tests")
         XCTAssertEqual(poster.lastPID, 4321)
-        XCTAssertEqual(pasteboard.setValues.first, "run tests")
-        XCTAssertEqual(pasteboard.stored, "original") // restored
     }
 
     func testFallbackUsesFrontmostPidWhenTerminalUnresolved() async {
@@ -98,33 +78,22 @@ final class PromptInjectionServiceTests: XCTestCase {
         XCTAssertEqual(poster.lastPID, 99)
     }
 
-    func testFallbackFailsWhenNoPidResolvable() async {
-        let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
-        let service = makeService(resolvePID: { _ in nil })
-        let result = await service.inject("hi", into: session, fallbackAppPID: nil)
-        XCTAssertEqual(result, .failed)
-    }
-
     func testFallbackRejectsNonTerminalFrontmostApp() async {
         let poster = FakePoster()
         let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
         // Session unresolved + the frontmost app (e.g. a browser) is not a terminal.
         let service = makeService(poster: poster, resolvePID: { _ in nil }, isTerminalPID: { _ in false })
+
         let result = await service.inject("hi", into: session, fallbackAppPID: 99)
-        XCTAssertEqual(result, .failed, "must not paste into a non-terminal frontmost app")
-        XCTAssertEqual(poster.pasteCount, 0)
+        XCTAssertEqual(result, .failed, "must not type into a non-terminal frontmost app")
+        XCTAssertEqual(poster.callCount, 0)
     }
 
-    func testRestoreSkippedWhenClipboardChangedDuringWindow() async {
-        // string() yields "original" first (the saved read), then a different value
-        // at restore time — as if the user copied something new after injection.
-        let pasteboard = QueuedPasteboard(reads: ["original", "user copied later"])
+    func testFallbackFailsWhenNoPidResolvable() async {
         let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
-        let service = makeService(pasteboard: pasteboard, resolvePID: { _ in 4321 })
-
-        let result = await service.inject("dictated", into: session)
-        XCTAssertEqual(result, .sent)
-        XCTAssertEqual(pasteboard.setValues, ["dictated"], "must not restore over the user's newer clipboard")
+        let service = makeService(resolvePID: { _ in nil })
+        let result = await service.inject("hi", into: session, fallbackAppPID: nil)
+        XCTAssertEqual(result, .failed)
     }
 
     func testFallbackReturnsNeedsAccessibilityWhenUntrusted() async {
@@ -143,7 +112,6 @@ final class PromptInjectionServiceTests: XCTestCase {
     }
 
     private func makeService(
-        pasteboard: Pasteboarding = FakePasteboard(),
         poster: KeyEventPosting = FakePoster(),
         scriptInject: @escaping @MainActor (String, SessionData) async -> Bool? = { _, _ in nil },
         resolvePID: @escaping @MainActor (SessionData) -> pid_t? = { _ in nil },
@@ -151,13 +119,11 @@ final class PromptInjectionServiceTests: XCTestCase {
         trusted: Bool = true
     ) -> PromptInjectionService {
         PromptInjectionService(
-            pasteboard: pasteboard,
             poster: poster,
             scriptInject: scriptInject,
             resolveTerminalPID: resolvePID,
             isTerminalPID: isTerminalPID,
-            accessibilityTrusted: { trusted },
-            restoreDelay: 0
+            accessibilityTrusted: { trusted }
         )
     }
 }
