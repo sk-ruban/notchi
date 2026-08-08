@@ -71,6 +71,46 @@ enum OpenAISettingsConfig {
     nonisolated static let defaultHost = "api.openai.com"
     nonisolated static let defaultAPIURL = URL(string: "https://api.openai.com/v1/chat/completions")!
     nonisolated static let defaultModelsURL = URL(string: "https://api.openai.com/v1/models")!
+
+    /// OpenAI rejects unrecognised body parameters, so gate suppression on the endpoint rather than
+    /// the model: a custom model id on api.openai.com must not pay for a failed request and a retry.
+    nonisolated static func suppressesReasoning(at apiURL: URL) -> Bool {
+        apiURL.host?.lowercased() != defaultHost
+    }
+}
+
+/// Reads an OpenAI-compatible chat completion, tolerating reasoning models that answer in a
+/// separate channel or stop before finishing.
+enum OpenAIChatResponseReader {
+    nonisolated static func emotion(from data: Data) throws -> (emotion: String, intensity: Double) {
+        let chatResponse = try JSONDecoder().decode(OpenAIChatCompletionResponse.self, from: data)
+
+        guard let choice = chatResponse.choices.first else {
+            throw EmotionAnalysisRequestError.invalidResponse
+        }
+
+        if let text = choice.message.content, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            do {
+                return try EmotionAnalysisResponseParser.parse(text)
+            } catch {
+                // Partial JSON from a model that hit the cap mid-answer is truncation, not bad output.
+                guard choice.finishReason == "length" else { throw error }
+                throw EmotionAnalysisRequestError.truncatedResponse
+            }
+        }
+
+        if let reasoning = choice.message.reasoningContent,
+           let result = try? EmotionAnalysisResponseParser.parse(reasoning) {
+            return result
+        }
+
+        if choice.finishReason == "length" {
+            logger.warning("OpenAI response hit the completion token limit before producing content")
+            throw EmotionAnalysisRequestError.truncatedResponse
+        }
+
+        throw EmotionAnalysisRequestError.invalidResponse
+    }
 }
 
 extension EmotionAnalysisProvider {
@@ -331,12 +371,6 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
 
     var providerName: String { "OpenAI" }
 
-    /// OpenAI itself rejects unrecognised body parameters, so gate on the endpoint rather than the
-    /// model: a custom model id on api.openai.com must not pay for a failed request plus a retry.
-    nonisolated static func suppressesReasoning(at apiURL: URL) -> Bool {
-        apiURL.host?.lowercased() != OpenAISettingsConfig.defaultHost
-    }
-
     private static let reasoningSuppressionFields: [String: Any] = [
         "reasoning_effort": "minimal",
         "chat_template_kwargs": ["enable_thinking": false],
@@ -429,33 +463,7 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
             throw EmotionAnalysisRequestError.httpStatus(provider: providerName, statusCode: httpResponse.statusCode)
         }
 
-        let chatResponse = try JSONDecoder().decode(OpenAIChatCompletionResponse.self, from: data)
-
-        guard let choice = chatResponse.choices.first else {
-            throw EmotionAnalysisRequestError.invalidResponse
-        }
-
-        if let text = choice.message.content, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            do {
-                return try EmotionAnalysisResponseParser.parse(text)
-            } catch {
-                // Partial JSON from a model that hit the cap mid-answer is truncation, not bad output.
-                guard choice.finishReason == "length" else { throw error }
-                throw EmotionAnalysisRequestError.truncatedResponse
-            }
-        }
-
-        if let reasoning = choice.message.reasoningContent,
-           let result = try? EmotionAnalysisResponseParser.parse(reasoning) {
-            return result
-        }
-
-        if choice.finishReason == "length" {
-            logger.warning("OpenAI response hit the completion token limit before producing content")
-            throw EmotionAnalysisRequestError.truncatedResponse
-        }
-
-        throw EmotionAnalysisRequestError.invalidResponse
+        return try OpenAIChatResponseReader.emotion(from: data)
     }
 }
 
@@ -555,7 +563,7 @@ final class EmotionAnalyzer {
             apiKey: apiKey,
             model: model.rawValue,
             maxOutputTokens: model.maxOutputTokens,
-            suppressesReasoning: OpenAIEmotionAnalysisProvider.suppressesReasoning(at: apiURL)
+            suppressesReasoning: OpenAISettingsConfig.suppressesReasoning(at: apiURL)
         )
     }
 
@@ -624,7 +632,7 @@ final class EmotionAnalyzer {
                 apiKey: trimmedKey,
                 model: model.rawValue,
                 maxOutputTokens: model.maxOutputTokens,
-                suppressesReasoning: OpenAIEmotionAnalysisProvider.suppressesReasoning(at: apiURL)
+                suppressesReasoning: OpenAISettingsConfig.suppressesReasoning(at: apiURL)
             )
         }
     }
