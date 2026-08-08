@@ -108,7 +108,7 @@ final class ModelCatalogService {
             )
         }
 
-        let models = Self.models(from: data, for: provider)
+        let models = try Self.models(from: data, for: provider)
 
         guard !models.isEmpty else {
             throw EmotionAnalysisRequestError.emptyModelCatalog
@@ -117,9 +117,11 @@ final class ModelCatalogService {
         return models
     }
 
-    nonisolated static func models(from data: Data, for provider: EmotionAnalysisProvider) -> [EmotionAnalysisModel] {
+    /// Throws on an undecodable body so a catalog that is genuinely empty stays distinguishable
+    /// from one that never parsed.
+    nonisolated static func models(from data: Data, for provider: EmotionAnalysisProvider) throws -> [EmotionAnalysisModel] {
         guard let response = try? JSONDecoder().decode(ModelCatalogResponse.self, from: data) else {
-            return []
+            throw EmotionAnalysisRequestError.invalidResponse
         }
 
         var seen = Set<String>()

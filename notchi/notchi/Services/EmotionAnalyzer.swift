@@ -68,6 +68,7 @@ struct ClaudeSettingsConfig {
 }
 
 enum OpenAISettingsConfig {
+    nonisolated static let defaultHost = "api.openai.com"
     nonisolated static let defaultAPIURL = URL(string: "https://api.openai.com/v1/chat/completions")!
     nonisolated static let defaultModelsURL = URL(string: "https://api.openai.com/v1/models")!
 }
@@ -191,7 +192,7 @@ struct EmotionAnalysisTestResult {
     let latencyMilliseconds: Int
 }
 
-enum EmotionAnalysisRequestError: LocalizedError {
+enum EmotionAnalysisRequestError: LocalizedError, Equatable {
     case missingAPIKey(EmotionAnalysisProvider)
     case invalidBaseURL
     case httpStatus(provider: String, statusCode: Int)
@@ -330,7 +331,12 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
 
     var providerName: String { "OpenAI" }
 
-    /// Never sent to api.openai.com, which rejects unrecognised body parameters outright.
+    /// OpenAI itself rejects unrecognised body parameters, so gate on the endpoint rather than the
+    /// model: a custom model id on api.openai.com must not pay for a failed request plus a retry.
+    nonisolated static func suppressesReasoning(at apiURL: URL) -> Bool {
+        apiURL.host?.lowercased() != OpenAISettingsConfig.defaultHost
+    }
+
     private static let reasoningSuppressionFields: [String: Any] = [
         "reasoning_effort": "minimal",
         "chat_template_kwargs": ["enable_thinking": false],
@@ -430,7 +436,13 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
         }
 
         if let text = choice.message.content, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return try EmotionAnalysisResponseParser.parse(text)
+            do {
+                return try EmotionAnalysisResponseParser.parse(text)
+            } catch {
+                // Partial JSON from a model that hit the cap mid-answer is truncation, not bad output.
+                guard choice.finishReason == "length" else { throw error }
+                throw EmotionAnalysisRequestError.truncatedResponse
+            }
         }
 
         if let reasoning = choice.message.reasoningContent,
@@ -543,7 +555,7 @@ final class EmotionAnalyzer {
             apiKey: apiKey,
             model: model.rawValue,
             maxOutputTokens: model.maxOutputTokens,
-            suppressesReasoning: !model.isPreset
+            suppressesReasoning: OpenAIEmotionAnalysisProvider.suppressesReasoning(at: apiURL)
         )
     }
 
@@ -612,7 +624,7 @@ final class EmotionAnalyzer {
                 apiKey: trimmedKey,
                 model: model.rawValue,
                 maxOutputTokens: model.maxOutputTokens,
-                suppressesReasoning: !model.isPreset
+                suppressesReasoning: OpenAIEmotionAnalysisProvider.suppressesReasoning(at: apiURL)
             )
         }
     }

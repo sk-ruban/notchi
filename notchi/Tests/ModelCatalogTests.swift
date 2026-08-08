@@ -91,53 +91,61 @@ final class ModelCatalogTests: XCTestCase {
 
     // MARK: - Response parsing
 
-    func testParsesOpenAIAndAnthropicCatalogShape() {
+    func testParsesOpenAIAndAnthropicCatalogShape() throws {
         let data = Data("""
         {"object": "list", "data": [{"id": "gpt-4.1-mini"}, {"id": "local-llama"}]}
         """.utf8)
 
-        let models = ModelCatalogService.models(from: data, for: .openAI)
+        let models = try ModelCatalogService.models(from: data, for: .openAI)
 
         XCTAssertEqual(models.map(\.rawValue), ["gpt-4.1-mini", "local-llama"])
     }
 
-    func testParsesGatewaysThatKeyTheListOnModels() {
+    func testParsesGatewaysThatKeyTheListOnModels() throws {
         let data = Data("""
         {"models": [{"id": "mixtral"}, {"name": "qwen-chat"}]}
         """.utf8)
 
-        let models = ModelCatalogService.models(from: data, for: .openAI)
+        let models = try ModelCatalogService.models(from: data, for: .openAI)
 
         XCTAssertEqual(models.map(\.rawValue), ["mixtral", "qwen-chat"])
     }
 
-    func testParsesABareArray() {
+    func testParsesABareArray() throws {
         let data = Data("""
         [{"id": "solo-model"}]
         """.utf8)
 
-        XCTAssertEqual(ModelCatalogService.models(from: data, for: .openAI).map(\.rawValue), ["solo-model"])
+        XCTAssertEqual(try ModelCatalogService.models(from: data, for: .openAI).map(\.rawValue), ["solo-model"])
     }
 
-    func testMalformedPayloadYieldsNoModels() {
-        XCTAssertTrue(ModelCatalogService.models(from: Data("not json".utf8), for: .openAI).isEmpty)
-        XCTAssertTrue(ModelCatalogService.models(from: Data("{}".utf8), for: .openAI).isEmpty)
+    /// An undecodable body must not masquerade as an endpoint that simply lists nothing.
+    func testMalformedPayloadThrowsInvalidResponse() {
+        for payload in ["not json", "{}"] {
+            XCTAssertThrowsError(try ModelCatalogService.models(from: Data(payload.utf8), for: .openAI)) { error in
+                XCTAssertEqual(error as? EmotionAnalysisRequestError, .invalidResponse)
+            }
+        }
     }
 
-    func testCatalogDropsDuplicateIds() {
+    func testSuccessfullyDecodedEmptyCatalogIsNotAnError() throws {
+        XCTAssertTrue(try ModelCatalogService.models(from: Data(#"{"data": []}"#.utf8), for: .openAI).isEmpty)
+    }
+
+    func testCatalogDropsDuplicateIds() throws {
         let data = Data("""
         {"data": [{"id": "gpt-4.1-mini"}, {"id": "gpt-4.1-mini"}]}
         """.utf8)
 
-        XCTAssertEqual(ModelCatalogService.models(from: data, for: .openAI).count, 1)
+        XCTAssertEqual(try ModelCatalogService.models(from: data, for: .openAI).count, 1)
     }
 
-    func testFetchedIdsKeepPresetDisplayNames() {
+    func testFetchedIdsKeepPresetDisplayNames() throws {
         let data = Data("""
         {"data": [{"id": "claude-haiku-4-5-20251001"}]}
         """.utf8)
 
-        let models = ModelCatalogService.models(from: data, for: .claude)
+        let models = try ModelCatalogService.models(from: data, for: .claude)
 
         XCTAssertEqual(models, [.claudeHaiku45])
         XCTAssertEqual(models.first?.displayName, "Claude Haiku 4.5")
@@ -208,11 +216,10 @@ final class ModelCatalogTests: XCTestCase {
 
     @MainActor
     func testModelsAreNotWrittenAcrossProviders() {
+        AppSettings.setEmotionAnalysisModel(.openAIGPT54Nano, for: .openAI)
+
         AppSettings.setEmotionAnalysisModel(.claudeHaiku45, for: .openAI)
 
-        XCTAssertNotEqual(
-            UserDefaults.standard.string(forKey: Self.openAIModelKey),
-            EmotionAnalysisModel.claudeHaiku45.rawValue
-        )
+        XCTAssertEqual(AppSettings.selectedEmotionAnalysisModel(for: .openAI), .openAIGPT54Nano)
     }
 }
