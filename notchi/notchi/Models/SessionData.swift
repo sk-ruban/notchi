@@ -70,6 +70,7 @@ final class SessionData: Identifiable {
         switch permissionMode {
         case "plan": return String(localized: "Plan Mode")
         case "acceptEdits": return String(localized: "Accept Edits")
+        case "auto": return String(localized: "Auto")
         case "dontAsk": return String(localized: "Don't Ask")
         case "bypassPermissions": return String(localized: "Bypass")
         default: return nil

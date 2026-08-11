@@ -13,6 +13,11 @@ final class ModeBadgeViewTests: XCTestCase {
         XCTAssertEqual(badge.color, TerminalColors.acceptEdits)
     }
 
+    func testAutoBadgeColorComesFromRawModeNotDisplayText() {
+        let badge = ModeBadgeView(mode: "自動", rawMode: "auto")
+        XCTAssertEqual(badge.color, TerminalColors.autoMode)
+    }
+
     func testUnknownRawModeFallsBackToSecondaryTextColor() {
         let badge = ModeBadgeView(mode: "Bypass", rawMode: "bypassPermissions")
         XCTAssertEqual(badge.color, TerminalColors.secondaryText)

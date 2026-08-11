@@ -823,6 +823,7 @@ struct ModeBadgeView: View {
         switch rawMode {
         case "plan": TerminalColors.planMode
         case "acceptEdits": TerminalColors.acceptEdits
+        case "auto": TerminalColors.autoMode
         default: TerminalColors.secondaryText
         }
     }

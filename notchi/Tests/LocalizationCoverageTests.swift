@@ -8,7 +8,7 @@ final class LocalizationCoverageTests: XCTestCase {
         "Waiting for activity", "Today", "Top model", "Stale data", "Network error, retrying in %llds",
         "Expand on Hover",
         // Hand-edited into the catalog outside Xcode, so verify they survive the .lproj round-trip:
-        "Report an Issue", "Sponsor",
+        "Report an Issue", "Sponsor", "Auto",
     ]
     private let targetLocales = ["ja", "zh-Hans", "zh-Hant", "ko", "vi"]
 

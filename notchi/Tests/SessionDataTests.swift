@@ -4,6 +4,20 @@ import XCTest
 
 @MainActor
 final class SessionDataTests: XCTestCase {
+    func testAutoPermissionModeShowsAutoBadge() {
+        let session = SessionData(sessionId: "auto-session", provider: .claude, cwd: "/tmp/project")
+
+        session.updatePermissionMode("auto")
+
+        XCTAssertEqual(session.currentModeDisplay, "Auto")
+    }
+
+    func testDefaultPermissionModeShowsNoBadge() {
+        let session = SessionData(sessionId: "default-session", provider: .claude, cwd: "/tmp/project")
+
+        XCTAssertNil(session.currentModeDisplay)
+    }
+
     func testResolveXPositionUsesHashDerivedCandidateWhenItDoesNotCollide() {
         let resolved = SessionData.resolveXPositionForTesting(
             hash: 0,
