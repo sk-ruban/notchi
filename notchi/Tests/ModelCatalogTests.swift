@@ -34,7 +34,7 @@ final class ModelCatalogTests: XCTestCase {
     func testModelsEndpointURLDefaultsWhenBaseURLMissing() {
         XCTAssertEqual(
             EmotionAnalysisProvider.claude.modelsEndpointURL(fromBaseURL: nil),
-            URL(string: "https://api.anthropic.com/v1/models")
+            URL(string: "https://api.anthropic.com/v1/models?limit=1000")
         )
         XCTAssertEqual(
             EmotionAnalysisProvider.openAI.modelsEndpointURL(fromBaseURL: "   "),
@@ -61,7 +61,7 @@ final class ModelCatalogTests: XCTestCase {
     func testModelsEndpointURLStripsAChatRouteFromTheBaseURL() {
         XCTAssertEqual(
             EmotionAnalysisProvider.claude.modelsEndpointURL(fromBaseURL: "https://relay.example.com/v1/messages"),
-            URL(string: "https://relay.example.com/v1/models")
+            URL(string: "https://relay.example.com/v1/models?limit=1000")
         )
         XCTAssertEqual(
             EmotionAnalysisProvider.openAI.modelsEndpointURL(fromBaseURL: "https://relay.example.com/v1/chat/completions"),
@@ -69,7 +69,7 @@ final class ModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             EmotionAnalysisProvider.claude.modelsEndpointURL(fromBaseURL: "https://relay.example.com/proxy/v1/messages"),
-            URL(string: "https://relay.example.com/proxy/v1/models")
+            URL(string: "https://relay.example.com/proxy/v1/models?limit=1000")
         )
     }
 
@@ -83,6 +83,44 @@ final class ModelCatalogTests: XCTestCase {
             EmotionAnalysisProvider.openAI.endpointURL(fromBaseURL: "https://relay.example.com/v1"),
             URL(string: "https://relay.example.com/v1/chat/completions")
         )
+    }
+
+    /// Anthropic pages /v1/models and defaults to 20, so an unqualified request quietly returns a
+    /// fraction of the catalog.
+    func testClaudeCatalogRequestsTheFullPage() throws {
+        let url = try XCTUnwrap(EmotionAnalysisProvider.claude.modelsEndpointURL(fromBaseURL: nil))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+
+        XCTAssertEqual(items, [URLQueryItem(name: "limit", value: "1000")])
+    }
+
+    /// OpenAI's /v1/models is unpaginated, so a limit would just be noise on the wire.
+    func testOpenAICatalogSendsNoQuery() throws {
+        let url = try XCTUnwrap(EmotionAnalysisProvider.openAI.modelsEndpointURL(fromBaseURL: nil))
+
+        XCTAssertNil(URLComponents(url: url, resolvingAgainstBaseURL: false)?.query)
+    }
+
+    func testCatalogLimitSurvivesAQueryAlreadyOnTheBaseURL() throws {
+        let url = try XCTUnwrap(
+            EmotionAnalysisProvider.claude.modelsEndpointURL(fromBaseURL: "https://relay.example.com?tenant=acme")
+        )
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+
+        XCTAssertEqual(
+            items,
+            [URLQueryItem(name: "tenant", value: "acme"), URLQueryItem(name: "limit", value: "1000")]
+        )
+    }
+
+    /// A gateway that pages differently keeps control of its own parameter.
+    func testAnExplicitLimitOnTheBaseURLIsNotOverridden() throws {
+        let url = try XCTUnwrap(
+            EmotionAnalysisProvider.claude.modelsEndpointURL(fromBaseURL: "https://relay.example.com?limit=25")
+        )
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+
+        XCTAssertEqual(items, [URLQueryItem(name: "limit", value: "25")])
     }
 
     func testModelsEndpointURLRejectsGarbage() {

@@ -72,6 +72,54 @@ enum OpenAISettingsConfig {
     nonisolated static let defaultModelsURL = URL(string: "https://api.openai.com/v1/models")!
 }
 
+/// Pulls the readable part out of a non-2xx body. Without it a base-URL or model mismatch shows
+/// only "HTTP 400", which is close to undiagnosable from the settings panel.
+nonisolated enum APIErrorMessageReader {
+    /// Long enough to carry a real explanation, short enough that an HTML error page or a stack
+    /// trace cannot flood the UI.
+    static let maxLength = 160
+
+    static func message(from data: Data) -> String? {
+        guard let text = extract(from: data) else { return nil }
+
+        let collapsed = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        guard !collapsed.isEmpty else { return nil }
+        guard collapsed.count > maxLength else { return collapsed }
+        return collapsed.prefix(maxLength).trimmingCharacters(in: .whitespaces) + "\u{2026}"
+    }
+
+    /// OpenAI and Anthropic both nest under "error", gateways vary, and a proxy may not send JSON
+    /// at all, so fall back to the raw body.
+    private static func extract(from data: Data) -> String? {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let message = readable(object["error"]) {
+                return message
+            }
+            if let message = object["message"] as? String {
+                return message
+            }
+            if let message = readable(object["detail"]) {
+                return message
+            }
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func readable(_ field: Any?) -> String? {
+        if let text = field as? String {
+            return text
+        }
+        if let nested = field as? [String: Any] {
+            return nested["message"] as? String ?? nested["type"] as? String
+        }
+        return nil
+    }
+}
+
 /// Reads an OpenAI-compatible chat completion, tolerating reasoning models that answer in a
 /// separate channel or stop before finishing.
 enum OpenAIChatResponseReader {
@@ -143,7 +191,42 @@ extension EmotionAnalysisProvider {
     }
 
     nonisolated func modelsEndpointURL(fromBaseURL baseURL: String?) -> URL? {
-        url(fromBaseURL: baseURL, appending: modelsPathComponents, fallingBackTo: defaultModelsEndpointURL)
+        guard let url = url(
+            fromBaseURL: baseURL,
+            appending: modelsPathComponents,
+            fallingBackTo: defaultModelsEndpointURL
+        ) else {
+            return nil
+        }
+        return Self.appending(catalogQueryItems, to: url)
+    }
+
+    /// Anthropic pages /v1/models and defaults to 20, so an unqualified request silently returns a
+    /// fraction of the catalog. 1000 is the documented maximum and comfortably covers the list.
+    nonisolated private var catalogQueryItems: [URLQueryItem] {
+        switch self {
+        case .claude:
+            [URLQueryItem(name: "limit", value: "1000")]
+        case .openAI:
+            []
+        }
+    }
+
+    /// Keeps whatever query a custom base URL already carries, and yields to it on a name clash so
+    /// a gateway with its own paging rules stays in control.
+    nonisolated private static func appending(_ items: [URLQueryItem], to url: URL) -> URL {
+        guard !items.isEmpty,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+
+        let existing = components.queryItems ?? []
+        let existingNames = Set(existing.map(\.name))
+        let additions = items.filter { !existingNames.contains($0.name) }
+        guard !additions.isEmpty else { return url }
+
+        components.queryItems = existing + additions
+        return components.url ?? url
     }
 
     nonisolated private func url(
@@ -228,7 +311,7 @@ struct EmotionAnalysisTestResult {
 enum EmotionAnalysisRequestError: LocalizedError, Equatable {
     case missingAPIKey(EmotionAnalysisProvider)
     case invalidBaseURL
-    case httpStatus(provider: String, statusCode: Int)
+    case httpStatus(provider: String, statusCode: Int, message: String?)
     case invalidResponse
     case emptyModelCatalog
     case truncatedResponse
@@ -239,8 +322,9 @@ enum EmotionAnalysisRequestError: LocalizedError, Equatable {
             String(localized: "Missing \(provider.displayName) API key")
         case .invalidBaseURL:
             String(localized: "Invalid API base URL")
-        case .httpStatus(let provider, let statusCode):
+        case .httpStatus(let provider, let statusCode, let message):
             String(localized: "\(provider) API returned HTTP \(statusCode)")
+                + (message.map { ": \($0)" } ?? "")
         case .invalidResponse:
             String(localized: "Invalid emotion analysis response")
         case .emptyModelCatalog:
@@ -256,7 +340,7 @@ enum EmotionAnalysisRequestError: LocalizedError, Equatable {
             String(localized: "Missing")
         case .invalidBaseURL:
             String(localized: "Bad URL")
-        case .httpStatus(_, let statusCode):
+        case .httpStatus(_, let statusCode, _):
             String(localized: "HTTP \(statusCode)")
         case .invalidResponse:
             String(localized: "Invalid")
@@ -342,7 +426,11 @@ private struct ClaudeEmotionAnalysisProvider: EmotionAnalysisProviding {
 
         guard httpResponse.statusCode == 200 else {
             logger.warning("Claude API returned HTTP \(httpResponse.statusCode)")
-            throw EmotionAnalysisRequestError.httpStatus(provider: providerName, statusCode: httpResponse.statusCode)
+            throw EmotionAnalysisRequestError.httpStatus(
+                provider: providerName,
+                statusCode: httpResponse.statusCode,
+                message: APIErrorMessageReader.message(from: data)
+            )
         }
 
         let haikuResponse = try JSONDecoder().decode(HaikuResponse.self, from: data)
@@ -411,7 +499,11 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
 
         guard httpResponse.statusCode == 200 else {
             logger.warning("OpenAI API returned HTTP \(httpResponse.statusCode)")
-            throw EmotionAnalysisRequestError.httpStatus(provider: providerName, statusCode: httpResponse.statusCode)
+            throw EmotionAnalysisRequestError.httpStatus(
+                provider: providerName,
+                statusCode: httpResponse.statusCode,
+                message: APIErrorMessageReader.message(from: data)
+            )
         }
 
         return try OpenAIChatResponseReader.emotion(from: data)

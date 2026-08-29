@@ -5,7 +5,7 @@ struct EmotionAnalysisSettingsView: View {
         case idle
         case testing
         case success(EmotionAnalysisTestResult)
-        case failure(String)
+        case failure(label: String, detail: String)
     }
 
     private enum CatalogState {
@@ -313,8 +313,8 @@ struct EmotionAnalysisSettingsView: View {
             Image(systemName: "checkmark.circle.fill")
                 .panelFont(size: 13)
                 .foregroundColor(TerminalColors.green)
-        case .failure(let message):
-            statusBadge(message, color: TerminalColors.red)
+        case .failure(let label, _):
+            statusBadge(label, color: TerminalColors.red)
         }
     }
 
@@ -327,17 +327,18 @@ struct EmotionAnalysisSettingsView: View {
             testDetailText(String(localized: "Testing \(provider.displayName) with \(model.displayName)..."))
         case .success(let result):
             testDetailText(String(localized: "Result: \(testResultText(result))"))
-        case .failure:
-            testDetailText(canTest ? String(localized: "Could not verify this configuration.") : String(localized: "Add an API key to test this configuration."))
+        case .failure(_, let detail):
+            testDetailText(detail, lineLimit: 3)
         }
     }
 
-    private func testDetailText(_ text: String) -> some View {
+    private func testDetailText(_ text: String, lineLimit: Int = 1) -> some View {
         Text(text)
             .panelFont(size: 10)
             .foregroundColor(TerminalColors.dimmedText)
-            .lineLimit(1)
+            .lineLimit(lineLimit)
             .truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, 28)
     }
 
@@ -402,7 +403,7 @@ struct EmotionAnalysisSettingsView: View {
         case .loaded(let count):
             testDetailText(String(localized: "Found \(count) models at this endpoint."))
         case .failure(let message):
-            testDetailText(String(localized: "Could not list models: \(message)"))
+            testDetailText(String(localized: "Could not list models: \(message)"), lineLimit: 3)
         }
     }
 
@@ -558,7 +559,7 @@ struct EmotionAnalysisSettingsView: View {
                 isModelPickerExpanded = true
             } catch {
                 guard isCurrentCatalogSnapshot(provider: currentProvider, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
-                catalogState = .failure(testErrorText(error))
+                catalogState = .failure(errorDetailText(error, fallback: testErrorText(error)))
             }
         }
     }
@@ -612,7 +613,12 @@ struct EmotionAnalysisSettingsView: View {
                 testState = .success(result)
             } catch {
                 guard isCurrentTestSnapshot(provider: currentProvider, model: currentModel, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
-                testState = .failure(testErrorText(error))
+                testState = .failure(
+                    label: testErrorText(error),
+                    detail: canTest
+                        ? errorDetailText(error, fallback: String(localized: "Could not verify this configuration."))
+                        : String(localized: "Add an API key to test this configuration.")
+                )
             }
         }
     }
@@ -636,6 +642,16 @@ struct EmotionAnalysisSettingsView: View {
 
     private func testResultText(_ result: EmotionAnalysisTestResult) -> String {
         "\(result.emotion.capitalized) \(String(format: "%.2f", result.intensity)) - \(result.latencyMilliseconds)ms"
+    }
+
+    /// The badge stays terse; the line under it carries whatever the endpoint actually said, which
+    /// is the only way to tell a model or base-URL mismatch apart from a plain bad key.
+    private func errorDetailText(_ error: Error, fallback: String) -> String {
+        guard let requestError = error as? EmotionAnalysisRequestError,
+              let description = requestError.errorDescription else {
+            return fallback
+        }
+        return description
     }
 
     private func testErrorText(_ error: Error) -> String {

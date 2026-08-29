@@ -104,7 +104,8 @@ final class ModelCatalogService {
             logger.warning("\(provider.displayName, privacy: .public) model list returned HTTP \(httpResponse.statusCode)")
             throw EmotionAnalysisRequestError.httpStatus(
                 provider: provider.displayName,
-                statusCode: httpResponse.statusCode
+                statusCode: httpResponse.statusCode,
+                message: APIErrorMessageReader.message(from: data)
             )
         }
 
