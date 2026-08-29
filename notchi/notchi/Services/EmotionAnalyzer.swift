@@ -68,15 +68,8 @@ struct ClaudeSettingsConfig {
 }
 
 enum OpenAISettingsConfig {
-    nonisolated static let defaultHost = "api.openai.com"
     nonisolated static let defaultAPIURL = URL(string: "https://api.openai.com/v1/chat/completions")!
     nonisolated static let defaultModelsURL = URL(string: "https://api.openai.com/v1/models")!
-
-    /// OpenAI rejects unrecognised body parameters, so gate suppression on the endpoint rather than
-    /// the model: a custom model id on api.openai.com must not pay for a failed request and a retry.
-    nonisolated static func suppressesReasoning(at apiURL: URL) -> Bool {
-        apiURL.host?.lowercased() != defaultHost
-    }
 }
 
 /// Reads an OpenAI-compatible chat completion, tolerating reasoning models that answer in a
@@ -367,46 +360,16 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
     let apiKey: String
     let model: String
     let maxOutputTokens: Int
-    let suppressesReasoning: Bool
 
     var providerName: String { "OpenAI" }
 
-    private static let reasoningSuppressionFields: [String: Any] = [
-        "reasoning_effort": "minimal",
-        "chat_template_kwargs": ["enable_thinking": false],
-    ]
-
     func analyze(prompt: String, systemPrompt: String) async throws -> (emotion: String, intensity: Double) {
-        let (data, httpResponse) = try await send(
-            prompt: prompt,
-            systemPrompt: systemPrompt,
-            suppressingReasoning: suppressesReasoning
-        )
-
-        if httpResponse.statusCode == 400, suppressesReasoning {
-            logger.info("Endpoint rejected reasoning suppression; retrying without it")
-            let (retryData, retryResponse) = try await send(
-                prompt: prompt,
-                systemPrompt: systemPrompt,
-                suppressingReasoning: false
-            )
-            return try Self.parse(data: retryData, response: retryResponse, providerName: providerName)
-        }
-
-        return try Self.parse(data: data, response: httpResponse, providerName: providerName)
-    }
-
-    private func send(
-        prompt: String,
-        systemPrompt: String,
-        suppressingReasoning: Bool
-    ) async throws -> (Data, HTTPURLResponse) {
         var request = URLRequest(url: apiURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
 
-        var body: [String: Any] = [
+        let body: [String: Any] = [
             "model": model,
             "max_completion_tokens": maxOutputTokens,
             "response_format": [
@@ -438,10 +401,6 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
             ]
         ]
 
-        if suppressingReasoning {
-            body.merge(Self.reasoningSuppressionFields) { current, _ in current }
-        }
-
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -450,14 +409,6 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
             throw EmotionAnalysisRequestError.invalidResponse
         }
 
-        return (data, httpResponse)
-    }
-
-    private static func parse(
-        data: Data,
-        response httpResponse: HTTPURLResponse,
-        providerName: String
-    ) throws -> (emotion: String, intensity: Double) {
         guard httpResponse.statusCode == 200 else {
             logger.warning("OpenAI API returned HTTP \(httpResponse.statusCode)")
             throw EmotionAnalysisRequestError.httpStatus(provider: providerName, statusCode: httpResponse.statusCode)
@@ -562,8 +513,7 @@ final class EmotionAnalyzer {
             apiURL: apiURL,
             apiKey: apiKey,
             model: model.rawValue,
-            maxOutputTokens: model.maxOutputTokens,
-            suppressesReasoning: OpenAISettingsConfig.suppressesReasoning(at: apiURL)
+            maxOutputTokens: model.maxOutputTokens
         )
     }
 
@@ -631,8 +581,7 @@ final class EmotionAnalyzer {
                 apiURL: apiURL,
                 apiKey: trimmedKey,
                 model: model.rawValue,
-                maxOutputTokens: model.maxOutputTokens,
-                suppressesReasoning: OpenAISettingsConfig.suppressesReasoning(at: apiURL)
+                maxOutputTokens: model.maxOutputTokens
             )
         }
     }

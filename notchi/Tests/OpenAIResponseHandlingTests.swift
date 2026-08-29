@@ -4,34 +4,6 @@ import XCTest
 
 final class OpenAIResponseHandlingTests: XCTestCase {
 
-    // MARK: - Reasoning suppression gating
-
-    func testSuppressionIsOffForOpenAIItself() {
-        XCTAssertFalse(OpenAISettingsConfig.suppressesReasoning(at: OpenAISettingsConfig.defaultAPIURL))
-        XCTAssertFalse(
-            OpenAISettingsConfig.suppressesReasoning(
-                at: URL(string: "https://API.OpenAI.com/v1/chat/completions")!
-            )
-        )
-    }
-
-    func testSuppressionIsOnForCustomEndpoints() {
-        XCTAssertTrue(
-            OpenAISettingsConfig.suppressesReasoning(at: URL(string: "http://localhost:1234/v1/chat/completions")!)
-        )
-        XCTAssertTrue(
-            OpenAISettingsConfig.suppressesReasoning(at: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
-        )
-    }
-
-    /// A fine-tuned id is still served by OpenAI, so it must not cost a rejected request and a retry.
-    func testCustomModelIdOnOpenAIDoesNotTriggerSuppression() {
-        let model = EmotionAnalysisModel.custom("ft:gpt-4.1-mini:acme::abc123", provider: .openAI)
-
-        XCTAssertFalse(model.isPreset)
-        XCTAssertFalse(OpenAISettingsConfig.suppressesReasoning(at: OpenAISettingsConfig.defaultAPIURL))
-    }
-
     // MARK: - Response reading
 
     func testReadsJSONFromContent() throws {
