@@ -186,6 +186,21 @@ extension EmotionAnalysisProvider {
         ["v1", "models"]
     }
 
+    /// Catalog refresh and free-form model ids only make sense against a self-hosted or proxied
+    /// endpoint, so the settings panel keys those affordances off this.
+    nonisolated static func hasCustomEndpoint(baseURL: String?) -> Bool {
+        !(baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+    }
+
+    /// A custom base URL means the row should name the request shape that is configured rather than
+    /// the vendor whose presets happen to be listed.
+    nonisolated func displayName(forBaseURL baseURL: String?) -> String {
+        guard self == .openAI, Self.hasCustomEndpoint(baseURL: baseURL) else {
+            return displayName
+        }
+        return String(localized: "OpenAI-compatible")
+    }
+
     nonisolated func endpointURL(fromBaseURL baseURL: String?) -> URL? {
         url(fromBaseURL: baseURL, appending: endpointPathComponents, fallingBackTo: defaultEndpointURL)
     }

@@ -2871,6 +2871,40 @@
         }
       }
     },
+    "OpenAI-compatible" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "OpenAI 互換"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "OpenAI 호환"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Tương thích OpenAI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "OpenAI 兼容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "OpenAI 相容"
+          }
+        }
+      }
+    },
     "Other" : {
       "localizations" : {
         "ja" : {

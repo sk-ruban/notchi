@@ -34,6 +34,15 @@ struct EmotionAnalysisSettingsView: View {
         !apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Against stock OpenAI a refresh would bury the curated picker under ~90 models.
+    private var hasCustomEndpoint: Bool {
+        EmotionAnalysisProvider.hasCustomEndpoint(baseURL: baseURLInput)
+    }
+
+    private var providerLabel: String {
+        provider.displayName(forBaseURL: baseURLInput)
+    }
+
     private var modelOptions: [EmotionAnalysisModel] {
         var seen = Set<EmotionAnalysisModel>()
         return (EmotionAnalysisModel.models(for: provider) + fetchedModels + [model])
@@ -73,6 +82,9 @@ struct EmotionAnalysisSettingsView: View {
         .onChange(of: baseURLInput) { _, _ in
             resetTestState()
             resetCatalogState()
+            if !hasCustomEndpoint {
+                customModelInput = ""
+            }
         }
         .onChange(of: isBaseURLFocused) { _, focused in
             guard !focused else { return }
@@ -101,9 +113,10 @@ struct EmotionAnalysisSettingsView: View {
             }) {
                 SettingsRowView(icon: "switch.2", title: "Provider") {
                     HStack(spacing: 4) {
-                        Text(provider.displayName)
+                        Text(providerLabel)
                             .panelFont(size: 11)
                             .foregroundColor(TerminalColors.secondaryText)
+                            .lineLimit(1)
                         Image(systemName: isProviderPickerExpanded ? "chevron.up" : "chevron.down")
                             .panelFont(size: 9)
                             .foregroundColor(TerminalColors.dimmedText)
@@ -324,7 +337,7 @@ struct EmotionAnalysisSettingsView: View {
         case .idle:
             EmptyView()
         case .testing:
-            testDetailText(String(localized: "Testing \(provider.displayName) with \(model.displayName)..."))
+            testDetailText(String(localized: "Testing \(providerLabel) with \(model.displayName)..."))
         case .success(let result):
             testDetailText(String(localized: "Result: \(testResultText(result))"))
         case .failure(_, let detail):
@@ -364,7 +377,9 @@ struct EmotionAnalysisSettingsView: View {
                 }
                 .buttonStyle(.plain)
 
-                refreshModelsButton
+                if hasCustomEndpoint {
+                    refreshModelsButton
+                }
             }
 
             if isModelPickerExpanded {
@@ -408,11 +423,13 @@ struct EmotionAnalysisSettingsView: View {
     }
 
     private var modelPicker: some View {
-        SettingsPicker(rowCount: modelOptions.count + 1) {
+        SettingsPicker(rowCount: modelOptions.count + (hasCustomEndpoint ? 1 : 0)) {
             ForEach(modelOptions) { option in
                 modelRow(option)
             }
-            customModelRow
+            if hasCustomEndpoint {
+                customModelRow
+            }
         }
     }
 
