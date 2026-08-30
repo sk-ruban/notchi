@@ -124,7 +124,7 @@ final class SessionStore {
         if let mode = event.permissionMode {
             session.updatePermissionMode(mode)
         }
-        session.updateGitBranch(GitBranchReader.branch(forRepositoryAt: event.cwd))
+        refreshGitBranch(for: session, sessionKey: event.sessionKey, cwd: event.cwd)
 
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
@@ -257,6 +257,16 @@ final class SessionStore {
         }
 
         return session
+    }
+
+    private func refreshGitBranch(for session: SessionData, sessionKey: ProviderSessionKey, cwd: String) {
+        Task.detached(priority: .utility) {
+            let branch = GitBranchReader.branch(forRepositoryAt: cwd)
+            await MainActor.run {
+                guard self.sessions[sessionKey] === session else { return }
+                session.updateGitBranch(branch)
+            }
+        }
     }
 
     private func removeSession(_ sessionKey: ProviderSessionKey) {

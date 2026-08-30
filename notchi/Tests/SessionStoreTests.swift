@@ -10,6 +10,30 @@ final class SessionStoreTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testGitBranchIsResolvedOffMainActorAfterProcessingEvent() async throws {
+        let repo = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SessionStoreGitBranch-\(UUID().uuidString)")
+        let gitDir = repo.appendingPathComponent(".git")
+        try FileManager.default.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "ref: refs/heads/feat/async-branch\n"
+            .write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: repo) }
+
+        let session = SessionStore.shared.process(makeEvent(
+            sessionId: "git-branch-\(UUID().uuidString)",
+            cwd: repo.path,
+            event: .userPromptSubmitted,
+            status: "processing"
+        ))
+
+        XCTAssertNil(session.gitBranch, "branch must not be read synchronously on the main actor")
+
+        for _ in 0..<100 where session.gitBranch == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.gitBranch, "feat/async-branch")
+    }
+
     func testUserPromptSubmitClearsPreviousTurnToolEventsAndAssistantMessages() {
         let sessionId = "turn-reset-\(UUID().uuidString)"
         let store = SessionStore.shared
