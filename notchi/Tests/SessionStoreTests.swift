@@ -36,6 +36,36 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(session.currentModeDisplay, "Read Only")
     }
 
+    func testStaleCodexPermissionModeScanDoesNotOverwriteNewerResult() async throws {
+        let store = SessionStore.shared
+        store.setCodexPermissionModeResolverForTesting { transcriptPath in
+            if transcriptPath.hasSuffix("slow.jsonl") {
+                Thread.sleep(forTimeInterval: 0.3)
+                return CodexPermissionMode.readOnly
+            }
+            return CodexPermissionMode.fullAccess
+        }
+        let sessionId = "codex-stale-\(UUID().uuidString)"
+
+        let session = store.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: "/tmp/\(sessionId)/slow.jsonl",
+            event: .userPromptSubmitted,
+            status: "processing"
+        ))
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: "/tmp/\(sessionId)/fast.jsonl",
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertEqual(session.permissionMode, CodexPermissionMode.fullAccess)
+    }
+
     func testGitBranchIsResolvedOffMainActorAfterProcessingEvent() async throws {
         let repo = FileManager.default.temporaryDirectory
             .appendingPathComponent("SessionStoreGitBranch-\(UUID().uuidString)")

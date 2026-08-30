@@ -20,6 +20,11 @@ final class SessionStore {
     private var resolveCodexCompactionSignals: @Sendable ([String]) -> [String: CodexCompactionSignal] = { threadIds in
         CodexCompactionSignalResolver.latestSignals(threadIds: threadIds)
     }
+    private var resolveCodexPermissionMode: @Sendable (String) -> String? = { transcriptPath in
+        CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
+    }
+    private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
+    private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
 
     private init() {}
 
@@ -266,10 +271,13 @@ final class SessionStore {
     }
 
     private func refreshGitBranch(for session: SessionData, sessionKey: ProviderSessionKey, cwd: String) {
+        let generation = (gitBranchGenerations[sessionKey] ?? 0) + 1
+        gitBranchGenerations[sessionKey] = generation
         Task.detached(priority: .utility) {
             let branch = GitBranchReader.branch(forRepositoryAt: cwd)
             await MainActor.run {
-                guard self.sessions[sessionKey] === session else { return }
+                guard self.sessions[sessionKey] === session,
+                      self.gitBranchGenerations[sessionKey] == generation else { return }
                 session.updateGitBranch(branch)
             }
         }
@@ -281,10 +289,14 @@ final class SessionStore {
         transcriptPath: String?
     ) {
         guard let transcriptPath, !transcriptPath.isEmpty else { return }
+        let generation = (codexPermissionModeGenerations[sessionKey] ?? 0) + 1
+        codexPermissionModeGenerations[sessionKey] = generation
+        let resolve = resolveCodexPermissionMode
         Task.detached(priority: .utility) {
-            guard let mode = CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath) else { return }
+            guard let mode = resolve(transcriptPath) else { return }
             await MainActor.run {
-                guard self.sessions[sessionKey] === session else { return }
+                guard self.sessions[sessionKey] === session,
+                      self.codexPermissionModeGenerations[sessionKey] == generation else { return }
                 session.updatePermissionMode(mode)
             }
         }
@@ -292,6 +304,8 @@ final class SessionStore {
 
     private func removeSession(_ sessionKey: ProviderSessionKey) {
         sessions.removeValue(forKey: sessionKey)
+        gitBranchGenerations.removeValue(forKey: sessionKey)
+        codexPermissionModeGenerations.removeValue(forKey: sessionKey)
         recomputeDisplaySessionNumbers()
         postActiveSessionCountChange()
 
@@ -588,7 +602,14 @@ final class SessionStore {
         resolveCodexCompactionSignals = resolver
     }
 
+    func setCodexPermissionModeResolverForTesting(_ resolver: @escaping @Sendable (String) -> String?) {
+        resolveCodexPermissionMode = resolver
+    }
+
     func resetTestingHooks() {
+        resolveCodexPermissionMode = { transcriptPath in
+            CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
+        }
         resolveCodexMetadata = { transcriptPaths in
             CodexThreadMetadataResolver.metadata(forTranscriptPaths: transcriptPaths)
         }
