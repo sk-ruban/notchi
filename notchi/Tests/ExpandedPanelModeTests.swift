@@ -4,22 +4,22 @@ import XCTest
 final class ExpandedPanelModeTests: XCTestCase {
     func testHideGrassIslandForcesCompactMode() {
         XCTAssertEqual(
-            NotchContentView.panelMode(hideGrassIsland: true, isActivityCollapsed: false),
+            NotchContentView.panelMode(showGrassIsland: false, isActivityCollapsed: false),
             .compact
         )
         XCTAssertEqual(
-            NotchContentView.panelMode(hideGrassIsland: true, isActivityCollapsed: true),
+            NotchContentView.panelMode(showGrassIsland: false, isActivityCollapsed: true),
             .compact
         )
     }
 
     func testChevronCollapseTogglesFullAndIslandOnlyWhenGrassShown() {
         XCTAssertEqual(
-            NotchContentView.panelMode(hideGrassIsland: false, isActivityCollapsed: false),
+            NotchContentView.panelMode(showGrassIsland: true, isActivityCollapsed: false),
             .full
         )
         XCTAssertEqual(
-            NotchContentView.panelMode(hideGrassIsland: false, isActivityCollapsed: true),
+            NotchContentView.panelMode(showGrassIsland: true, isActivityCollapsed: true),
             .islandOnly
         )
     }

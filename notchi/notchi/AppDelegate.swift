@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppSettings.registerDefaults()
         guard !isRunningTests else { return }
 
         NSApplication.shared.setActivationPolicy(.accessory)

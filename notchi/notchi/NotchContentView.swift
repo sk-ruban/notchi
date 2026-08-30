@@ -178,7 +178,7 @@ struct NotchContentView: View {
     @State private var showingSessionActivity = false
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
-    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
+    @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
     @State private var hoveredSessionId: String?
     @State private var spriteHandoff: SpriteHandoff?
     @State private var spriteHandoffProgress: CGFloat = 0
@@ -199,13 +199,13 @@ struct NotchContentView: View {
         sessionStore.effectiveSession
     }
 
-    static func panelMode(hideGrassIsland: Bool, isActivityCollapsed: Bool) -> ExpandedPanelMode {
-        if hideGrassIsland { return .compact }
+    static func panelMode(showGrassIsland: Bool, isActivityCollapsed: Bool) -> ExpandedPanelMode {
+        if !showGrassIsland { return .compact }
         return isActivityCollapsed ? .islandOnly : .full
     }
 
     private var panelMode: ExpandedPanelMode {
-        Self.panelMode(hideGrassIsland: hideGrassIsland, isActivityCollapsed: isActivityCollapsed)
+        Self.panelMode(showGrassIsland: showGrassIsland, isActivityCollapsed: isActivityCollapsed)
     }
 
     private var notchSize: CGSize { panelManager.notchSize }

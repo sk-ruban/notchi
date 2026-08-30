@@ -177,7 +177,7 @@ struct ExpandedPanelView: View {
     @Binding var showingUsageDetail: Bool
     @Binding var isActivityCollapsed: Bool
     @Binding var hoveredSessionId: String?
-    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
+    @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
     @AppStorage(AppSettings.mainUsageBarPeriodKey) private var mainUsageBarPeriodRaw = MainUsageBarPeriod.session.rawValue
     @Environment(\.panelScale) private var panelScale
 
@@ -215,7 +215,7 @@ struct ExpandedPanelView: View {
 
     private var panelMode: ExpandedPanelMode {
         NotchContentView.panelMode(
-            hideGrassIsland: hideGrassIsland,
+            showGrassIsland: showGrassIsland,
             isActivityCollapsed: isActivityCollapsed
         )
     }

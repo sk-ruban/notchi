@@ -186,8 +186,8 @@ enum ExpandedPanelScale: String, CaseIterable, Identifiable {
 }
 
 struct AppSettings {
-    static let hideSpriteWhenIdleKey = "hideSpriteWhenIdle"
-    static let hideGrassIslandKey = "hideGrassIsland"
+    static let showSpriteWhenIdleKey = "showSpriteWhenIdle"
+    static let showGrassIslandKey = "showGrassIsland"
     static let expandOnHoverKey = "expandOnHover"
     static let panelToggleShortcutKey = "panelToggleShortcut"
     static let notchLeftContentKey = "notchLeftContent"
@@ -290,14 +290,25 @@ struct AppSettings {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: expandedPanelScaleKey) }
     }
 
-    static var hideSpriteWhenIdle: Bool {
-        get { UserDefaults.standard.bool(forKey: hideSpriteWhenIdleKey) }
-        set { UserDefaults.standard.set(newValue, forKey: hideSpriteWhenIdleKey) }
+    static func registerDefaults(in defaults: UserDefaults = .standard) {
+        defaults.register(defaults: [
+            showSpriteWhenIdleKey: true,
+            showGrassIslandKey: true,
+        ])
     }
 
-    static var hideGrassIsland: Bool {
-        get { UserDefaults.standard.bool(forKey: hideGrassIslandKey) }
-        set { UserDefaults.standard.set(newValue, forKey: hideGrassIslandKey) }
+    static func showSpriteWhenIdle(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: showSpriteWhenIdleKey) as? Bool ?? true
+    }
+
+    static var showSpriteWhenIdle: Bool {
+        get { showSpriteWhenIdle(in: .standard) }
+        set { UserDefaults.standard.set(newValue, forKey: showSpriteWhenIdleKey) }
+    }
+
+    static var showGrassIsland: Bool {
+        get { UserDefaults.standard.object(forKey: showGrassIslandKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: showGrassIslandKey) }
     }
 
     static var expandOnHover: Bool {

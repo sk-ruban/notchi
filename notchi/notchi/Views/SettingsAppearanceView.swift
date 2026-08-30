@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct SettingsAppearanceView: View {
-    @AppStorage(AppSettings.hideSpriteWhenIdleKey) private var hideSpriteWhenIdle = false
-    @AppStorage(AppSettings.hideGrassIslandKey) private var hideGrassIsland = false
+    @AppStorage(AppSettings.showSpriteWhenIdleKey) private var showSpriteWhenIdle = true
+    @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
@@ -14,16 +14,16 @@ struct SettingsAppearanceView: View {
 
             Divider().background(Color.white.opacity(0.08))
 
-            Button(action: { hideSpriteWhenIdle.toggle() }) {
-                SettingsRowView(icon: "pip.exit", title: "Hide Sprite When Idle") {
-                    ToggleSwitch(isOn: hideSpriteWhenIdle)
+            Button(action: { showSpriteWhenIdle.toggle() }) {
+                SettingsRowView(icon: "pip.exit", title: "Show Sprite When Idle") {
+                    ToggleSwitch(isOn: showSpriteWhenIdle)
                 }
             }
             .buttonStyle(.plain)
 
-            Button(action: { hideGrassIsland.toggle() }) {
-                SettingsRowView(icon: "leaf", title: "Hide Grass Island") {
-                    ToggleSwitch(isOn: hideGrassIsland)
+            Button(action: { showGrassIsland.toggle() }) {
+                SettingsRowView(icon: "leaf", title: "Show Grass Island") {
+                    ToggleSwitch(isOn: showGrassIsland)
                 }
             }
             .buttonStyle(.plain)

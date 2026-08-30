@@ -44,7 +44,7 @@ final class NotchPanelManager {
 
     private var observerTokens: [NSObjectProtocol] = []
     private var cachedShouldUseCompactIdle = false
-    private var observedHideSpriteWhenIdle = false
+    private var observedShowSpriteWhenIdle = false
     private var pendingHoverExitTask: Task<Void, Never>?
     private var pendingHoverExpandTask: Task<Void, Never>?
     private var pendingHoverCollapseTask: Task<Void, Never>?
@@ -103,7 +103,7 @@ final class NotchPanelManager {
         self.mouseLocationProvider = mouseLocationProvider
         self.collapsedHoverEnterFeedback = collapsedHoverEnterFeedback
         self.pinToggleFeedback = pinToggleFeedback
-        self.observedHideSpriteWhenIdle = userDefaults.bool(forKey: AppSettings.hideSpriteWhenIdleKey)
+        self.observedShowSpriteWhenIdle = AppSettings.showSpriteWhenIdle(in: userDefaults)
 
         if startEventMonitors {
             setupEventMonitors()
@@ -244,7 +244,7 @@ final class NotchPanelManager {
     }
 
     func refreshIdleMode() {
-        cachedShouldUseCompactIdle = userDefaults.bool(forKey: AppSettings.hideSpriteWhenIdleKey)
+        cachedShouldUseCompactIdle = !AppSettings.showSpriteWhenIdle(in: userDefaults)
             && activeSessionCountProvider() == 0
 
         if !cachedShouldUseCompactIdle {
@@ -264,10 +264,10 @@ final class NotchPanelManager {
         resyncCollapsedHoverIfNeeded()
     }
 
-    func refreshIdleModeIfHideSpritePreferenceChanged() {
-        let current = userDefaults.bool(forKey: AppSettings.hideSpriteWhenIdleKey)
-        guard current != observedHideSpriteWhenIdle else { return }
-        observedHideSpriteWhenIdle = current
+    func refreshIdleModeIfShowSpritePreferenceChanged() {
+        let current = AppSettings.showSpriteWhenIdle(in: userDefaults)
+        guard current != observedShowSpriteWhenIdle else { return }
+        observedShowSpriteWhenIdle = current
         refreshIdleMode()
     }
 
@@ -291,7 +291,7 @@ final class NotchPanelManager {
                 queue: nil
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    self?.refreshIdleModeIfHideSpritePreferenceChanged()
+                    self?.refreshIdleModeIfShowSpritePreferenceChanged()
                 }
             }
         )
