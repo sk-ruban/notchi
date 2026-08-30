@@ -164,33 +164,45 @@ struct CodexHookInstaller {
         }
     }
 
+    private nonisolated static let featureLine = "hooks = true"
+    private nonisolated static let hooksKeyPattern = #"(?m)^[ \t]*hooks[ \t]*=[^\n]*$"#
+    private nonisolated static let legacyKeyPattern = #"(?m)^[ \t]*codex_hooks[ \t]*=[^\n]*$"#
+    private nonisolated static let legacyKeyLinePattern = #"(?m)^[ \t]*codex_hooks[ \t]*=[^\n]*\n?"#
+
     nonisolated static func upsertFeatureFlag(in existingContents: String?) -> String {
-        let featureLine = "codex_hooks = true"
         var text = existingContents ?? ""
 
-        if let range = text.range(
-            of: #"(?m)^[ \t]*codex_hooks[ \t]*=[^\n]*$"#,
-            options: .regularExpression
-        ) {
-            text.replaceSubrange(range, with: featureLine)
-            return text
-        }
-
-        if let featuresRange = text.range(of: #"(?m)^\[features\][ \t]*$"#, options: .regularExpression) {
-            if let newlineIndex = text[featuresRange.upperBound...].firstIndex(of: "\n") {
-                let insertionPoint = text.index(after: newlineIndex)
-                text.insert(contentsOf: "\(featureLine)\n", at: insertionPoint)
-            } else {
-                text.insert(contentsOf: "\n\(featureLine)", at: featuresRange.upperBound)
+        guard let section = featuresSectionBodyRange(in: &text) else {
+            if !text.isEmpty && !text.hasSuffix("\n") {
+                text += "\n"
             }
-            return text
+            return text + "\n[features]\n\(featureLine)\n"
         }
 
-        if !text.isEmpty && !text.hasSuffix("\n") {
-            text += "\n"
+        var body = String(text[section])
+        if let range = body.range(of: hooksKeyPattern, options: .regularExpression) {
+            body.replaceSubrange(range, with: featureLine)
+            body = body.replacingOccurrences(of: legacyKeyLinePattern, with: "", options: .regularExpression)
+        } else if let range = body.range(of: legacyKeyPattern, options: .regularExpression) {
+            body.replaceSubrange(range, with: featureLine)
+        } else {
+            body = "\(featureLine)\n" + body
         }
+        text.replaceSubrange(section, with: body)
+        return text
+    }
 
-        return text + "\n[features]\n\(featureLine)\n"
+    private nonisolated static func featuresSectionBodyRange(in text: inout String) -> Range<String.Index>? {
+        guard let header = text.range(of: #"(?m)^\[features\][ \t]*$"#, options: .regularExpression) else {
+            return nil
+        }
+        if text[header.upperBound...].firstIndex(of: "\n") == nil {
+            text.insert("\n", at: header.upperBound)
+        }
+        let bodyStart = text.index(after: text[header.upperBound...].firstIndex(of: "\n")!)
+        let bodyEnd = text[bodyStart...].range(of: #"(?m)^[ \t]*\["#, options: .regularExpression)?.lowerBound
+            ?? text.endIndex
+        return bodyStart..<bodyEnd
     }
 
     nonisolated static func isHookInstalled(in hooksData: Data?) -> Bool {
@@ -212,9 +224,9 @@ struct CodexHookInstaller {
     }
 
     nonisolated static func isFeatureEnabled(in configContents: String?) -> Bool {
-        guard let configContents else { return false }
-        return configContents.range(
-            of: #"(?m)^[ \t]*codex_hooks[ \t]*=[ \t]*true[ \t]*$"#,
+        guard var text = configContents, let section = featuresSectionBodyRange(in: &text) else { return false }
+        return text[section].range(
+            of: #"(?m)^[ \t]*hooks[ \t]*=[ \t]*true[ \t]*$"#,
             options: .regularExpression
         ) != nil
     }

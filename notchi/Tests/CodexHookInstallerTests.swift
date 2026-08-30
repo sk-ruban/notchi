@@ -81,7 +81,93 @@ final class CodexHookInstallerTests: XCTestCase {
         """)
 
         XCTAssertTrue(updated.contains("[features]"))
-        XCTAssertTrue(updated.contains("codex_hooks = true"))
+        XCTAssertTrue(updated.contains("hooks = true"))
+        XCTAssertFalse(updated.contains("codex_hooks"))
+    }
+
+    func testUpsertFeatureFlagMigratesLegacyCodexHooksKeyInPlace() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: """
+        model = "gpt-5.4"
+
+        [features]
+        codex_hooks = true
+        js_repl = false
+        """)
+
+        XCTAssertEqual(updated, """
+        model = "gpt-5.4"
+
+        [features]
+        hooks = true
+        js_repl = false
+        """)
+    }
+
+    func testUpsertFeatureFlagDropsLegacyKeyWhenNewKeyAlreadyPresent() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: """
+        [features]
+        hooks = false
+        codex_hooks = true
+        """)
+
+        XCTAssertEqual(updated, """
+        [features]
+        hooks = true
+
+        """)
+    }
+
+    func testUpsertFeatureFlagLeavesTopLevelInlineHooksTableAlone() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: """
+        hooks = { state = { "/Users/me/.codex/hooks.json:stop:0:0" = { disabled = true } } }
+
+        [features]
+        codex_hooks = true
+        """)
+
+        XCTAssertEqual(updated, """
+        hooks = { state = { "/Users/me/.codex/hooks.json:stop:0:0" = { disabled = true } } }
+
+        [features]
+        hooks = true
+        """)
+    }
+
+    func testUpsertFeatureFlagDoesNotTouchHooksKeysInOtherSections() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: """
+        [features]
+        js_repl = false
+
+        [plugins.demo]
+        hooks = false
+        """)
+
+        XCTAssertEqual(updated, """
+        [features]
+        hooks = true
+        js_repl = false
+
+        [plugins.demo]
+        hooks = false
+        """)
+    }
+
+    func testUpsertFeatureFlagHandlesFeaturesHeaderAtEndOfFile() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: "model = \"gpt-5.4\"\n[features]")
+
+        XCTAssertEqual(updated, "model = \"gpt-5.4\"\n[features]\nhooks = true\n")
+    }
+
+    func testIsFeatureEnabledOnlyConsidersFeaturesSection() {
+        XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "hooks = true\n\n[features]\njs_repl = false\n"))
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: "[features]\nhooks = true\n\n[plugins.demo]\nhooks = false\n"))
+        XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "[plugins.demo]\nhooks = true\n"))
+    }
+
+    func testIsFeatureEnabledIgnoresLegacyKey() {
+        XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "[features]\ncodex_hooks = true\n"))
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: "[features]\nhooks = true\n"))
+        XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "[features]\nhooks = false\n"))
     }
 
     func testUpsertHooksJSONIsIdempotentSoReinstallSkipsRewrite() throws {
