@@ -909,6 +909,7 @@ struct ModeBadgeView: View {
         case "plan": TerminalColors.planMode
         case "acceptEdits": TerminalColors.acceptEdits
         case "auto": TerminalColors.autoMode
+        case "bypassPermissions", "dontAsk": TerminalColors.bypassPermissions
         default: TerminalColors.secondaryText
         }
     }

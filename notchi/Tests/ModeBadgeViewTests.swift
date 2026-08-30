@@ -18,8 +18,18 @@ final class ModeBadgeViewTests: XCTestCase {
         XCTAssertEqual(badge.color, TerminalColors.autoMode)
     }
 
-    func testUnknownRawModeFallsBackToSecondaryTextColor() {
+    func testBypassBadgeUsesBypassPermissionsColor() {
         let badge = ModeBadgeView(mode: "Bypass", rawMode: "bypassPermissions")
+        XCTAssertEqual(badge.color, TerminalColors.bypassPermissions)
+    }
+
+    func testDontAskBadgeSharesBypassPermissionsColor() {
+        let badge = ModeBadgeView(mode: "Don't Ask", rawMode: "dontAsk")
+        XCTAssertEqual(badge.color, TerminalColors.bypassPermissions)
+    }
+
+    func testUnknownRawModeFallsBackToSecondaryTextColor() {
+        let badge = ModeBadgeView(mode: "Mystery", rawMode: "somethingNew")
         XCTAssertEqual(badge.color, TerminalColors.secondaryText)
     }
 }
