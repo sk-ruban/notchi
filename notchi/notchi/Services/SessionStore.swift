@@ -124,6 +124,7 @@ final class SessionStore {
         if let mode = event.permissionMode {
             session.updatePermissionMode(mode)
         }
+        session.updateGitBranch(GitBranchReader.branch(forRepositoryAt: event.cwd))
 
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)

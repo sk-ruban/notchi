@@ -728,6 +728,9 @@ struct ExpandedPanelView: View {
                                 fontWeight: .medium,
                                 color: TerminalColors.secondaryText
                             )
+                            if let branch = session.gitBranch {
+                                GitBranchLabel(branch: branch)
+                            }
                         }
 
                         Spacer()
@@ -897,6 +900,24 @@ struct PanelHeaderButton: View {
         .onHover { hovering in
             isHovered = hovering
         }
+    }
+}
+
+struct GitBranchLabel: View {
+    let branch: String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image("GitBranch")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 10)
+            Text(branch)
+                .panelFont(size: 11, weight: .medium)
+                .lineLimit(1)
+        }
+        .foregroundColor(TerminalColors.gitBranch)
     }
 }
 

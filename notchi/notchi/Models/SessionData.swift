@@ -45,6 +45,7 @@ final class SessionData: Identifiable {
     private(set) var lastUserPromptHasAttachments: Bool = false
     private(set) var promptSubmitTime: Date?
     private(set) var permissionMode: String = "default"
+    private(set) var gitBranch: String?
     private(set) var pendingQuestions: [PendingQuestion] = []
     private(set) var pendingQuestionResponseContext: PendingQuestionResponseContext?
     private(set) var currentSpinnerVerb: String
@@ -245,6 +246,10 @@ final class SessionData: Identifiable {
 
     func updatePermissionMode(_ mode: String) {
         permissionMode = mode
+    }
+
+    func updateGitBranch(_ branch: String?) {
+        gitBranch = branch
     }
 
     func updateClaudeRuntime(processId: Int?) {
