@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsAppearanceView: View {
     @AppStorage(AppSettings.showSpriteWhenIdleKey) private var showSpriteWhenIdle = true
     @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
+    @AppStorage(AppSettings.showGitBranchKey) private var showGitBranch = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
@@ -24,6 +25,13 @@ struct SettingsAppearanceView: View {
             Button(action: { showGrassIsland.toggle() }) {
                 SettingsRowView(icon: "leaf", title: "Show Grass Island") {
                     ToggleSwitch(isOn: showGrassIsland)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { showGitBranch.toggle() }) {
+                SettingsRowView(icon: "arrow.triangle.branch", title: "Show Git Branch") {
+                    ToggleSwitch(isOn: showGitBranch)
                 }
             }
             .buttonStyle(.plain)
