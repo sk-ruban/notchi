@@ -10,6 +10,32 @@ final class SessionStoreTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testCodexPermissionModeComesFromRolloutNotHookPayload() async throws {
+        let rollout = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SessionStoreCodexMode-\(UUID().uuidString).jsonl")
+        try #"{"type":"turn_context","payload":{"approval_policy":"on-request","sandbox_policy":{"type":"read-only"}}}"#
+            .appending("\n")
+            .write(to: rollout, atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: rollout) }
+
+        let session = SessionStore.shared.process(makeEvent(
+            sessionId: "codex-mode-\(UUID().uuidString)",
+            provider: .codex,
+            transcriptPath: rollout.path,
+            event: .userPromptSubmitted,
+            status: "processing",
+            permissionMode: "default"
+        ))
+
+        XCTAssertEqual(session.permissionMode, "default", "hook payload mode must not be applied for Codex")
+
+        for _ in 0..<100 where session.permissionMode == "default" {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.permissionMode, CodexPermissionMode.readOnly)
+        XCTAssertEqual(session.currentModeDisplay, "Read Only")
+    }
+
     func testGitBranchIsResolvedOffMainActorAfterProcessingEvent() async throws {
         let repo = FileManager.default.temporaryDirectory
             .appendingPathComponent("SessionStoreGitBranch-\(UUID().uuidString)")
@@ -1522,7 +1548,8 @@ final class SessionStoreTests: XCTestCase {
         toolUseId: String? = nil,
         toolInput: [String: AnyCodable]? = nil,
         permissionSuggestions: [AnyCodable]? = nil,
-        interactionRequestId: String? = nil
+        interactionRequestId: String? = nil,
+        permissionMode: String? = nil
     ) -> HookEvent {
         HookEvent(
             provider: provider,
@@ -1536,7 +1563,7 @@ final class SessionStoreTests: XCTestCase {
             toolUseId: toolUseId,
             userPrompt: userPrompt,
             userPromptHasAttachments: userPromptHasAttachments,
-            permissionMode: nil,
+            permissionMode: permissionMode,
             permissionSuggestions: permissionSuggestions,
             interactive: true,
             interactionRequestId: interactionRequestId

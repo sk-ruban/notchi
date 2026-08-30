@@ -74,6 +74,9 @@ final class SessionData: Identifiable {
         case "auto": return String(localized: "Auto")
         case "dontAsk": return String(localized: "Don't Ask")
         case "bypassPermissions": return String(localized: "Bypass")
+        case CodexPermissionMode.readOnly: return String(localized: "Read Only")
+        case CodexPermissionMode.standard: return String(localized: "Default")
+        case CodexPermissionMode.fullAccess: return String(localized: "Full Access")
         default: return nil
         }
     }

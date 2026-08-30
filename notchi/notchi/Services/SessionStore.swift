@@ -121,7 +121,13 @@ final class SessionStore {
         let isProcessing = Self.isProcessingStatus(event.status)
         session.updateProcessingState(isProcessing: isProcessing)
 
-        if let mode = event.permissionMode {
+        if event.provider == .codex {
+            refreshCodexPermissionMode(
+                for: session,
+                sessionKey: event.sessionKey,
+                transcriptPath: event.transcriptPath ?? session.codexTranscriptPath
+            )
+        } else if let mode = event.permissionMode {
             session.updatePermissionMode(mode)
         }
         refreshGitBranch(for: session, sessionKey: event.sessionKey, cwd: event.cwd)
@@ -265,6 +271,21 @@ final class SessionStore {
             await MainActor.run {
                 guard self.sessions[sessionKey] === session else { return }
                 session.updateGitBranch(branch)
+            }
+        }
+    }
+
+    private func refreshCodexPermissionMode(
+        for session: SessionData,
+        sessionKey: ProviderSessionKey,
+        transcriptPath: String?
+    ) {
+        guard let transcriptPath, !transcriptPath.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            guard let mode = CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath) else { return }
+            await MainActor.run {
+                guard self.sessions[sessionKey] === session else { return }
+                session.updatePermissionMode(mode)
             }
         }
     }

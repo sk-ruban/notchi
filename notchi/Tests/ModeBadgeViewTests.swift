@@ -28,6 +28,21 @@ final class ModeBadgeViewTests: XCTestCase {
         XCTAssertEqual(badge.color, TerminalColors.bypassPermissions)
     }
 
+    func testCodexReadOnlyUsesSecondaryTextColor() {
+        let badge = ModeBadgeView(mode: "Read Only", rawMode: CodexPermissionMode.readOnly)
+        XCTAssertEqual(badge.color, TerminalColors.secondaryText)
+    }
+
+    func testCodexDefaultSharesAcceptEditsColor() {
+        let badge = ModeBadgeView(mode: "Default", rawMode: CodexPermissionMode.standard)
+        XCTAssertEqual(badge.color, TerminalColors.acceptEdits)
+    }
+
+    func testCodexFullAccessSharesBypassColor() {
+        let badge = ModeBadgeView(mode: "Full Access", rawMode: CodexPermissionMode.fullAccess)
+        XCTAssertEqual(badge.color, TerminalColors.bypassPermissions)
+    }
+
     func testUnknownRawModeFallsBackToSecondaryTextColor() {
         let badge = ModeBadgeView(mode: "Mystery", rawMode: "somethingNew")
         XCTAssertEqual(badge.color, TerminalColors.secondaryText)

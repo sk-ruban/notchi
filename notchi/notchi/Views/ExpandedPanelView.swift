@@ -929,9 +929,9 @@ struct ModeBadgeView: View {
     var color: Color {
         switch rawMode {
         case "plan": TerminalColors.planMode
-        case "acceptEdits": TerminalColors.acceptEdits
+        case "acceptEdits", CodexPermissionMode.standard: TerminalColors.acceptEdits
         case "auto": TerminalColors.autoMode
-        case "bypassPermissions", "dontAsk": TerminalColors.bypassPermissions
+        case "bypassPermissions", "dontAsk", CodexPermissionMode.fullAccess: TerminalColors.bypassPermissions
         default: TerminalColors.secondaryText
         }
     }
