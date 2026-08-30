@@ -58,6 +58,10 @@ final class GitBranchReaderTests: XCTestCase {
         XCTAssertNil(GitBranchReader.branch(forRepositoryAt: root.path))
     }
 
+    func testReturnsNilForRootPath() {
+        XCTAssertNil(GitBranchReader.branch(forRepositoryAt: "/"))
+    }
+
     func testReturnsNilForEmptyPath() {
         XCTAssertNil(GitBranchReader.branch(forRepositoryAt: ""))
     }

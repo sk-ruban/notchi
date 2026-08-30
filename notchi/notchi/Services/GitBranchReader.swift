@@ -28,9 +28,8 @@ enum GitBranchReader {
             if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory) {
                 return isDirectory.boolValue ? candidate : resolveGitdirFile(candidate, relativeTo: current)
             }
-            let parent = current.deletingLastPathComponent()
-            if parent.path == current.path { return nil }
-            current = parent
+            guard current.pathComponents.count > 1 else { return nil }
+            current = current.deletingLastPathComponent()
         }
     }
 
