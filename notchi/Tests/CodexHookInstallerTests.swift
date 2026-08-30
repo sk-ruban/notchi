@@ -164,6 +164,34 @@ final class CodexHookInstallerTests: XCTestCase {
         XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "[plugins.demo]\nhooks = true\n"))
     }
 
+    func testUpsertFeatureFlagMigratesCRLFConfigWithoutDuplicatingFeaturesTable() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: "model = \"gpt-5.4\"\r\n\r\n[features]\r\ncodex_hooks = true\r\njs_repl = false\r\n")
+
+        XCTAssertEqual(updated, "model = \"gpt-5.4\"\r\n\r\n[features]\r\nhooks = true\r\njs_repl = false\r\n")
+        XCTAssertEqual(updated.components(separatedBy: "[features]").count - 1, 1)
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: updated))
+    }
+
+    func testUpsertFeatureFlagRecognisesFeaturesHeaderWithTrailingComment() {
+        let updated = CodexHookInstaller.upsertFeatureFlag(in: """
+        [features] # managed by notchi
+        js_repl = false
+        """)
+
+        XCTAssertEqual(updated, """
+        [features] # managed by notchi
+        hooks = true
+        js_repl = false
+        """)
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: updated))
+    }
+
+    func testIsFeatureEnabledAcceptsTrailingCommentAndCRLF() {
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: "[features]\nhooks = true # keep\n"))
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: "[features]\r\nhooks = true\r\n"))
+        XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "[features]\nhooks = truely\n"))
+    }
+
     func testIsFeatureEnabledIgnoresLegacyKey() {
         XCTAssertFalse(CodexHookInstaller.isFeatureEnabled(in: "[features]\ncodex_hooks = true\n"))
         XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: "[features]\nhooks = true\n"))

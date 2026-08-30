@@ -165,9 +165,11 @@ struct CodexHookInstaller {
     }
 
     private nonisolated static let featureLine = "hooks = true"
-    private nonisolated static let hooksKeyPattern = #"(?m)^[ \t]*hooks[ \t]*=[^\n]*$"#
-    private nonisolated static let legacyKeyPattern = #"(?m)^[ \t]*codex_hooks[ \t]*=[^\n]*$"#
-    private nonisolated static let legacyKeyLinePattern = #"(?m)^[ \t]*codex_hooks[ \t]*=[^\n]*\n?"#
+    private nonisolated static let hooksKeyPattern = #"(?m)^[ \t]*hooks[ \t]*=[^\r\n]*"#
+    private nonisolated static let legacyKeyPattern = #"(?m)^[ \t]*codex_hooks[ \t]*=[^\r\n]*"#
+    private nonisolated static let legacyKeyLinePattern = #"(?m)^[ \t]*codex_hooks[ \t]*=[^\r\n]*\r?\n?"#
+    private nonisolated static let featuresHeaderPattern = #"(?m)^\[features\][ \t]*(#[^\r\n]*)?\r?$"#
+    private nonisolated static let enabledPattern = #"(?m)^[ \t]*hooks[ \t]*=[ \t]*true[ \t]*(#[^\r\n]*)?\r?$"#
 
     nonisolated static func upsertFeatureFlag(in existingContents: String?) -> String {
         var text = existingContents ?? ""
@@ -193,13 +195,14 @@ struct CodexHookInstaller {
     }
 
     private nonisolated static func featuresSectionBodyRange(in text: inout String) -> Range<String.Index>? {
-        guard let header = text.range(of: #"(?m)^\[features\][ \t]*$"#, options: .regularExpression) else {
+        guard let header = text.range(of: featuresHeaderPattern, options: .regularExpression) else {
             return nil
         }
-        if text[header.upperBound...].firstIndex(of: "\n") == nil {
+        guard let newlineIndex = text[header.upperBound...].utf8.firstIndex(of: UInt8(ascii: "\n")) else {
             text.insert("\n", at: header.upperBound)
+            return featuresSectionBodyRange(in: &text)
         }
-        let bodyStart = text.index(after: text[header.upperBound...].firstIndex(of: "\n")!)
+        let bodyStart = text.utf8.index(after: newlineIndex)
         let bodyEnd = text[bodyStart...].range(of: #"(?m)^[ \t]*\["#, options: .regularExpression)?.lowerBound
             ?? text.endIndex
         return bodyStart..<bodyEnd
@@ -225,10 +228,7 @@ struct CodexHookInstaller {
 
     nonisolated static func isFeatureEnabled(in configContents: String?) -> Bool {
         guard var text = configContents, let section = featuresSectionBodyRange(in: &text) else { return false }
-        return text[section].range(
-            of: #"(?m)^[ \t]*hooks[ \t]*=[ \t]*true[ \t]*$"#,
-            options: .regularExpression
-        ) != nil
+        return text[section].range(of: enabledPattern, options: .regularExpression) != nil
     }
 
     nonisolated static func isInstalled() -> Bool {
