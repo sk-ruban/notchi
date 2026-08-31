@@ -11,6 +11,8 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
     private static let hitCacheLifetime: TimeInterval = 120
     private static let missCacheLifetime: TimeInterval = 20
     private static let ghTimeout: TimeInterval = 10
+    private static let killGrace: TimeInterval = 2
+    private static let eofGrace: TimeInterval = 1
     private static let ghCandidatePaths = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh"]
 
     private struct CacheEntry {
@@ -92,20 +94,54 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = FileHandle.nullDevice
 
+        let output = LockedDataBuffer()
+        let sawEOF = DispatchSemaphore(value: 0)
+        let exited = DispatchSemaphore(value: 0)
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                sawEOF.signal()
+            } else {
+                output.append(chunk)
+            }
+        }
+        process.terminationHandler = { _ in exited.signal() }
+
         do {
             try process.run()
         } catch {
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
             return nil
         }
 
-        let watchdog = DispatchWorkItem { process.terminate() }
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: watchdog)
+        var timedOut = false
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
+            timedOut = true
+            process.terminate()
+            if exited.wait(timeout: .now() + killGrace) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + killGrace)
+            }
+        }
 
-        let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        watchdog.cancel()
+        // A child that inherited the pipe can hold the write end open after
+        // the main process exits, so EOF gets a grace period, not a blocking wait.
+        _ = sawEOF.wait(timeout: .now() + eofGrace)
+        stdoutPipe.fileHandleForReading.readabilityHandler = nil
 
-        guard process.terminationStatus == 0 else { return nil }
-        return data
+        guard !timedOut, process.terminationStatus == 0 else { return nil }
+        return output.data
+    }
+}
+
+private nonisolated final class LockedDataBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = Data()
+
+    var data: Data { lock.withLock { buffer } }
+
+    func append(_ chunk: Data) {
+        lock.withLock { buffer.append(chunk) }
     }
 }

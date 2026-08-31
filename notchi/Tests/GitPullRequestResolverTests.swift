@@ -142,6 +142,32 @@ final class GitPullRequestResolverTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 5)
     }
 
+    func testRunProcessKillsProcessThatIgnoresSigterm() {
+        let start = Date()
+        let output = GitPullRequestResolver.runProcess(
+            executable: "/bin/sh",
+            arguments: ["-c", "trap \'\' TERM; sleep 30"],
+            cwd: "/tmp",
+            timeout: 0.3
+        )
+
+        XCTAssertNil(output)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 8)
+    }
+
+    func testRunProcessReturnsOutputWhenChildHoldsPipeOpen() {
+        let start = Date()
+        let output = GitPullRequestResolver.runProcess(
+            executable: "/bin/sh",
+            arguments: ["-c", "sleep 30 & echo captured"],
+            cwd: "/tmp",
+            timeout: 5
+        )
+
+        XCTAssertEqual(output.flatMap { String(data: $0, encoding: .utf8) }, "captured\n")
+        XCTAssertLessThan(Date().timeIntervalSince(start), 8)
+    }
+
     func testDifferentBranchesAreCachedSeparately() {
         let fetchCount = Counter()
         let resolver = GitPullRequestResolver(
