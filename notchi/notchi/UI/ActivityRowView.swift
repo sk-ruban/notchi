@@ -763,6 +763,7 @@ private struct QuestionHintShake: GeometryEffect {
 struct WorkingIndicatorView: View {
     let state: NotchiState
     let workingVerb: String
+    var workingSince: Date?
     let color: Color
     @State private var dotCount = 1
     @State private var symbolPhase = 0
@@ -779,7 +780,12 @@ struct WorkingIndicatorView: View {
     }
 
     private var displayText: String {
-        WorkingIndicatorPresentation.text(for: state.task, workingVerb: workingVerb, dots: dots)
+        WorkingIndicatorPresentation.text(
+            for: state.task,
+            workingVerb: workingVerb,
+            dots: dots,
+            elapsed: workingSince.flatMap { WorkingIndicatorPresentation.elapsedDisplay(since: $0, now: Date()) }
+        )
     }
 
     var body: some View {
@@ -907,14 +913,24 @@ enum WorkingIndicatorPresentation {
         return animatedSymbols[phase % animatedSymbols.count]
     }
 
-    static func text(for task: NotchiTask, workingVerb: String, dots: String) -> String {
+    static func text(for task: NotchiTask, workingVerb: String, dots: String, elapsed: String? = nil) -> String {
         switch task {
         case .compacting:
             return "Compacting\(dots)"
         case .waiting:
             return "Waiting\(dots)"
         default:
-            return "\(workingVerb)\(dots)"
+            guard let elapsed else { return "\(workingVerb)\(dots)" }
+            return String(localized: "\(workingVerb) for \(elapsed)") + dots
         }
+    }
+
+    static func elapsedDisplay(since start: Date, now: Date, locale: Locale = .autoupdatingCurrent) -> String? {
+        let seconds = Int(now.timeIntervalSince(start))
+        guard seconds >= 1 else { return nil }
+        return Duration.seconds(seconds).formatted(
+            .units(allowed: [.hours, .minutes, .seconds], width: .narrow, maximumUnitCount: 2)
+            .locale(locale)
+        )
     }
 }

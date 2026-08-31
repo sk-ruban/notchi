@@ -545,6 +545,7 @@ struct ExpandedPanelView: View {
                     WorkingIndicatorView(
                         state: state,
                         workingVerb: currentSpinnerVerb,
+                        workingSince: effectiveSession?.promptSubmitTime,
                         color: effectiveSession?.provider.accentColor ?? TerminalColors.claudeOrange
                     )
                 }
