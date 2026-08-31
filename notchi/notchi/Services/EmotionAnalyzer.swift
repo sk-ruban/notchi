@@ -69,6 +69,89 @@ struct ClaudeSettingsConfig {
 
 enum OpenAISettingsConfig {
     nonisolated static let defaultAPIURL = URL(string: "https://api.openai.com/v1/chat/completions")!
+    nonisolated static let defaultModelsURL = URL(string: "https://api.openai.com/v1/models")!
+}
+
+/// Pulls the readable part out of a non-2xx body. Without it a base-URL or model mismatch shows
+/// only "HTTP 400", which is close to undiagnosable from the settings panel.
+nonisolated enum APIErrorMessageReader {
+    /// Long enough to carry a real explanation, short enough that an HTML error page or a stack
+    /// trace cannot flood the UI.
+    static let maxLength = 160
+
+    static func message(from data: Data) -> String? {
+        guard let text = extract(from: data) else { return nil }
+
+        let collapsed = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        guard !collapsed.isEmpty else { return nil }
+        guard collapsed.count > maxLength else { return collapsed }
+        return collapsed.prefix(maxLength).trimmingCharacters(in: .whitespaces) + "\u{2026}"
+    }
+
+    /// OpenAI and Anthropic both nest under "error", gateways vary, and a proxy may not send JSON
+    /// at all, so fall back to the raw body.
+    private static func extract(from data: Data) -> String? {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let message = readable(object["error"]) {
+                return message
+            }
+            if let message = object["message"] as? String {
+                return message
+            }
+            if let message = readable(object["detail"]) {
+                return message
+            }
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func readable(_ field: Any?) -> String? {
+        if let text = field as? String {
+            return text
+        }
+        if let nested = field as? [String: Any] {
+            return nested["message"] as? String ?? nested["type"] as? String
+        }
+        return nil
+    }
+}
+
+/// Reads an OpenAI-compatible chat completion, tolerating reasoning models that answer in a
+/// separate channel or stop before finishing.
+enum OpenAIChatResponseReader {
+    nonisolated static func emotion(from data: Data) throws -> (emotion: String, intensity: Double) {
+        let chatResponse = try JSONDecoder().decode(OpenAIChatCompletionResponse.self, from: data)
+
+        guard let choice = chatResponse.choices.first else {
+            throw EmotionAnalysisRequestError.invalidResponse
+        }
+
+        if let text = choice.message.content, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            do {
+                return try EmotionAnalysisResponseParser.parse(text)
+            } catch {
+                // Partial JSON from a model that hit the cap mid-answer is truncation, not bad output.
+                guard choice.finishReason == "length" else { throw error }
+                throw EmotionAnalysisRequestError.truncatedResponse
+            }
+        }
+
+        if let reasoning = choice.message.reasoningContent,
+           let result = try? EmotionAnalysisResponseParser.parse(reasoning) {
+            return result
+        }
+
+        if choice.finishReason == "length" {
+            logger.warning("OpenAI response hit the completion token limit before producing content")
+            throw EmotionAnalysisRequestError.truncatedResponse
+        }
+
+        throw EmotionAnalysisRequestError.invalidResponse
+    }
 }
 
 extension EmotionAnalysisProvider {
@@ -81,6 +164,15 @@ extension EmotionAnalysisProvider {
         }
     }
 
+    nonisolated var defaultModelsEndpointURL: URL {
+        switch self {
+        case .claude:
+            URL(string: "\(ClaudeSettingsConfig.defaultBaseURL)/v1/models")!
+        case .openAI:
+            OpenAISettingsConfig.defaultModelsURL
+        }
+    }
+
     nonisolated private var endpointPathComponents: [String] {
         switch self {
         case .claude:
@@ -90,10 +182,76 @@ extension EmotionAnalysisProvider {
         }
     }
 
+    nonisolated private var modelsPathComponents: [String] {
+        ["v1", "models"]
+    }
+
+    /// Catalog refresh and free-form model ids only make sense against a self-hosted or proxied
+    /// endpoint, so the settings panel keys those affordances off this.
+    nonisolated static func hasCustomEndpoint(baseURL: String?) -> Bool {
+        !(baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+    }
+
+    /// A custom base URL means the row should name the request shape that is configured rather than
+    /// the vendor whose presets happen to be listed.
+    nonisolated func displayName(forBaseURL baseURL: String?) -> String {
+        guard self == .openAI, Self.hasCustomEndpoint(baseURL: baseURL) else {
+            return displayName
+        }
+        return String(localized: "OpenAI-compatible")
+    }
+
     nonisolated func endpointURL(fromBaseURL baseURL: String?) -> URL? {
+        url(fromBaseURL: baseURL, appending: endpointPathComponents, fallingBackTo: defaultEndpointURL)
+    }
+
+    nonisolated func modelsEndpointURL(fromBaseURL baseURL: String?) -> URL? {
+        guard let url = url(
+            fromBaseURL: baseURL,
+            appending: modelsPathComponents,
+            fallingBackTo: defaultModelsEndpointURL
+        ) else {
+            return nil
+        }
+        return Self.appending(catalogQueryItems, to: url)
+    }
+
+    /// Anthropic pages /v1/models and defaults to 20, so an unqualified request silently returns a
+    /// fraction of the catalog. 1000 is the documented maximum and comfortably covers the list.
+    nonisolated private var catalogQueryItems: [URLQueryItem] {
+        switch self {
+        case .claude:
+            [URLQueryItem(name: "limit", value: "1000")]
+        case .openAI:
+            []
+        }
+    }
+
+    /// Keeps whatever query a custom base URL already carries, and yields to it on a name clash so
+    /// a gateway with its own paging rules stays in control.
+    nonisolated private static func appending(_ items: [URLQueryItem], to url: URL) -> URL {
+        guard !items.isEmpty,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+
+        let existing = components.queryItems ?? []
+        let existingNames = Set(existing.map(\.name))
+        let additions = items.filter { !existingNames.contains($0.name) }
+        guard !additions.isEmpty else { return url }
+
+        components.queryItems = existing + additions
+        return components.url ?? url
+    }
+
+    nonisolated private func url(
+        fromBaseURL baseURL: String?,
+        appending endpoint: [String],
+        fallingBackTo defaultURL: URL
+    ) -> URL? {
         let trimmed = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
-            return defaultEndpointURL
+            return defaultURL
         }
 
         let urlString = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
@@ -103,13 +261,22 @@ extension EmotionAnalysisProvider {
             return nil
         }
 
-        let baseComponents = components.path.split(separator: "/").map(String.init)
-        let endpoint = endpointPathComponents
+        let baseComponents = strippingChatEndpoint(from: components.path.split(separator: "/").map(String.init))
         let overlap = (0...min(baseComponents.count, endpoint.count))
             .reversed()
             .first { Array(baseComponents.suffix($0)) == Array(endpoint.prefix($0)) } ?? 0
         components.path = "/" + (baseComponents + endpoint.dropFirst(overlap)).joined(separator: "/")
         return components.url
+    }
+
+    /// Without this, a base URL of ".../v1/messages" yields ".../v1/messages/v1/models".
+    nonisolated private func strippingChatEndpoint(from components: [String]) -> [String] {
+        let chat = endpointPathComponents
+        guard components.count >= chat.count,
+              Array(components.suffix(chat.count)) == chat else {
+            return components
+        }
+        return Array(components.dropLast(chat.count))
     }
 }
 
@@ -126,10 +293,22 @@ private struct OpenAIChatCompletionResponse: Decodable {
 
     struct Choice: Decodable {
         let message: Message
+        let finishReason: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
     }
 
     struct Message: Decodable {
         let content: String?
+        let reasoningContent: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case content
+            case reasoningContent = "reasoning_content"
+        }
     }
 }
 
@@ -144,11 +323,13 @@ struct EmotionAnalysisTestResult {
     let latencyMilliseconds: Int
 }
 
-enum EmotionAnalysisRequestError: LocalizedError {
+enum EmotionAnalysisRequestError: LocalizedError, Equatable {
     case missingAPIKey(EmotionAnalysisProvider)
     case invalidBaseURL
-    case httpStatus(provider: String, statusCode: Int)
+    case httpStatus(provider: String, statusCode: Int, message: String?)
     case invalidResponse
+    case emptyModelCatalog
+    case truncatedResponse
 
     var errorDescription: String? {
         switch self {
@@ -156,10 +337,15 @@ enum EmotionAnalysisRequestError: LocalizedError {
             String(localized: "Missing \(provider.displayName) API key")
         case .invalidBaseURL:
             String(localized: "Invalid API base URL")
-        case .httpStatus(let provider, let statusCode):
+        case .httpStatus(let provider, let statusCode, let message):
             String(localized: "\(provider) API returned HTTP \(statusCode)")
+                + (message.map { ": \($0)" } ?? "")
         case .invalidResponse:
             String(localized: "Invalid emotion analysis response")
+        case .emptyModelCatalog:
+            String(localized: "The endpoint listed no models")
+        case .truncatedResponse:
+            String(localized: "The model ran out of output tokens before answering")
         }
     }
 
@@ -169,10 +355,14 @@ enum EmotionAnalysisRequestError: LocalizedError {
             String(localized: "Missing")
         case .invalidBaseURL:
             String(localized: "Bad URL")
-        case .httpStatus(_, let statusCode):
+        case .httpStatus(_, let statusCode, _):
             String(localized: "HTTP \(statusCode)")
         case .invalidResponse:
             String(localized: "Invalid")
+        case .emptyModelCatalog:
+            String(localized: "No models")
+        case .truncatedResponse:
+            String(localized: "Truncated")
         }
     }
 }
@@ -222,6 +412,7 @@ private struct ClaudeEmotionAnalysisProvider: EmotionAnalysisProviding {
     let apiURL: URL
     let apiKey: String
     let model: String
+    let maxOutputTokens: Int
 
     var providerName: String { "Claude" }
 
@@ -234,7 +425,7 @@ private struct ClaudeEmotionAnalysisProvider: EmotionAnalysisProviding {
 
         let body: [String: Any] = [
             "model": model,
-            "max_tokens": 50,
+            "max_tokens": maxOutputTokens,
             "system": systemPrompt,
             "messages": [
                 ["role": "user", "content": prompt]
@@ -250,7 +441,11 @@ private struct ClaudeEmotionAnalysisProvider: EmotionAnalysisProviding {
 
         guard httpResponse.statusCode == 200 else {
             logger.warning("Claude API returned HTTP \(httpResponse.statusCode)")
-            throw EmotionAnalysisRequestError.httpStatus(provider: providerName, statusCode: httpResponse.statusCode)
+            throw EmotionAnalysisRequestError.httpStatus(
+                provider: providerName,
+                statusCode: httpResponse.statusCode,
+                message: APIErrorMessageReader.message(from: data)
+            )
         }
 
         let haikuResponse = try JSONDecoder().decode(HaikuResponse.self, from: data)
@@ -267,6 +462,7 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
     let apiURL: URL
     let apiKey: String
     let model: String
+    let maxOutputTokens: Int
 
     var providerName: String { "OpenAI" }
 
@@ -278,7 +474,7 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
 
         let body: [String: Any] = [
             "model": model,
-            "max_completion_tokens": 80,
+            "max_completion_tokens": maxOutputTokens,
             "response_format": [
                 "type": "json_schema",
                 "json_schema": [
@@ -307,6 +503,7 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
                 ["role": "user", "content": prompt]
             ]
         ]
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -317,16 +514,14 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
 
         guard httpResponse.statusCode == 200 else {
             logger.warning("OpenAI API returned HTTP \(httpResponse.statusCode)")
-            throw EmotionAnalysisRequestError.httpStatus(provider: providerName, statusCode: httpResponse.statusCode)
+            throw EmotionAnalysisRequestError.httpStatus(
+                provider: providerName,
+                statusCode: httpResponse.statusCode,
+                message: APIErrorMessageReader.message(from: data)
+            )
         }
 
-        let chatResponse = try JSONDecoder().decode(OpenAIChatCompletionResponse.self, from: data)
-
-        guard let text = chatResponse.choices.first?.message.content else {
-            throw EmotionAnalysisRequestError.invalidResponse
-        }
-
-        return try EmotionAnalysisResponseParser.parse(text)
+        return try OpenAIChatResponseReader.emotion(from: data)
     }
 }
 
@@ -389,10 +584,12 @@ final class EmotionAnalyzer {
             guard let apiURL = Self.manualEndpointURL(for: .claude) else {
                 return nil
             }
+            let model = AppSettings.selectedEmotionAnalysisModel(for: .claude)
             return ClaudeEmotionAnalysisProvider(
                 apiURL: apiURL,
                 apiKey: apiKey,
-                model: AppSettings.selectedEmotionAnalysisModel(for: .claude).rawValue
+                model: model.rawValue,
+                maxOutputTokens: model.maxOutputTokens
             )
         }
 
@@ -400,10 +597,13 @@ final class EmotionAnalyzer {
             return nil
         }
 
+        let model = AppSettings.storedEmotionAnalysisModel(for: .claude)
+            ?? EmotionAnalysisModel.resolve(config.model, for: .claude)
         return ClaudeEmotionAnalysisProvider(
             apiURL: config.apiURL,
             apiKey: config.apiKey,
-            model: AppSettings.storedEmotionAnalysisModel(for: .claude)?.rawValue ?? config.model
+            model: model.rawValue,
+            maxOutputTokens: model.maxOutputTokens
         )
     }
 
@@ -415,10 +615,12 @@ final class EmotionAnalyzer {
             return nil
         }
 
+        let model = AppSettings.selectedEmotionAnalysisModel(for: .openAI)
         return OpenAIEmotionAnalysisProvider(
             apiURL: apiURL,
             apiKey: apiKey,
-            model: AppSettings.selectedEmotionAnalysisModel(for: .openAI).rawValue
+            model: model.rawValue,
+            maxOutputTokens: model.maxOutputTokens
         )
     }
 
@@ -458,7 +660,8 @@ final class EmotionAnalyzer {
                 return ClaudeEmotionAnalysisProvider(
                     apiURL: apiURL,
                     apiKey: trimmedKey,
-                    model: model.rawValue
+                    model: model.rawValue,
+                    maxOutputTokens: model.maxOutputTokens
                 )
             }
 
@@ -466,7 +669,8 @@ final class EmotionAnalyzer {
                 return ClaudeEmotionAnalysisProvider(
                     apiURL: config.apiURL,
                     apiKey: config.apiKey,
-                    model: model.rawValue
+                    model: model.rawValue,
+                    maxOutputTokens: model.maxOutputTokens
                 )
             }
 
@@ -483,7 +687,8 @@ final class EmotionAnalyzer {
             return OpenAIEmotionAnalysisProvider(
                 apiURL: apiURL,
                 apiKey: trimmedKey,
-                model: model.rawValue
+                model: model.rawValue,
+                maxOutputTokens: model.maxOutputTokens
             )
         }
     }

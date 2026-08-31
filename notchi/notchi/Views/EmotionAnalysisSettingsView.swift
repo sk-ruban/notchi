@@ -5,6 +5,13 @@ struct EmotionAnalysisSettingsView: View {
         case idle
         case testing
         case success(EmotionAnalysisTestResult)
+        case failure(label: String, detail: String)
+    }
+
+    private enum CatalogState {
+        case idle
+        case loading
+        case loaded(Int)
         case failure(String)
     }
 
@@ -15,12 +22,38 @@ struct EmotionAnalysisSettingsView: View {
     @State private var isProviderPickerExpanded = false
     @State private var isModelPickerExpanded = false
     @State private var testState: TestState = .idle
+    @State private var catalogState: CatalogState = .idle
+    @State private var fetchedModels: [EmotionAnalysisModel] = []
+    @State private var customModelInput = ""
     @State private var setupLinkShakePhase: CGFloat = 0
     @FocusState private var isAPIKeyFocused: Bool
     @FocusState private var isBaseURLFocused: Bool
+    @FocusState private var isCustomModelFocused: Bool
 
     private var hasApiKey: Bool {
         !apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Against stock OpenAI a refresh would bury the curated picker under ~90 models.
+    private var hasCustomEndpoint: Bool {
+        EmotionAnalysisProvider.hasCustomEndpoint(baseURL: baseURLInput)
+    }
+
+    private var providerLabel: String {
+        provider.displayName(forBaseURL: baseURLInput)
+    }
+
+    private var modelOptions: [EmotionAnalysisModel] {
+        var seen = Set<EmotionAnalysisModel>()
+        return (EmotionAnalysisModel.models(for: provider) + fetchedModels + [model])
+            .filter { $0.provider == provider && seen.insert($0).inserted }
+    }
+
+    private var isFetchingModels: Bool {
+        if case .loading = catalogState {
+            return true
+        }
+        return false
     }
 
     var body: some View {
@@ -44,9 +77,14 @@ struct EmotionAnalysisSettingsView: View {
         .animation(.spring(response: 0.3), value: isModelPickerExpanded)
         .onChange(of: apiKeyInput) { _, _ in
             resetTestState()
+            resetCatalogState()
         }
         .onChange(of: baseURLInput) { _, _ in
             resetTestState()
+            resetCatalogState()
+            if !hasCustomEndpoint {
+                customModelInput = ""
+            }
         }
         .onChange(of: isBaseURLFocused) { _, focused in
             guard !focused else { return }
@@ -75,9 +113,10 @@ struct EmotionAnalysisSettingsView: View {
             }) {
                 SettingsRowView(icon: "switch.2", title: "Provider") {
                     HStack(spacing: 4) {
-                        Text(provider.displayName)
+                        Text(providerLabel)
                             .panelFont(size: 11)
                             .foregroundColor(TerminalColors.secondaryText)
+                            .lineLimit(1)
                         Image(systemName: isProviderPickerExpanded ? "chevron.up" : "chevron.down")
                             .panelFont(size: 9)
                             .foregroundColor(TerminalColors.dimmedText)
@@ -287,8 +326,8 @@ struct EmotionAnalysisSettingsView: View {
             Image(systemName: "checkmark.circle.fill")
                 .panelFont(size: 13)
                 .foregroundColor(TerminalColors.green)
-        case .failure(let message):
-            statusBadge(message, color: TerminalColors.red)
+        case .failure(let label, _):
+            statusBadge(label, color: TerminalColors.red)
         }
     }
 
@@ -298,54 +337,138 @@ struct EmotionAnalysisSettingsView: View {
         case .idle:
             EmptyView()
         case .testing:
-            testDetailText(String(localized: "Testing \(provider.displayName) with \(model.displayName)..."))
+            testDetailText(String(localized: "Testing \(providerLabel) with \(model.displayName)..."))
         case .success(let result):
             testDetailText(String(localized: "Result: \(testResultText(result))"))
-        case .failure:
-            testDetailText(canTest ? String(localized: "Could not verify this configuration.") : String(localized: "Add an API key to test this configuration."))
+        case .failure(_, let detail):
+            testDetailText(detail, lineLimit: 3)
         }
     }
 
-    private func testDetailText(_ text: String) -> some View {
+    private func testDetailText(_ text: String, lineLimit: Int = 1) -> some View {
         Text(text)
             .panelFont(size: 10)
             .foregroundColor(TerminalColors.dimmedText)
-            .lineLimit(1)
+            .lineLimit(lineLimit)
             .truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, 28)
     }
 
     private var modelSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: {
-                blurAPIKeyField()
-                isModelPickerExpanded.toggle()
-            }) {
-                SettingsRowView(icon: "cpu", title: "Model") {
-                    HStack(spacing: 4) {
-                        Text(model.displayName)
-                            .panelFont(size: 11)
-                            .foregroundColor(TerminalColors.secondaryText)
-                        Image(systemName: isModelPickerExpanded ? "chevron.up" : "chevron.down")
-                            .panelFont(size: 9)
-                            .foregroundColor(TerminalColors.dimmedText)
+            HStack(spacing: 8) {
+                Button(action: {
+                    blurAPIKeyField()
+                    isModelPickerExpanded.toggle()
+                }) {
+                    SettingsRowView(icon: "cpu", title: "Model") {
+                        HStack(spacing: 4) {
+                            Text(model.displayName)
+                                .panelFont(size: 11)
+                                .foregroundColor(TerminalColors.secondaryText)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Image(systemName: isModelPickerExpanded ? "chevron.up" : "chevron.down")
+                                .panelFont(size: 9)
+                                .foregroundColor(TerminalColors.dimmedText)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
+
+                if hasCustomEndpoint {
+                    refreshModelsButton
+                }
             }
-            .buttonStyle(.plain)
 
             if isModelPickerExpanded {
                 modelPicker
             }
+
+            catalogDetailView
+        }
+    }
+
+    private var refreshModelsButton: some View {
+        Button(action: refreshModelCatalog) {
+            Group {
+                if isFetchingModels {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .panelFont(size: 11)
+                        .foregroundColor(hasApiKey ? TerminalColors.secondaryText : TerminalColors.dimmedText)
+                }
+            }
+            .frame(width: 16, height: 16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isFetchingModels || !hasApiKey)
+        .help("Fetch the models this endpoint serves")
+    }
+
+    @ViewBuilder
+    private var catalogDetailView: some View {
+        switch catalogState {
+        case .idle, .loading:
+            EmptyView()
+        case .loaded(let count):
+            testDetailText(String(localized: "Found \(count) models at this endpoint."))
+        case .failure(let message):
+            testDetailText(String(localized: "Could not list models: \(message)"), lineLimit: 3)
         }
     }
 
     private var modelPicker: some View {
-        SettingsPicker(rowCount: EmotionAnalysisModel.models(for: provider).count) {
-            ForEach(EmotionAnalysisModel.models(for: provider)) { option in
+        SettingsPicker(rowCount: modelOptions.count + (hasCustomEndpoint ? 1 : 0)) {
+            ForEach(modelOptions) { option in
                 modelRow(option)
             }
+            if hasCustomEndpoint {
+                customModelRow
+            }
         }
+    }
+
+    private var customModelRow: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color.clear)
+                .frame(width: 6, height: 6)
+
+            ZStack(alignment: .leading) {
+                TextField("", text: $customModelInput)
+                    .textFieldStyle(.plain)
+                    .panelFont(size: 11, design: .monospaced)
+                    .foregroundColor(TerminalColors.primaryText)
+                    .focused($isCustomModelFocused)
+                    .onSubmit(commitCustomModel)
+
+                if customModelInput.isEmpty {
+                    Text("Custom model id")
+                        .panelFont(size: 11, design: .monospaced)
+                        .foregroundColor(TerminalColors.dimmedText)
+                        .allowsHitTesting(false)
+                }
+            }
+
+            Button(action: commitCustomModel) {
+                Image(systemName: "arrow.right.circle")
+                    .panelFont(size: 12)
+                    .foregroundColor(hasCustomModelInput ? TerminalColors.green : TerminalColors.dimmedText)
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasCustomModelInput)
+        }
+        .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
+        .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
+    }
+
+    private var hasCustomModelInput: Bool {
+        !customModelInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func modelRow(_ option: EmotionAnalysisModel) -> some View {
@@ -408,15 +531,67 @@ struct EmotionAnalysisSettingsView: View {
         model = AppSettings.selectedEmotionAnalysisModel(for: newProvider)
         apiKeyInput = AppSettings.apiKey(for: newProvider) ?? ""
         baseURLInput = AppSettings.apiBaseURL(for: newProvider) ?? ""
+        customModelInput = ""
         resetTestState()
+        resetCatalogState()
     }
 
     private func selectModel(_ newModel: EmotionAnalysisModel) {
         blurAPIKeyField()
+        isCustomModelFocused = false
         guard newModel != model else { return }
         model = newModel
         AppSettings.setEmotionAnalysisModel(newModel, for: provider)
         resetTestState()
+    }
+
+    private func commitCustomModel() {
+        let trimmed = customModelInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        selectModel(EmotionAnalysisModel.resolve(trimmed, for: provider))
+        customModelInput = ""
+        isCustomModelFocused = false
+    }
+
+    private func refreshModelCatalog() {
+        blurAPIKeyField()
+        guard !isFetchingModels else { return }
+        // Deliberately does not persist the base URL: a refresh could then clear a stored one.
+        catalogState = .loading
+
+        let currentProvider = provider
+        let currentAPIKey = apiKeyInput
+        let currentBaseURL = baseURLInput
+
+        Task { @MainActor in
+            do {
+                let models = try await ModelCatalogService.shared.fetchModels(
+                    provider: currentProvider,
+                    apiKey: currentAPIKey,
+                    baseURL: currentBaseURL
+                )
+                guard isCurrentCatalogSnapshot(provider: currentProvider, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
+                fetchedModels = models
+                catalogState = .loaded(models.count)
+                isModelPickerExpanded = true
+            } catch {
+                guard isCurrentCatalogSnapshot(provider: currentProvider, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
+                catalogState = .failure(errorDetailText(error, fallback: testErrorText(error)))
+            }
+        }
+    }
+
+    private func resetCatalogState() {
+        catalogState = .idle
+        fetchedModels = []
+    }
+
+    private func isCurrentCatalogSnapshot(
+        provider: EmotionAnalysisProvider,
+        apiKey: String,
+        baseURL: String
+    ) -> Bool {
+        self.provider == provider && apiKeyInput == apiKey && baseURLInput == baseURL
     }
 
     private func saveApiKey(for provider: EmotionAnalysisProvider) {
@@ -455,7 +630,12 @@ struct EmotionAnalysisSettingsView: View {
                 testState = .success(result)
             } catch {
                 guard isCurrentTestSnapshot(provider: currentProvider, model: currentModel, apiKey: currentAPIKey, baseURL: currentBaseURL) else { return }
-                testState = .failure(testErrorText(error))
+                testState = .failure(
+                    label: testErrorText(error),
+                    detail: canTest
+                        ? errorDetailText(error, fallback: String(localized: "Could not verify this configuration."))
+                        : String(localized: "Add an API key to test this configuration.")
+                )
             }
         }
     }
@@ -479,6 +659,16 @@ struct EmotionAnalysisSettingsView: View {
 
     private func testResultText(_ result: EmotionAnalysisTestResult) -> String {
         "\(result.emotion.capitalized) \(String(format: "%.2f", result.intensity)) - \(result.latencyMilliseconds)ms"
+    }
+
+    /// The badge stays terse; the line under it carries whatever the endpoint actually said, which
+    /// is the only way to tell a model or base-URL mismatch apart from a plain bad key.
+    private func errorDetailText(_ error: Error, fallback: String) -> String {
+        guard let requestError = error as? EmotionAnalysisRequestError,
+              let description = requestError.errorDescription else {
+            return fallback
+        }
+        return description
     }
 
     private func testErrorText(_ error: Error) -> String {
