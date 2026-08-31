@@ -46,6 +46,7 @@ final class SessionData: Identifiable {
     private(set) var promptSubmitTime: Date?
     private(set) var permissionMode: String = "default"
     private(set) var gitBranch: String?
+    private(set) var gitPullRequest: GitPullRequest?
     private(set) var pendingQuestions: [PendingQuestion] = []
     private(set) var pendingQuestionResponseContext: PendingQuestionResponseContext?
     private(set) var currentSpinnerVerb: String
@@ -253,6 +254,10 @@ final class SessionData: Identifiable {
 
     func updateGitBranch(_ branch: String?) {
         gitBranch = branch
+    }
+
+    func updateGitPullRequest(_ pullRequest: GitPullRequest?) {
+        gitPullRequest = pullRequest
     }
 
     func updateClaudeRuntime(processId: Int?) {

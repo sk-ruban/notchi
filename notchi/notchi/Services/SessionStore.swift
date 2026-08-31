@@ -23,6 +23,9 @@ final class SessionStore {
     private var resolveCodexPermissionMode: @Sendable (String) -> String? = { transcriptPath in
         CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
     }
+    private var resolveGitPullRequest: @Sendable (String, String) -> GitPullRequest? = { branch, cwd in
+        GitPullRequestResolver.shared.pullRequest(forBranch: branch, repositoryAt: cwd)
+    }
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
 
@@ -273,12 +276,19 @@ final class SessionStore {
     private func refreshGitBranch(for session: SessionData, sessionKey: ProviderSessionKey, cwd: String) {
         let generation = (gitBranchGenerations[sessionKey] ?? 0) + 1
         gitBranchGenerations[sessionKey] = generation
+        let resolvePullRequest = resolveGitPullRequest
         Task.detached(priority: .utility) {
             let branch = GitBranchReader.branch(forRepositoryAt: cwd)
             await MainActor.run {
                 guard self.sessions[sessionKey] === session,
                       self.gitBranchGenerations[sessionKey] == generation else { return }
                 session.updateGitBranch(branch)
+            }
+            let pullRequest = branch.flatMap { resolvePullRequest($0, cwd) }
+            await MainActor.run {
+                guard self.sessions[sessionKey] === session,
+                      self.gitBranchGenerations[sessionKey] == generation else { return }
+                session.updateGitPullRequest(pullRequest)
             }
         }
     }
@@ -606,9 +616,16 @@ final class SessionStore {
         resolveCodexPermissionMode = resolver
     }
 
+    func setGitPullRequestResolverForTesting(_ resolver: @escaping @Sendable (String, String) -> GitPullRequest?) {
+        resolveGitPullRequest = resolver
+    }
+
     func resetTestingHooks() {
         resolveCodexPermissionMode = { transcriptPath in
             CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
+        }
+        resolveGitPullRequest = { branch, cwd in
+            GitPullRequestResolver.shared.pullRequest(forBranch: branch, repositoryAt: cwd)
         }
         resolveCodexMetadata = { transcriptPaths in
             CodexThreadMetadataResolver.metadata(forTranscriptPaths: transcriptPaths)

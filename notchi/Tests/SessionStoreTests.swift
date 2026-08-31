@@ -66,6 +66,34 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(session.permissionMode, CodexPermissionMode.fullAccess)
     }
 
+    func testGitPullRequestIsResolvedForTheSessionBranch() async throws {
+        let repo = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SessionStorePR-\(UUID().uuidString)")
+        let gitDir = repo.appendingPathComponent(".git")
+        try FileManager.default.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "ref: refs/heads/feat/pr-label\n"
+            .write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: repo) }
+
+        let expected = GitPullRequest(number: 116, url: "https://github.com/sk-ruban/notchi/pull/116")
+        SessionStore.shared.setGitPullRequestResolverForTesting { branch, _ in
+            branch == "feat/pr-label" ? expected : nil
+        }
+
+        let session = SessionStore.shared.process(makeEvent(
+            sessionId: "pr-label-\(UUID().uuidString)",
+            cwd: repo.path,
+            event: .userPromptSubmitted,
+            status: "processing"
+        ))
+
+        for _ in 0..<100 where session.gitPullRequest == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.gitPullRequest, expected)
+        XCTAssertEqual(session.gitBranch, "feat/pr-label")
+    }
+
     func testGitBranchIsResolvedOffMainActorAfterProcessingEvent() async throws {
         let repo = FileManager.default.temporaryDirectory
             .appendingPathComponent("SessionStoreGitBranch-\(UUID().uuidString)")

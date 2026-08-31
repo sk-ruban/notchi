@@ -25,6 +25,7 @@ struct TerminalColors {
     static let autoMode = Color(red: 255.0 / 255.0, green: 193.0 / 255.0, blue: 7.0 / 255.0)
     static let bypassPermissions = Color(red: 255.0 / 255.0, green: 107.0 / 255.0, blue: 128.0 / 255.0)
     static let gitBranch = Color(red: 137.0 / 255.0, green: 220.0 / 255.0, blue: 235.0 / 255.0)
+    static let pullRequest = Color(red: 94.0 / 255.0, green: 233.0 / 255.0, blue: 181.0 / 255.0).opacity(0.9)
 
     static let primaryText = Color.white.opacity(0.9)
     static let secondaryText = Color.white.opacity(0.5)
