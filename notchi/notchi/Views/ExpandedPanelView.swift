@@ -178,7 +178,7 @@ struct ExpandedPanelView: View {
     @Binding var isActivityCollapsed: Bool
     @Binding var hoveredSessionId: String?
     @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
-    @AppStorage(AppSettings.showGitBranchKey) private var showGitBranch = true
+    @AppStorage(AppSettings.showGitBranchAndPullRequestKey) private var showGitBranchAndPullRequest = true
     @AppStorage(AppSettings.mainUsageBarPeriodKey) private var mainUsageBarPeriodRaw = MainUsageBarPeriod.session.rawValue
     @Environment(\.panelScale) private var panelScale
 
@@ -730,7 +730,7 @@ struct ExpandedPanelView: View {
                                 color: TerminalColors.secondaryText
                             )
                             .layoutPriority(1)
-                            if showGitBranch, let branch = session.gitBranch {
+                            if showGitBranchAndPullRequest, let branch = session.gitBranch {
                                 GitBranchLabel(branch: branch)
                                 if let pullRequest = session.gitPullRequest {
                                     GitPullRequestLabel(pullRequest: pullRequest)

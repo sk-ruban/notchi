@@ -3769,36 +3769,36 @@
         }
       }
     },
-    "Show Git Branch" : {
+    "Show Git Branch & PR" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gitブランチを表示"
+            "value" : "GitブランチとPRを表示"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Git 브랜치 표시"
+            "value" : "Git 브랜치 및 PR 표시"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hiện nhánh Git"
+            "value" : "Hiện nhánh Git và PR"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "显示 Git 分支"
+            "value" : "显示 Git 分支和 PR"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "顯示 Git 分支"
+            "value" : "顯示 Git 分支與 PR"
           }
         }
       }

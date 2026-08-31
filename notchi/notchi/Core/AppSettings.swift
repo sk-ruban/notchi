@@ -188,7 +188,7 @@ enum ExpandedPanelScale: String, CaseIterable, Identifiable {
 struct AppSettings {
     static let showSpriteWhenIdleKey = "showSpriteWhenIdle"
     static let showGrassIslandKey = "showGrassIsland"
-    static let showGitBranchKey = "showGitBranch"
+    static let showGitBranchAndPullRequestKey = "showGitBranchAndPullRequest"
     static let expandOnHoverKey = "expandOnHover"
     static let panelToggleShortcutKey = "panelToggleShortcut"
     static let notchLeftContentKey = "notchLeftContent"
@@ -295,7 +295,7 @@ struct AppSettings {
         defaults.register(defaults: [
             showSpriteWhenIdleKey: true,
             showGrassIslandKey: true,
-            showGitBranchKey: true,
+            showGitBranchAndPullRequestKey: true,
         ])
     }
 
@@ -313,9 +313,9 @@ struct AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: showGrassIslandKey) }
     }
 
-    static var showGitBranch: Bool {
-        get { UserDefaults.standard.object(forKey: showGitBranchKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: showGitBranchKey) }
+    static var showGitBranchAndPullRequest: Bool {
+        get { UserDefaults.standard.object(forKey: showGitBranchAndPullRequestKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: showGitBranchAndPullRequestKey) }
     }
 
     static var expandOnHover: Bool {
