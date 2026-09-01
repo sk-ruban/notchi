@@ -229,8 +229,27 @@ final class SessionData: Identifiable {
         lastActivity = Date()
     }
 
+    private nonisolated static let harnessInjectedPromptMarkers = [
+        "<task-notification>",
+        "<system-reminder>",
+        "[SYSTEM NOTIFICATION",
+    ]
+
+    nonisolated static func isHarnessInjectedPrompt(_ prompt: String?) -> Bool {
+        guard let trimmed = prompt?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+        return harnessInjectedPromptMarkers.contains { trimmed.hasPrefix($0) }
+    }
+
     func recordUserPrompt(_ prompt: String?, hasAttachments: Bool = false) {
         let now = Date()
+        if Self.isHarnessInjectedPrompt(prompt) {
+            promptSubmitTime = now
+            lastActivity = now
+            if provider == .codex {
+                codexCompactionSignal = nil
+            }
+            return
+        }
         if let trimmedPrompt = prompt?.trimmingCharacters(in: .whitespacesAndNewlines),
            !trimmedPrompt.isEmpty {
             lastUserPrompt = String(trimmedPrompt.prefix(Self.storedPromptMaxLength))

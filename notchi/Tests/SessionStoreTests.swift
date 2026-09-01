@@ -312,6 +312,43 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertFalse(session.lastUserPromptHasAttachments)
     }
 
+    func testHarnessInjectedPromptsKeepThePreviousUserPrompt() {
+        let store = SessionStore.shared
+        let sessionId = "injected-prompt-\(UUID().uuidString)"
+
+        let session = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "fix the panel please"
+        ))
+        XCTAssertEqual(session.lastUserPrompt, "fix the panel please")
+
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "<task-notification>\n<task-id>abc</task-id>\n</task-notification>"
+        ))
+        XCTAssertEqual(session.lastUserPrompt, "fix the panel please")
+
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "[SYSTEM NOTIFICATION - NOT USER INPUT] something finished"
+        ))
+        XCTAssertEqual(session.lastUserPrompt, "fix the panel please")
+    }
+
+    func testIsHarnessInjectedPromptMatchesMarkersOnlyAtTheStart() {
+        XCTAssertTrue(SessionData.isHarnessInjectedPrompt("<task-notification>\nstuff"))
+        XCTAssertTrue(SessionData.isHarnessInjectedPrompt("  <system-reminder>\nstuff"))
+        XCTAssertFalse(SessionData.isHarnessInjectedPrompt("tell me about <task-notification> blocks"))
+        XCTAssertFalse(SessionData.isHarnessInjectedPrompt(nil))
+        XCTAssertFalse(SessionData.isHarnessInjectedPrompt("normal prompt"))
+    }
+
     func testLongPromptsAreStoredInFullButTruncatedInTheDisplayTitle() {
         let store = SessionStore.shared
         let longPrompt = String(repeating: "a", count: 500)
