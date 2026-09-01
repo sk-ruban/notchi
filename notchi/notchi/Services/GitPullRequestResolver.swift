@@ -5,6 +5,11 @@ nonisolated struct GitPullRequest: Equatable, Sendable {
     let url: String
 }
 
+nonisolated enum GitPullRequestLookup: Equatable, Sendable {
+    case resolved(GitPullRequest?)
+    case pending
+}
+
 nonisolated final class GitPullRequestResolver: @unchecked Sendable {
     static let shared = GitPullRequestResolver()
 
@@ -38,29 +43,41 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
     }
 
     func pullRequest(forBranch branch: String, repositoryAt cwd: String) -> GitPullRequest? {
+        if case .resolved(let pullRequest) = lookup(forBranch: branch, repositoryAt: cwd) {
+            return pullRequest
+        }
+        return nil
+    }
+
+    func lookup(forBranch branch: String, repositoryAt cwd: String) -> GitPullRequestLookup {
         let key = "\(cwd)\u{0}\(branch)"
         let current = now()
-        let cachedOrInFlight: (entry: CacheEntry?, alreadyFetching: Bool) = lock.withLock {
-            let entry = cache[key]
-            if let entry,
+        enum Gate { case cached(GitPullRequest?), inFlight, fetch }
+        let gate: Gate = lock.withLock {
+            if let entry = cache[key],
                current.timeIntervalSince(entry.fetchedAt) < (entry.pullRequest == nil ? Self.missCacheLifetime : Self.hitCacheLifetime) {
-                return (entry, true)
+                return .cached(entry.pullRequest)
             }
             if inFlightKeys.contains(key) {
-                return (entry, true)
+                return .inFlight
             }
             inFlightKeys.insert(key)
-            return (entry, false)
+            return .fetch
         }
-        if cachedOrInFlight.alreadyFetching {
-            return cachedOrInFlight.entry?.pullRequest
+        switch gate {
+        case .cached(let pullRequest):
+            return .resolved(pullRequest)
+        case .inFlight:
+            return .pending
+        case .fetch:
+            break
         }
         defer { lock.withLock { _ = inFlightKeys.remove(key) } }
 
         let pullRequest = fetch(branch, cwd).flatMap(Self.parse)
-        guard currentBranch(cwd) == branch else { return nil }
+        guard currentBranch(cwd) == branch else { return .pending }
         lock.withLock { cache[key] = CacheEntry(fetchedAt: current, pullRequest: pullRequest) }
-        return pullRequest
+        return .resolved(pullRequest)
     }
 
     static func parse(_ data: Data) -> GitPullRequest? {

@@ -66,6 +66,90 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(session.permissionMode, CodexPermissionMode.fullAccess)
     }
 
+    func testSwitchingBranchClearsPullRequestWhileLookupIsPending() async throws {
+        let repo = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SessionStorePRSwitch-\(UUID().uuidString)")
+        let gitDir = repo.appendingPathComponent(".git")
+        try FileManager.default.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "ref: refs/heads/feat/a\n"
+            .write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: repo) }
+
+        let prForA = GitPullRequest(number: 7, url: "https://github.com/sk-ruban/notchi/pull/7")
+        SessionStore.shared.setGitPullRequestResolverForTesting { branch, _ in
+            branch == "feat/a" ? .resolved(prForA) : .pending
+        }
+
+        let sessionId = "pr-switch-\(UUID().uuidString)"
+        let session = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            cwd: repo.path,
+            event: .userPromptSubmitted,
+            status: "processing"
+        ))
+        for _ in 0..<100 where session.gitPullRequest == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.gitPullRequest, prForA)
+
+        try "ref: refs/heads/feat/b\n"
+            .write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            cwd: repo.path,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+        for _ in 0..<100 where session.gitBranch != "feat/b" {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.gitBranch, "feat/b")
+        XCTAssertNil(session.gitPullRequest, "old branch's PR must not stay paired with the new branch")
+    }
+
+    func testSlowLookupStillPublishesWhenALaterEventArrivesFirst() async throws {
+        let repo = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SessionStorePRRace-\(UUID().uuidString)")
+        let gitDir = repo.appendingPathComponent(".git")
+        try FileManager.default.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "ref: refs/heads/feat/race\n"
+            .write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: repo) }
+
+        let pr = GitPullRequest(number: 9, url: "https://github.com/sk-ruban/notchi/pull/9")
+        let firstLookup = FirstCallGate()
+        SessionStore.shared.setGitPullRequestResolverForTesting { _, _ in
+            if firstLookup.claim() {
+                Thread.sleep(forTimeInterval: 0.2)
+                return .resolved(pr)
+            }
+            return .pending
+        }
+
+        let sessionId = "pr-race-\(UUID().uuidString)"
+        let session = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            cwd: repo.path,
+            event: .userPromptSubmitted,
+            status: "processing"
+        ))
+        for _ in 0..<100 where !firstLookup.hasClaimed {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(firstLookup.hasClaimed, "the first event's lookup must be in flight before the second event fires")
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            cwd: repo.path,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+
+        for _ in 0..<100 where session.gitPullRequest == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.gitPullRequest, pr, "slow lookup must publish even after a later event bumped the generation")
+    }
+
     func testGitPullRequestIsResolvedForTheSessionBranch() async throws {
         let repo = FileManager.default.temporaryDirectory
             .appendingPathComponent("SessionStorePR-\(UUID().uuidString)")
@@ -77,7 +161,7 @@ final class SessionStoreTests: XCTestCase {
 
         let expected = GitPullRequest(number: 116, url: "https://github.com/sk-ruban/notchi/pull/116")
         SessionStore.shared.setGitPullRequestResolverForTesting { branch, _ in
-            branch == "feat/pr-label" ? expected : nil
+            .resolved(branch == "feat/pr-label" ? expected : nil)
         }
 
         let session = SessionStore.shared.process(makeEvent(
@@ -1644,5 +1728,20 @@ final class SessionStoreTests: XCTestCase {
         }
 
         return condition()
+    }
+}
+
+private nonisolated final class FirstCallGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+
+    var hasClaimed: Bool { lock.withLock { claimed } }
+
+    func claim() -> Bool {
+        lock.withLock {
+            if claimed { return false }
+            claimed = true
+            return true
+        }
     }
 }

@@ -23,8 +23,8 @@ final class SessionStore {
     private var resolveCodexPermissionMode: @Sendable (String) -> String? = { transcriptPath in
         CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
     }
-    private var resolveGitPullRequest: @Sendable (String, String) -> GitPullRequest? = { branch, cwd in
-        GitPullRequestResolver.shared.pullRequest(forBranch: branch, repositoryAt: cwd)
+    private var resolveGitPullRequest: @Sendable (String, String) -> GitPullRequestLookup = { branch, cwd in
+        GitPullRequestResolver.shared.lookup(forBranch: branch, repositoryAt: cwd)
     }
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
@@ -282,12 +282,16 @@ final class SessionStore {
             await MainActor.run {
                 guard self.sessions[sessionKey] === session,
                       self.gitBranchGenerations[sessionKey] == generation else { return }
+                if session.gitBranch != branch {
+                    session.updateGitPullRequest(nil)
+                }
                 session.updateGitBranch(branch)
             }
-            let pullRequest = branch.flatMap { resolvePullRequest($0, cwd) }
+            let lookup = branch.map { resolvePullRequest($0, cwd) } ?? .resolved(nil)
             await MainActor.run {
                 guard self.sessions[sessionKey] === session,
-                      self.gitBranchGenerations[sessionKey] == generation else { return }
+                      session.gitBranch == branch,
+                      case .resolved(let pullRequest) = lookup else { return }
                 session.updateGitPullRequest(pullRequest)
             }
         }
@@ -616,7 +620,7 @@ final class SessionStore {
         resolveCodexPermissionMode = resolver
     }
 
-    func setGitPullRequestResolverForTesting(_ resolver: @escaping @Sendable (String, String) -> GitPullRequest?) {
+    func setGitPullRequestResolverForTesting(_ resolver: @escaping @Sendable (String, String) -> GitPullRequestLookup) {
         resolveGitPullRequest = resolver
     }
 
@@ -625,7 +629,7 @@ final class SessionStore {
             CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
         }
         resolveGitPullRequest = { branch, cwd in
-            GitPullRequestResolver.shared.pullRequest(forBranch: branch, repositoryAt: cwd)
+            GitPullRequestResolver.shared.lookup(forBranch: branch, repositoryAt: cwd)
         }
         resolveCodexMetadata = { transcriptPaths in
             CodexThreadMetadataResolver.metadata(forTranscriptPaths: transcriptPaths)

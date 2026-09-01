@@ -2,7 +2,7 @@ import XCTest
 @testable import notchi
 
 final class GitPullRequestResolverTests: XCTestCase {
-    private static let openPRJSON = Data(#"{"number":115,"url":"https://github.com/sk-ruban/notchi/pull/115","state":"OPEN"}"#.utf8)
+    private nonisolated static let openPRJSON = Data(#"{"number":115,"url":"https://github.com/sk-ruban/notchi/pull/115","state":"OPEN"}"#.utf8)
 
     func testParseReturnsOpenPullRequest() {
         XCTAssertEqual(
@@ -109,7 +109,7 @@ final class GitPullRequestResolverTests: XCTestCase {
         }
         XCTAssertEqual(fetchStarted.wait(timeout: .now() + 2), .success)
 
-        XCTAssertNil(resolver.pullRequest(forBranch: "main", repositoryAt: "/repo"))
+        XCTAssertEqual(resolver.lookup(forBranch: "main", repositoryAt: "/repo"), .pending)
         XCTAssertEqual(fetchCount.value, 1)
 
         releaseFetch.signal()
@@ -142,11 +142,12 @@ final class GitPullRequestResolverTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 5)
     }
 
-    func testRunProcessKillsProcessThatIgnoresSigterm() {
+    func testRunProcessKillsProcessThatIgnoresSigterm() throws {
+        let childPIDFile = try makeChildPIDFile()
         let start = Date()
         let output = GitPullRequestResolver.runProcess(
             executable: "/bin/sh",
-            arguments: ["-c", "trap \'\' TERM; sleep 30"],
+            arguments: ["-c", "trap \'\' TERM; sleep 30 & echo $! > \(childPIDFile.path); wait $!"],
             cwd: "/tmp",
             timeout: 0.3
         )
@@ -155,17 +156,31 @@ final class GitPullRequestResolverTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 8)
     }
 
-    func testRunProcessReturnsOutputWhenChildHoldsPipeOpen() {
+    func testRunProcessReturnsOutputWhenChildHoldsPipeOpen() throws {
+        let childPIDFile = try makeChildPIDFile()
         let start = Date()
         let output = GitPullRequestResolver.runProcess(
             executable: "/bin/sh",
-            arguments: ["-c", "sleep 30 & echo captured"],
+            arguments: ["-c", "sleep 30 & echo $! > \(childPIDFile.path); echo captured"],
             cwd: "/tmp",
             timeout: 5
         )
 
         XCTAssertEqual(output.flatMap { String(data: $0, encoding: .utf8) }, "captured\n")
         XCTAssertLessThan(Date().timeIntervalSince(start), 8)
+    }
+
+    private func makeChildPIDFile() throws -> URL {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GitPullRequestResolverTests-child-\(UUID().uuidString).pid")
+        addTeardownBlock {
+            if let pid = (try? String(contentsOf: file, encoding: .utf8))
+                .flatMap({ Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }) {
+                kill(pid, SIGKILL)
+            }
+            try? FileManager.default.removeItem(at: file)
+        }
+        return file
     }
 
     func testDifferentBranchesAreCachedSeparately() {
