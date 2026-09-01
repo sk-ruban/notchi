@@ -235,7 +235,7 @@ final class SessionStore {
     func displayTitle(for session: SessionData) -> String {
         let label = displaySessionLabel(for: session)
         if let detail = session.codexTitle ?? session.lastUserPrompt {
-            return "\(label) - \(detail)"
+            return "\(label) - \(detail.truncatedForPrompt())"
         }
         return label
     }

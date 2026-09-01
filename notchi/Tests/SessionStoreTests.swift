@@ -240,6 +240,22 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertFalse(session.lastUserPromptHasAttachments)
     }
 
+    func testLongPromptsAreStoredInFullButTruncatedInTheDisplayTitle() {
+        let store = SessionStore.shared
+        let longPrompt = String(repeating: "a", count: 500)
+        let session = store.process(makeEvent(
+            sessionId: "long-prompt-\(UUID().uuidString)",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: longPrompt
+        ))
+
+        XCTAssertEqual(session.lastUserPrompt, longPrompt)
+        let title = store.displayTitle(for: session)
+        XCTAssertTrue(title.hasSuffix("..."))
+        XCTAssertLessThan(title.count, 130)
+    }
+
     func testUserPromptSubmitTracksAttachmentStateSeparatelyFromPromptText() {
         let sessionId = "attached-prompt-\(UUID().uuidString)"
         let store = SessionStore.shared

@@ -61,6 +61,7 @@ final class SessionData: Identifiable {
     private var sleepTimer: Task<Void, Never>?
 
     private static let maxEvents = 20
+    private static let storedPromptMaxLength = 2000
     private static let maxAssistantMessages = 10
     private static let sleepDelay: Duration = .seconds(300)
 
@@ -232,7 +233,7 @@ final class SessionData: Identifiable {
         let now = Date()
         if let trimmedPrompt = prompt?.trimmingCharacters(in: .whitespacesAndNewlines),
            !trimmedPrompt.isEmpty {
-            lastUserPrompt = trimmedPrompt.truncatedForPrompt()
+            lastUserPrompt = String(trimmedPrompt.prefix(Self.storedPromptMaxLength))
         } else {
             lastUserPrompt = nil
         }
