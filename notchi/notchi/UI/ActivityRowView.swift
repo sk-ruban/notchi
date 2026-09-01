@@ -929,7 +929,12 @@ enum WorkingIndicatorPresentation {
         let seconds = Int(now.timeIntervalSince(start))
         guard seconds >= 1 else { return nil }
         return Duration.seconds(seconds).formatted(
-            .units(allowed: [.hours, .minutes, .seconds], width: .narrow, maximumUnitCount: 2)
+            .units(
+                allowed: [.hours, .minutes, .seconds],
+                width: .narrow,
+                maximumUnitCount: 2,
+                fractionalPart: .hide(rounded: .down)
+            )
             .locale(locale)
         )
     }

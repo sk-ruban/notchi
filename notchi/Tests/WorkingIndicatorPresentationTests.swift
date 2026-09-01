@@ -48,6 +48,7 @@ final class WorkingIndicatorPresentationTests: XCTestCase {
         XCTAssertEqual(display(after: 59), "59s")
         XCTAssertEqual(display(after: 94), "1m 34s")
         XCTAssertEqual(display(after: 3720), "1h 2m")
+        XCTAssertEqual(display(after: 7170), "1h 59m", "dropped seconds must not round the counter into the future")
     }
 
     func testElapsedDisplayLocalizesUnitsForJapanese() {
