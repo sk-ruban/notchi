@@ -150,6 +150,78 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(session.gitPullRequest, pr, "slow lookup must publish even after a later event bumped the generation")
     }
 
+    func testPushLikeToolCommandsInvalidateThePullRequestCache() {
+        let invalidated = InvalidationRecorder()
+        SessionStore.shared.setGitPullRequestCacheInvalidatorForTesting { cwd in
+            invalidated.record(cwd)
+        }
+        let sessionId = "pr-invalidate-\(UUID().uuidString)"
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            cwd: "/repo",
+            event: .postToolUse,
+            status: "processing",
+            tool: "Bash",
+            toolInput: ["command": AnyCodable("git push -u origin feat/x && gh pr create")]
+        ))
+        XCTAssertEqual(invalidated.values, ["/repo"])
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            cwd: "/repo",
+            event: .postToolUse,
+            status: "processing",
+            tool: "Bash",
+            toolInput: ["command": AnyCodable("git status")]
+        ))
+        XCTAssertEqual(invalidated.values, ["/repo"], "a read-only command must not invalidate")
+    }
+
+    func testCommandLikelyChangedPullRequestsMatchesPushAndGhPrOnly() {
+        XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("git push origin main"))
+        XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("git   push"))
+        XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("git -C /repo push"))
+        XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("git --no-pager push --force-with-lease"))
+        XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("cd /repo && git push"))
+        XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("gh pr merge 118 --rebase"))
+        XCTAssertFalse(SessionStore.commandLikelyChangedPullRequests("git pull --rebase"))
+        XCTAssertFalse(SessionStore.commandLikelyChangedPullRequests("gh project list"))
+        XCTAssertFalse(SessionStore.commandLikelyChangedPullRequests("echo \"git push\""))
+        XCTAssertFalse(SessionStore.commandLikelyChangedPullRequests("echo pushed"))
+    }
+
+    func testPeriodicSweepPicksUpANewPullRequestWithoutFurtherEvents() async throws {
+        let repo = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SessionStorePRSweep-\(UUID().uuidString)")
+        let gitDir = repo.appendingPathComponent(".git")
+        try FileManager.default.createDirectory(at: gitDir, withIntermediateDirectories: true)
+        try "ref: refs/heads/feat/sweep\n"
+            .write(to: gitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: repo) }
+
+        let pr = GitPullRequest(number: 118, url: "https://github.com/sk-ruban/notchi/pull/118")
+        let lookupCount = Counter()
+        SessionStore.shared.setGitRefreshIntervalForTesting(.milliseconds(50))
+        SessionStore.shared.setGitPullRequestResolverForTesting { _, _ in
+            lookupCount.increment()
+            return .resolved(lookupCount.value >= 2 ? pr : nil)
+        }
+
+        let session = SessionStore.shared.process(makeEvent(
+            sessionId: "pr-sweep-\(UUID().uuidString)",
+            cwd: repo.path,
+            event: .userPromptSubmitted,
+            status: "processing"
+        ))
+
+        for _ in 0..<200 where session.gitPullRequest == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(session.gitPullRequest, pr, "the periodic sweep must publish a PR that appears after the last event")
+        XCTAssertGreaterThanOrEqual(lookupCount.value, 2)
+    }
+
     func testGitPullRequestIsResolvedForTheSessionBranch() async throws {
         let repo = FileManager.default.temporaryDirectory
             .appendingPathComponent("SessionStorePR-\(UUID().uuidString)")
@@ -1760,4 +1832,18 @@ private nonisolated final class FirstCallGate: @unchecked Sendable {
             return true
         }
     }
+}
+
+private nonisolated final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+}
+
+private nonisolated final class InvalidationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [String] = []
+    var values: [String] { lock.withLock { recorded } }
+    func record(_ value: String) { lock.withLock { recorded.append(value) } }
 }

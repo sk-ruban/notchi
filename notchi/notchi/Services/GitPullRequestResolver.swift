@@ -14,7 +14,9 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
     static let shared = GitPullRequestResolver()
 
     private static let hitCacheLifetime: TimeInterval = 120
-    private static let missCacheLifetime: TimeInterval = 20
+    private static let missCacheBaseLifetime: TimeInterval = 20
+    private static let missCacheMaxLifetime: TimeInterval = 300
+    private static let maxFetchAttempts = 3
     private static let ghTimeout: TimeInterval = 10
     private static let killGrace: TimeInterval = 2
     private static let eofGrace: TimeInterval = 1
@@ -23,11 +25,24 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
     private struct CacheEntry {
         let fetchedAt: Date
         let pullRequest: GitPullRequest?
+        let consecutiveMisses: Int
+
+        var lifetime: TimeInterval {
+            pullRequest == nil
+                ? GitPullRequestResolver.missLifetime(consecutiveMisses: consecutiveMisses)
+                : GitPullRequestResolver.hitCacheLifetime
+        }
+    }
+
+    static func missLifetime(consecutiveMisses: Int) -> TimeInterval {
+        let exponent = max(0, consecutiveMisses - 1)
+        return min(missCacheBaseLifetime * pow(2, Double(exponent)), missCacheMaxLifetime)
     }
 
     private let lock = NSLock()
     private var cache: [String: CacheEntry] = [:]
     private var inFlightKeys: Set<String> = []
+    private var invalidationEpochs: [String: Int] = [:]
     private let fetch: @Sendable (String, String) -> Data?
     private let currentBranch: @Sendable (String) -> String?
     private let now: @Sendable () -> Date
@@ -40,6 +55,16 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         self.fetch = fetch
         self.currentBranch = currentBranch
         self.now = now
+    }
+
+    func invalidate(repositoryAt cwd: String) {
+        let prefix = "\(cwd)\u{0}"
+        lock.withLock {
+            invalidationEpochs[cwd, default: 0] += 1
+            for key in cache.keys where key.hasPrefix(prefix) {
+                cache.removeValue(forKey: key)
+            }
+        }
     }
 
     func pullRequest(forBranch branch: String, repositoryAt cwd: String) -> GitPullRequest? {
@@ -55,7 +80,7 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         enum Gate { case cached(GitPullRequest?), inFlight, fetch }
         let gate: Gate = lock.withLock {
             if let entry = cache[key],
-               current.timeIntervalSince(entry.fetchedAt) < (entry.pullRequest == nil ? Self.missCacheLifetime : Self.hitCacheLifetime) {
+               current.timeIntervalSince(entry.fetchedAt) < entry.lifetime {
                 return .cached(entry.pullRequest)
             }
             if inFlightKeys.contains(key) {
@@ -74,10 +99,22 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         }
         defer { lock.withLock { _ = inFlightKeys.remove(key) } }
 
-        let pullRequest = fetch(branch, cwd).flatMap(Self.parse)
-        guard currentBranch(cwd) == branch else { return .pending }
-        lock.withLock { cache[key] = CacheEntry(fetchedAt: current, pullRequest: pullRequest) }
-        return .resolved(pullRequest)
+        for _ in 0..<Self.maxFetchAttempts {
+            let epoch = lock.withLock { invalidationEpochs[cwd] ?? 0 }
+            let pullRequest = fetch(branch, cwd).flatMap(Self.parse)
+            guard currentBranch(cwd) == branch else { return .pending }
+            let fetchedAt = now()
+            let cached: Bool = lock.withLock {
+                guard (invalidationEpochs[cwd] ?? 0) == epoch else { return false }
+                let misses = pullRequest == nil ? (cache[key]?.consecutiveMisses ?? 0) + 1 : 0
+                cache[key] = CacheEntry(fetchedAt: fetchedAt, pullRequest: pullRequest, consecutiveMisses: misses)
+                return true
+            }
+            if cached {
+                return .resolved(pullRequest)
+            }
+        }
+        return .pending
     }
 
     static func parse(_ data: Data) -> GitPullRequest? {

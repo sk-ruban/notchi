@@ -26,8 +26,14 @@ final class SessionStore {
     private var resolveGitPullRequest: @Sendable (String, String) -> GitPullRequestLookup = { branch, cwd in
         GitPullRequestResolver.shared.lookup(forBranch: branch, repositoryAt: cwd)
     }
+    private var invalidateGitPullRequestCache: @Sendable (String) -> Void = { cwd in
+        GitPullRequestResolver.shared.invalidate(repositoryAt: cwd)
+    }
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
+    private var gitRefreshTask: Task<Void, Never>?
+    private var gitRefreshInterval: Duration = .seconds(30)
+    private static let gitRefreshActivityWindow: TimeInterval = 900
 
     private init() {}
 
@@ -138,7 +144,13 @@ final class SessionStore {
         } else if let mode = event.permissionMode {
             session.updatePermissionMode(mode)
         }
+        if event.event == .postToolUse,
+           let command = event.toolInput?["command"]?.value as? String,
+           Self.commandLikelyChangedPullRequests(command) {
+            invalidateGitPullRequestCache(event.cwd)
+        }
         refreshGitBranch(for: session, sessionKey: event.sessionKey, cwd: event.cwd)
+        ensureGitRefreshLoop()
 
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
@@ -271,6 +283,31 @@ final class SessionStore {
         }
 
         return session
+    }
+
+    nonisolated static func commandLikelyChangedPullRequests(_ command: String) -> Bool {
+        let gitPush = #"(^|[\s;&|(])git(\s+(-C\s+\S+|-\S+))*\s+push\b"#
+        let ghPr = #"(^|[\s;&|(])gh\s+pr\b"#
+        return command.range(of: gitPush, options: .regularExpression) != nil
+            || command.range(of: ghPr, options: .regularExpression) != nil
+    }
+
+    private func ensureGitRefreshLoop() {
+        guard gitRefreshTask == nil else { return }
+        gitRefreshTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: gitRefreshInterval)
+                guard !Task.isCancelled else { return }
+                if sessions.isEmpty {
+                    gitRefreshTask = nil
+                    return
+                }
+                let activityCutoff = Date().addingTimeInterval(-Self.gitRefreshActivityWindow)
+                for (sessionKey, session) in sessions where session.lastActivity > activityCutoff {
+                    refreshGitBranch(for: session, sessionKey: sessionKey, cwd: session.cwd)
+                }
+            }
+        }
     }
 
     private func refreshGitBranch(for session: SessionData, sessionKey: ProviderSessionKey, cwd: String) {
@@ -624,12 +661,28 @@ final class SessionStore {
         resolveGitPullRequest = resolver
     }
 
+    func setGitPullRequestCacheInvalidatorForTesting(_ invalidator: @escaping @Sendable (String) -> Void) {
+        invalidateGitPullRequestCache = invalidator
+    }
+
+    func setGitRefreshIntervalForTesting(_ interval: Duration) {
+        gitRefreshInterval = interval
+        gitRefreshTask?.cancel()
+        gitRefreshTask = nil
+    }
+
     func resetTestingHooks() {
+        gitRefreshInterval = .seconds(30)
+        gitRefreshTask?.cancel()
+        gitRefreshTask = nil
         resolveCodexPermissionMode = { transcriptPath in
             CodexPermissionModeReader.shared.mode(forTranscriptAt: transcriptPath)
         }
         resolveGitPullRequest = { branch, cwd in
             GitPullRequestResolver.shared.lookup(forBranch: branch, repositoryAt: cwd)
+        }
+        invalidateGitPullRequestCache = { cwd in
+            GitPullRequestResolver.shared.invalidate(repositoryAt: cwd)
         }
         resolveCodexMetadata = { transcriptPaths in
             CodexThreadMetadataResolver.metadata(forTranscriptPaths: transcriptPaths)

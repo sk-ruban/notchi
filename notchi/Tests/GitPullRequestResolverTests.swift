@@ -183,6 +183,75 @@ final class GitPullRequestResolverTests: XCTestCase {
         return file
     }
 
+    func testConsecutiveMissesBackOffExponentiallyUpToTheCap() {
+        XCTAssertEqual(GitPullRequestResolver.missLifetime(consecutiveMisses: 1), 20)
+        XCTAssertEqual(GitPullRequestResolver.missLifetime(consecutiveMisses: 2), 40)
+        XCTAssertEqual(GitPullRequestResolver.missLifetime(consecutiveMisses: 3), 80)
+        XCTAssertEqual(GitPullRequestResolver.missLifetime(consecutiveMisses: 6), 300)
+    }
+
+    func testSecondConsecutiveMissIsCachedForFortySeconds() {
+        let fetchCount = Counter()
+        let clock = MutableClock(Date(timeIntervalSinceReferenceDate: 1000))
+        let resolver = GitPullRequestResolver(
+            fetch: { _, _ in fetchCount.increment(); return nil },
+            currentBranch: { _ in "main" },
+            now: { clock.value }
+        )
+
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/repo")
+        clock.value = Date(timeIntervalSinceReferenceDate: 1021)
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/repo")
+        XCTAssertEqual(fetchCount.value, 2)
+
+        clock.value = Date(timeIntervalSinceReferenceDate: 1060)
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/repo")
+        XCTAssertEqual(fetchCount.value, 2, "second miss must be cached for forty seconds")
+
+        clock.value = Date(timeIntervalSinceReferenceDate: 1062)
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/repo")
+        XCTAssertEqual(fetchCount.value, 3)
+    }
+
+    func testInvalidationDuringAFetchDiscardsTheStaleResultAndRetries() {
+        let fetchCount = Counter()
+        let resolver = ResolverBox()
+        resolver.value = GitPullRequestResolver(
+            fetch: { _, _ in
+                fetchCount.increment()
+                if fetchCount.value == 1 {
+                    resolver.value?.invalidate(repositoryAt: "/repo")
+                    return nil
+                }
+                return Self.openPRJSON
+            },
+            currentBranch: { _ in "main" },
+            now: { Date(timeIntervalSinceReferenceDate: 1000) }
+        )
+
+        XCTAssertEqual(resolver.value?.pullRequest(forBranch: "main", repositoryAt: "/repo")?.number, 115)
+        XCTAssertEqual(fetchCount.value, 2, "the pre-invalidation result must be discarded and refetched")
+    }
+
+    func testInvalidateForcesRefetchWithinLifetimeForThatRepositoryOnly() {
+        let fetchCount = Counter()
+        let resolver = GitPullRequestResolver(
+            fetch: { _, _ in fetchCount.increment(); return Self.openPRJSON },
+            currentBranch: { _ in "main" },
+            now: { Date(timeIntervalSinceReferenceDate: 1000) }
+        )
+
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/repo")
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/other")
+        XCTAssertEqual(fetchCount.value, 2)
+
+        resolver.invalidate(repositoryAt: "/repo")
+
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/repo")
+        _ = resolver.pullRequest(forBranch: "main", repositoryAt: "/other")
+        XCTAssertEqual(fetchCount.value, 3)
+    }
+
     func testDifferentBranchesAreCachedSeparately() {
         let fetchCount = Counter()
         let resolver = GitPullRequestResolver(
@@ -228,5 +297,14 @@ private nonisolated final class MutableClock: @unchecked Sendable {
     var value: Date {
         get { lock.withLock { date } }
         set { lock.withLock { date = newValue } }
+    }
+}
+
+private nonisolated final class ResolverBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: GitPullRequestResolver?
+    var value: GitPullRequestResolver? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }
