@@ -178,6 +178,85 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(invalidated.values, ["/repo"], "a read-only command must not invalidate")
     }
 
+    func testCodexStylePushInvalidatesViaPreToolUseCommandAndPostToolUseCompletion() {
+        let invalidated = InvalidationRecorder()
+        SessionStore.shared.setGitPullRequestCacheInvalidatorForTesting { cwd in
+            invalidated.record(cwd)
+        }
+        let sessionId = "pr-armed-\(UUID().uuidString)"
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            cwd: "/repo",
+            event: .preToolUse,
+            status: "processing",
+            tool: "shell",
+            toolInput: ["command": AnyCodable("git push origin feat/x")]
+        ))
+        XCTAssertEqual(invalidated.values, [], "invalidation must wait until the command finished")
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            cwd: "/repo",
+            event: .postToolUse,
+            status: "processing",
+            tool: "shell"
+        ))
+        XCTAssertEqual(invalidated.values, ["/repo"])
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            cwd: "/repo",
+            event: .postToolUse,
+            status: "processing",
+            tool: "shell"
+        ))
+        XCTAssertEqual(invalidated.values, ["/repo"], "the armed invalidation must fire only once")
+    }
+
+    func testUnrelatedOverlappingCompletionDoesNotConsumeThePushInvalidation() {
+        let invalidated = InvalidationRecorder()
+        SessionStore.shared.setGitPullRequestCacheInvalidatorForTesting { cwd in
+            invalidated.record(cwd)
+        }
+        let sessionId = "pr-overlap-\(UUID().uuidString)"
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            cwd: "/repo",
+            event: .preToolUse,
+            status: "processing",
+            tool: "shell",
+            toolUseId: "push-call",
+            toolInput: ["command": AnyCodable("git push origin feat/x")]
+        ))
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            cwd: "/repo",
+            event: .postToolUse,
+            status: "processing",
+            tool: "shell",
+            toolUseId: "unrelated-call"
+        ))
+        XCTAssertEqual(invalidated.values, [], "an unrelated completion must not consume the push arm")
+
+        _ = SessionStore.shared.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            cwd: "/repo",
+            event: .postToolUse,
+            status: "processing",
+            tool: "shell",
+            toolUseId: "push-call"
+        ))
+        XCTAssertEqual(invalidated.values, ["/repo"], "the push completion itself must invalidate")
+    }
+
     func testCommandLikelyChangedPullRequestsMatchesPushAndGhPrOnly() {
         XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("git push origin main"))
         XCTAssertTrue(SessionStore.commandLikelyChangedPullRequests("git   push"))

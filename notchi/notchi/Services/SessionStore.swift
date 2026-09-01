@@ -31,6 +31,8 @@ final class SessionStore {
     }
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
+    private var armedPullRequestInvalidations: [ProviderSessionKey: Set<String>] = [:]
+    private static let anyToolUseArm = ""
     private var gitRefreshTask: Task<Void, Never>?
     private var gitRefreshInterval: Duration = .seconds(30)
     private static let gitRefreshActivityWindow: TimeInterval = 900
@@ -144,10 +146,23 @@ final class SessionStore {
         } else if let mode = event.permissionMode {
             session.updatePermissionMode(mode)
         }
-        if event.event == .postToolUse,
-           let command = event.toolInput?["command"]?.value as? String,
-           Self.commandLikelyChangedPullRequests(command) {
-            invalidateGitPullRequestCache(event.cwd)
+        let eventCommandChangesPullRequests = (event.toolInput?["command"]?.value as? String)
+            .map(Self.commandLikelyChangedPullRequests) ?? false
+        switch event.event {
+        case .preToolUse where eventCommandChangesPullRequests:
+            armedPullRequestInvalidations[event.sessionKey, default: []]
+                .insert(event.toolUseId ?? Self.anyToolUseArm)
+        case .postToolUse:
+            var consumedArm = false
+            if var armed = armedPullRequestInvalidations[event.sessionKey] {
+                consumedArm = armed.remove(event.toolUseId ?? Self.anyToolUseArm) != nil
+                armedPullRequestInvalidations[event.sessionKey] = armed.isEmpty ? nil : armed
+            }
+            if consumedArm || eventCommandChangesPullRequests {
+                invalidateGitPullRequestCache(event.cwd)
+            }
+        default:
+            break
         }
         refreshGitBranch(for: session, sessionKey: event.sessionKey, cwd: event.cwd)
         ensureGitRefreshLoop()
@@ -357,6 +372,7 @@ final class SessionStore {
         sessions.removeValue(forKey: sessionKey)
         gitBranchGenerations.removeValue(forKey: sessionKey)
         codexPermissionModeGenerations.removeValue(forKey: sessionKey)
+        armedPullRequestInvalidations.removeValue(forKey: sessionKey)
         recomputeDisplaySessionNumbers()
         postActiveSessionCountChange()
 
