@@ -445,14 +445,35 @@ struct NotchContentView: View {
         provider == .codex ? (codexSessionUsage ?? codexWeeklyUsage) : claudeUsage
     }
 
+    static func collapsedRingPercentage(
+        isUsageEnabled: Bool,
+        provider: AgentProvider,
+        claudeUsage: QuotaPeriod?,
+        codexSessionUsage: QuotaPeriod?,
+        codexWeeklyUsage: QuotaPeriod?
+    ) -> Int? {
+        guard isUsageEnabled else { return nil }
+        guard let percentage = collapsedRingUsage(
+            provider: provider,
+            claudeUsage: claudeUsage,
+            codexSessionUsage: codexSessionUsage,
+            codexWeeklyUsage: codexWeeklyUsage
+        )?.usagePercentage, percentage > 0 else { return nil }
+        return percentage
+    }
+
     private var usageRingPercentage: Int? {
-        guard AppSettings.isUsageEnabled else { return nil }
-        return Self.collapsedRingUsage(
+        Self.collapsedRingPercentage(
+            isUsageEnabled: AppSettings.isUsageEnabled,
             provider: ringProvider,
             claudeUsage: usageService.currentUsage,
             codexSessionUsage: codexUsageService.currentUsage,
             codexWeeklyUsage: codexUsageService.currentWeeklyUsage
-        )?.usagePercentage
+        )
+    }
+
+    private var isCollapsedRingVisible: Bool {
+        (leftContent == .ring || rightContent == .ring) && usageRingPercentage != nil
     }
 
     private var compactContentWidth: CGFloat {
@@ -634,6 +655,9 @@ struct NotchContentView: View {
             if count < 2 {
                 showingSessionActivity = false
             }
+        }
+        .onChange(of: isCollapsedRingVisible) { _, _ in
+            panelManager.refreshIdleMode()
         }
     }
 

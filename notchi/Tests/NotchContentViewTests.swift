@@ -126,6 +126,43 @@ final class NotchContentViewTests: XCTestCase {
         )
     }
 
+    func testCollapsedRingPercentageReturnsNonzeroUsage() {
+        XCTAssertEqual(
+            NotchContentView.collapsedRingPercentage(
+                isUsageEnabled: true,
+                provider: .claude,
+                claudeUsage: QuotaPeriod(utilization: 42, resetsAt: nil),
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil
+            ),
+            42
+        )
+    }
+
+    func testCollapsedRingPercentageHidesZeroUsage() {
+        XCTAssertNil(
+            NotchContentView.collapsedRingPercentage(
+                isUsageEnabled: true,
+                provider: .claude,
+                claudeUsage: QuotaPeriod(utilization: 0, resetsAt: nil),
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil
+            )
+        )
+    }
+
+    func testCollapsedRingPercentageHidesUsageWhenDisabled() {
+        XCTAssertNil(
+            NotchContentView.collapsedRingPercentage(
+                isUsageEnabled: false,
+                provider: .claude,
+                claudeUsage: QuotaPeriod(utilization: 42, resetsAt: nil),
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil
+            )
+        )
+    }
+
     func testGrassIslandRendersOnlyForExpandedActivityView() {
         XCTAssertTrue(
             NotchContentView.shouldRenderGrassIsland(

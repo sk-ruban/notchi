@@ -38,6 +38,7 @@ final class NotchPanelManager {
     private let hoverCollapseDelay: Duration
     private let isTextEditingActive: @MainActor () -> Bool
     private let activeSessionCountProvider: @MainActor () -> Int
+    private let collapsedRingVisibleProvider: @MainActor () -> Bool
     private let mouseLocationProvider: @MainActor () -> CGPoint
     private let collapsedHoverEnterFeedback: @MainActor () -> Void
     private let pinToggleFeedback: @MainActor () -> Void
@@ -84,6 +85,19 @@ final class NotchPanelManager {
         hoverExpandDelay: Duration = .milliseconds(300),
         hoverCollapseDelay: Duration = .milliseconds(500),
         activeSessionCountProvider: @escaping @MainActor () -> Int = { SessionStore.shared.activeSessionCount },
+        collapsedRingVisibleProvider: @escaping @MainActor () -> Bool = {
+            guard AppSettings.isUsageEnabled,
+                  AppSettings.notchLeftContent == .ring || AppSettings.notchRightContent == .ring else {
+                return false
+            }
+            return NotchContentView.collapsedRingPercentage(
+                isUsageEnabled: AppSettings.isUsageEnabled,
+                provider: AppSettings.lastUsedAgentProvider,
+                claudeUsage: ClaudeUsageService.shared.currentUsage,
+                codexSessionUsage: CodexUsageService.shared.currentUsage,
+                codexWeeklyUsage: CodexUsageService.shared.currentWeeklyUsage
+            ) != nil
+        },
         mouseLocationProvider: @escaping @MainActor () -> CGPoint = { NSEvent.mouseLocation },
         isTextEditingActive: @escaping @MainActor () -> Bool = {
             (NSApp.keyWindow as? NotchPanel)?.firstResponder is NSTextView
@@ -100,6 +114,7 @@ final class NotchPanelManager {
         self.hoverCollapseDelay = hoverCollapseDelay
         self.isTextEditingActive = isTextEditingActive
         self.activeSessionCountProvider = activeSessionCountProvider
+        self.collapsedRingVisibleProvider = collapsedRingVisibleProvider
         self.mouseLocationProvider = mouseLocationProvider
         self.collapsedHoverEnterFeedback = collapsedHoverEnterFeedback
         self.pinToggleFeedback = pinToggleFeedback
@@ -244,8 +259,8 @@ final class NotchPanelManager {
     }
 
     func refreshIdleMode() {
-        cachedShouldUseCompactIdle = !AppSettings.showSpriteWhenIdle(in: userDefaults)
-            && activeSessionCountProvider() == 0
+        cachedShouldUseCompactIdle = activeSessionCountProvider() == 0
+            && (!AppSettings.showSpriteWhenIdle(in: userDefaults) || !collapsedRingVisibleProvider())
 
         if !cachedShouldUseCompactIdle {
             cancelPendingHoverExitTask()

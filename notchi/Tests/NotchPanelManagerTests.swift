@@ -20,6 +20,14 @@ final class NotchPanelManagerTests: XCTestCase {
         }
     }
 
+    private final class RingVisibleBox {
+        var value: Bool
+
+        init(_ value: Bool) {
+            self.value = value
+        }
+    }
+
     private final class HoverFeedbackBox {
         var count = 0
     }
@@ -69,6 +77,48 @@ final class NotchPanelManagerTests: XCTestCase {
         XCTAssertEqual(manager.collapsedMode, .compactIdle)
         XCTAssertEqual(manager.compactNotchRect.width, manager.notchSize.width + 16, accuracy: 0.5)
         XCTAssertEqual(manager.activeCollapsedRect.width, manager.compactNotchRect.width, accuracy: 0.5)
+    }
+
+    func testNoSessionsWithHiddenRingEntersCompactIdleDespiteSpriteWhenIdleOn() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.showSpriteWhenIdleKey)
+        let sessionCount = SessionCountBox(0)
+        let ringVisible = RingVisibleBox(false)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, ringVisible: ringVisible)
+
+        configureGeometry(for: manager)
+
+        XCTAssertEqual(manager.collapsedMode, .compactIdle)
+        XCTAssertEqual(manager.activeCollapsedRect.width, manager.compactNotchRect.width, accuracy: 0.5)
+    }
+
+    func testRingBecomingVisibleExitsCompactIdle() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.showSpriteWhenIdleKey)
+        let sessionCount = SessionCountBox(0)
+        let ringVisible = RingVisibleBox(false)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, ringVisible: ringVisible)
+
+        configureGeometry(for: manager)
+        XCTAssertEqual(manager.collapsedMode, .compactIdle)
+
+        ringVisible.value = true
+        manager.refreshIdleMode()
+
+        XCTAssertEqual(manager.collapsedMode, .normalCollapsed)
+        XCTAssertEqual(manager.activeCollapsedRect.width, manager.notchRect.width, accuracy: 0.5)
+    }
+
+    func testHiddenRingWithActiveSessionKeepsNormalCollapsed() async {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: AppSettings.showSpriteWhenIdleKey)
+        let sessionCount = SessionCountBox(1)
+        let ringVisible = RingVisibleBox(false)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults, ringVisible: ringVisible)
+
+        configureGeometry(for: manager)
+
+        XCTAssertEqual(manager.collapsedMode, .normalCollapsed)
     }
 
     func testFirstSessionStartExitsCompactIdle() async {
@@ -753,6 +803,7 @@ final class NotchPanelManagerTests: XCTestCase {
         hoverCollapseDelay: Duration = .zero,
         notificationCenter: NotificationCenter = NotificationCenter(),
         mouseLocation: MouseLocationBox? = nil,
+        ringVisible: RingVisibleBox? = nil,
         hoverFeedback: HoverFeedbackBox? = nil,
         pinFeedback: PinFeedbackBox? = nil,
         isTextEditingActive: @escaping @MainActor () -> Bool = { false }
@@ -764,6 +815,7 @@ final class NotchPanelManagerTests: XCTestCase {
             hoverExpandDelay: hoverExpandDelay,
             hoverCollapseDelay: hoverCollapseDelay,
             activeSessionCountProvider: { sessionCount.value },
+            collapsedRingVisibleProvider: { ringVisible?.value ?? true },
             mouseLocationProvider: { mouseLocation?.value ?? .zero },
             isTextEditingActive: isTextEditingActive,
             collapsedHoverEnterFeedback: {
