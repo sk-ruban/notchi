@@ -23,7 +23,8 @@ struct TerminalFocusDetector {
         "com.jetbrains.intellij",
         "com.jetbrains.intellij.ce",
         "com.jetbrains.pycharm",
-        "com.jetbrains.pycharm.ce"
+        "com.jetbrains.pycharm.ce",
+        "com.t3tools.t3code"
     ]
 
     static func isTerminalFocused() -> Bool {

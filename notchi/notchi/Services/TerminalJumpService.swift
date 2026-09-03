@@ -28,13 +28,13 @@ struct TerminalJumpService {
 
     @discardableResult
     func jump(to session: SessionData) -> Bool {
-        if let url = Self.codexDesktopThreadURL(for: session) {
-            return openURL(url)
+        if let processId = Self.hostBackedProcessId(for: session),
+           let hostProcessId = terminalProcessID(hosting: processId) {
+            return activateProcess(hostProcessId)
         }
 
-        if let processId = Self.terminalBackedProcessId(for: session),
-           let terminalProcessId = terminalProcessID(hosting: processId) {
-            return activateProcess(terminalProcessId)
+        if let url = Self.codexDesktopThreadURL(for: session) {
+            return openURL(url)
         }
 
         return false
@@ -46,17 +46,6 @@ struct TerminalJumpService {
         }
 
         return codexDesktopThreadURL(threadId: session.rawSessionId)
-    }
-
-    static func codexCLIProcessId(for session: SessionData) -> pid_t? {
-        guard session.provider == .codex,
-              session.codexOrigin == .cli,
-              let processId = session.codexProcessId,
-              processId > 0 else {
-            return nil
-        }
-
-        return pid_t(processId)
     }
 
     static func claudeCodeProcessId(for session: SessionData) -> pid_t? {
@@ -109,8 +98,18 @@ struct TerminalJumpService {
         return nil
     }
 
-    private static func terminalBackedProcessId(for session: SessionData) -> pid_t? {
-        codexCLIProcessId(for: session) ?? claudeCodeProcessId(for: session)
+    private static func hostBackedProcessId(for session: SessionData) -> pid_t? {
+        codexProcessId(for: session) ?? claudeCodeProcessId(for: session)
+    }
+
+    private static func codexProcessId(for session: SessionData) -> pid_t? {
+        guard session.provider == .codex,
+              let processId = session.codexProcessId,
+              processId > 0 else {
+            return nil
+        }
+
+        return pid_t(processId)
     }
 
     private nonisolated static let threadIDAllowedCharacters: CharacterSet = {
