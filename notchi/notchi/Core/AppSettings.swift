@@ -106,10 +106,10 @@ enum NotchSlotContent: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .latest: String(localized: "Latest Session")
-        case .ring: String(localized: "Usage")
-        case .claude: "Claude"
-        case .codex: "Codex"
+        case .latest: String(localized: "Latest Session Mascot")
+        case .ring: String(localized: "Usage Ring")
+        case .claude: String(localized: "Claude Mascot")
+        case .codex: String(localized: "Codex Mascot")
         case .nothing: String(localized: "Nothing")
         }
     }
