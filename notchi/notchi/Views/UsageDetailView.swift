@@ -230,7 +230,7 @@ struct UsageDetailView: View {
                 color: TerminalColors.codexAccent,
                 report: codexCostStore.report)
         }
-        .padding(.top, 2)
+        .padding(.top, 5)
     }
 
     @ViewBuilder private func providerBreakdownRow(
@@ -240,12 +240,12 @@ struct UsageDetailView: View {
             HStack(spacing: 6) {
                 Circle().fill(color).frame(width: 6, height: 6)
                 Text(name)
-                    .panelFont(size: 12, weight: .semibold)
+                    .panelFont(size: 13, weight: .semibold)
                     .foregroundColor(TerminalColors.primaryText)
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Text(Self.breakdownDetail(report))
-                    .panelFont(size: 10)
+                    .panelFont(size: 11)
                     .foregroundColor(TerminalColors.secondaryText)
                     .lineLimit(1)
             }
