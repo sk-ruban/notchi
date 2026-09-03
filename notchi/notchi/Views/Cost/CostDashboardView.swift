@@ -223,6 +223,13 @@ struct CostDashboardView: View {
     private static let segmentGapPixels = 1.0
     private static let hoverGracePixels: CGFloat = 12
     private static let halfDay: TimeInterval = 43_200
+    private static func xDomain(_ r: DailyCostReport) -> ClosedRange<Date> {
+        let calendar = Calendar.current
+        let start = r.entries.first?.date ?? calendar.startOfDay(for: Date())
+        let lastDay = r.entries.last?.date ?? start
+        let end = calendar.date(byAdding: .day, value: 1, to: lastDay) ?? lastDay
+        return start ... end
+    }
 
     private static func stackedSegments(
         _ e: DailyCostReport.DayEntry, gap: Double) -> [StackedSegment]
@@ -291,6 +298,7 @@ struct CostDashboardView: View {
                     .opacity(selected == nil || selected?.id == e.id ? 1 : Self.unselectedDayOpacity)
             }
         }
+        .chartXScale(domain: Self.xDomain(r))
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartLegend(.hidden)
