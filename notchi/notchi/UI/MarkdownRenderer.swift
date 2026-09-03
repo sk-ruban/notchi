@@ -74,13 +74,14 @@ struct MarkdownText: View {
     }
 
     private func inlineMarkdownText(_ content: String) -> SwiftUI.Text {
-        let attributed = try? AttributedString(
+        FileChipText.render(
             markdown: content,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            surface: .panel,
+            baseColor: baseColor,
+            fontSize: fontSize,
+            fontScale: PanelTypography.fontScale(panelScale: panelScale)
         )
-        return SwiftUI.Text(attributed ?? AttributedString(content))
-            .font(.system(size: fontSize * PanelTypography.fontScale(panelScale: panelScale)))
-            .foregroundColor(baseColor)
+        .font(.system(size: fontSize * PanelTypography.fontScale(panelScale: panelScale)))
     }
 }
 
