@@ -783,7 +783,13 @@ struct NotchContentView: View {
     private func selectGrassSession(_ sessionId: String) {
         showingUsageDetail = false
         usageDetailProvider = nil
-        guard sessionStore.activeSessionCount >= 2 else { return }
+        guard sessionStore.activeSessionCount >= 2 else {
+            if let sessionKey = ProviderSessionKey(stableId: sessionId),
+               let session = sessionStore.sessions[sessionKey] {
+                TerminalJumpService.shared.jump(to: session)
+            }
+            return
+        }
 
         let shouldPlayHaptic = sessionStore.selectedSessionId != sessionId || !showingSessionActivity
         if shouldPlayHaptic {
