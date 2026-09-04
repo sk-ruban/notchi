@@ -30,6 +30,10 @@ struct ClaudeProviderAdapter: AgentProviderAdapter {
         guard let event = NormalizedAgentEvent.claudeEvent(named: envelope.event) else {
             return nil
         }
+        let prompt = UserPromptContentParser.parse(
+            envelope.userPrompt,
+            reportedHasAttachments: envelope.hasAttachments == true
+        )
 
         return HookEvent(
             provider: provider,
@@ -41,7 +45,10 @@ struct ClaudeProviderAdapter: AgentProviderAdapter {
             tool: envelope.tool,
             toolInput: envelope.toolInput,
             toolUseId: envelope.toolUseId,
-            userPrompt: envelope.userPrompt,
+            userPrompt: prompt.text,
+            userPromptHasAttachments: prompt.hasAttachments,
+            userPromptImageAttachments: prompt.imageAttachments,
+            userPromptHasOtherAttachments: prompt.hasOtherAttachments,
             permissionMode: envelope.permissionMode,
             permissionSuggestions: envelope.permissionSuggestions,
             interactive: envelope.interactive,

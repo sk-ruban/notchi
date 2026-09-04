@@ -105,6 +105,27 @@ final class AgentProviderAdapterTests: XCTestCase {
         XCTAssertEqual(event?.claudeProcessId, 12345)
     }
 
+    func testClaudeAdapterLeavesCodexStylePreambleIntact() throws {
+        let prompt = """
+        # Files mentioned by the user:
+
+        ## notes.md: /tmp/notes.md
+        """
+        let data = try JSONSerialization.data(withJSONObject: [
+            "session_id": "claude-session",
+            "cwd": "/tmp",
+            "event": "UserPromptSubmit",
+            "status": "processing",
+            "user_prompt": prompt,
+        ])
+        let envelope = try JSONDecoder().decode(AgentHookEnvelope.self, from: data)
+
+        let event = ClaudeProviderAdapter().normalize(envelope)
+
+        XCTAssertEqual(event?.userPrompt, prompt)
+        XCTAssertEqual(event?.userPromptHasAttachments, false)
+    }
+
     func testCodexAdapterNormalizesSupportedEnvelopeIntoHookEvent() throws {
         let data = try JSONSerialization.data(withJSONObject: [
             "provider": "codex",
@@ -211,6 +232,34 @@ final class AgentProviderAdapterTests: XCTestCase {
 
         XCTAssertNil(event?.userPrompt)
         XCTAssertEqual(event?.userPromptHasAttachments, true)
+    }
+
+    func testCodexAdapterExtractsT3ImageDescriptor() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "provider": "codex",
+            "session_id": "codex-session",
+            "cwd": "/tmp",
+            "event": "UserPromptSubmit",
+            "status": "processing",
+            "transcript_path": "/tmp/codex-rollout.jsonl",
+            "user_prompt": """
+            can you check this?
+
+            [Attached image "screenshot.png" is saved at: /Users/test/.t3/userdata/attachments/screenshot.png]
+            """,
+        ])
+        let envelope = try JSONDecoder().decode(AgentHookEnvelope.self, from: data)
+
+        let event = CodexProviderAdapter().normalize(envelope)
+
+        XCTAssertEqual(event?.userPrompt, "can you check this?")
+        XCTAssertEqual(event?.userPromptHasAttachments, true)
+        XCTAssertEqual(event?.userPromptImageAttachments, [
+            UserPromptImageAttachment(
+                displayName: "screenshot.png",
+                path: "/Users/test/.t3/userdata/attachments/screenshot.png"
+            ),
+        ])
     }
 
     func testCodexAdapterDropsUnsupportedEnvelope() throws {

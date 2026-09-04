@@ -268,7 +268,8 @@ struct ExpandedPanelView: View {
                !session.recentAssistantMessages.isEmpty ||
                session.isProcessing ||
                showIndicator ||
-               session.lastUserPrompt != nil
+               session.lastUserPrompt != nil ||
+               session.lastUserPromptHasAttachments
     }
 
     private var unifiedActivityItems: [ActivityItem] {
@@ -756,7 +757,8 @@ struct ExpandedPanelView: View {
                                     effectiveSession?.lastUserPromptHasAttachments == true {
                                     UserPromptBubbleView(
                                         text: effectiveSession?.lastUserPrompt,
-                                        hasAttachment: effectiveSession?.lastUserPromptHasAttachments == true
+                                        hasOtherAttachments: effectiveSession?.lastUserPromptHasOtherAttachments == true,
+                                        imageAttachments: effectiveSession?.lastUserPromptImageAttachments ?? []
                                     )
                                         .frame(maxWidth: .infinity, alignment: .trailing)
                                         .padding(.bottom, 8)

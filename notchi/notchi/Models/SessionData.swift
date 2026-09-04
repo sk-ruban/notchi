@@ -43,6 +43,8 @@ final class SessionData: Identifiable {
     private(set) var recentAssistantMessages: [AssistantMessage] = []
     private(set) var lastUserPrompt: String?
     private(set) var lastUserPromptHasAttachments: Bool = false
+    private(set) var lastUserPromptImageAttachments: [UserPromptImageAttachment] = []
+    private(set) var lastUserPromptHasOtherAttachments: Bool = false
     private(set) var promptSubmitTime: Date?
     private(set) var permissionMode: String = "default"
     private(set) var gitBranch: String?
@@ -240,7 +242,12 @@ final class SessionData: Identifiable {
         return harnessInjectedPromptMarkers.contains { trimmed.hasPrefix($0) }
     }
 
-    func recordUserPrompt(_ prompt: String?, hasAttachments: Bool = false) {
+    func recordUserPrompt(
+        _ prompt: String?,
+        hasAttachments: Bool = false,
+        imageAttachments: [UserPromptImageAttachment] = [],
+        hasOtherAttachments: Bool = false
+    ) {
         let now = Date()
         if Self.isHarnessInjectedPrompt(prompt) {
             promptSubmitTime = now
@@ -257,6 +264,8 @@ final class SessionData: Identifiable {
             lastUserPrompt = nil
         }
         lastUserPromptHasAttachments = hasAttachments
+        lastUserPromptImageAttachments = imageAttachments
+        lastUserPromptHasOtherAttachments = hasOtherAttachments
         promptSubmitTime = now
         if provider == .codex {
             codexCompactionSignal = nil

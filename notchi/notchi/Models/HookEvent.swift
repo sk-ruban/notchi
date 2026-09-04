@@ -105,6 +105,8 @@ struct HookEvent: Sendable {
     let toolUseId: String?
     let userPrompt: String?
     let userPromptHasAttachments: Bool
+    let userPromptImageAttachments: [UserPromptImageAttachment]
+    let userPromptHasOtherAttachments: Bool
     let permissionMode: String?
     let permissionSuggestions: [AnyCodable]?
     let interactive: Bool?
@@ -133,6 +135,8 @@ struct HookEvent: Sendable {
         toolUseId: String? = nil,
         userPrompt: String? = nil,
         userPromptHasAttachments: Bool = false,
+        userPromptImageAttachments: [UserPromptImageAttachment] = [],
+        userPromptHasOtherAttachments: Bool = false,
         permissionMode: String? = nil,
         permissionSuggestions: [AnyCodable]? = nil,
         interactive: Bool? = nil,
@@ -152,6 +156,8 @@ struct HookEvent: Sendable {
         self.toolUseId = toolUseId
         self.userPrompt = userPrompt
         self.userPromptHasAttachments = userPromptHasAttachments
+        self.userPromptImageAttachments = userPromptImageAttachments
+        self.userPromptHasOtherAttachments = userPromptHasOtherAttachments
         self.permissionMode = permissionMode
         self.permissionSuggestions = permissionSuggestions
         self.interactive = interactive

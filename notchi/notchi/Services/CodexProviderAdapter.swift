@@ -38,9 +38,10 @@ struct CodexProviderAdapter: AgentProviderAdapter {
             return nil
         }
 
-        let prompt = Self.displayPrompt(
-            from: envelope.userPrompt,
-            hasAttachments: envelope.hasAttachments == true
+        let prompt = UserPromptContentParser.parse(
+            envelope.userPrompt,
+            reportedHasAttachments: envelope.hasAttachments == true,
+            supportsFilesPreamble: true
         )
 
         return HookEvent(
@@ -55,6 +56,8 @@ struct CodexProviderAdapter: AgentProviderAdapter {
             toolUseId: envelope.toolUseId,
             userPrompt: prompt.text,
             userPromptHasAttachments: prompt.hasAttachments,
+            userPromptImageAttachments: prompt.imageAttachments,
+            userPromptHasOtherAttachments: prompt.hasOtherAttachments,
             permissionMode: envelope.permissionMode,
             interactive: envelope.interactive ?? true,
             codexProcessId: envelope.codexProcessId,
@@ -90,34 +93,6 @@ struct CodexProviderAdapter: AgentProviderAdapter {
 
     private nonisolated static func hasTranscriptPath(_ envelope: AgentHookEnvelope) -> Bool {
         !(envelope.transcriptPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-    }
-
-    private nonisolated static func displayPrompt(
-        from rawPrompt: String?,
-        hasAttachments: Bool
-    ) -> (text: String?, hasAttachments: Bool) {
-        let trimmedPrompt = rawPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let hasFilesPreamble = trimmedPrompt.hasPrefix("# Files mentioned by the user:")
-
-        let request: String
-        let lines = trimmedPrompt.components(separatedBy: .newlines)
-        if hasFilesPreamble,
-           let requestMarkerLineIndex = lines.firstIndex(where: {
-               $0.trimmingCharacters(in: .whitespaces) == "## My request for Codex:"
-           }) {
-            request = lines.dropFirst(requestMarkerLineIndex + 1)
-                .joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if hasFilesPreamble {
-            request = ""
-        } else {
-            request = trimmedPrompt
-        }
-
-        return (
-            text: request.isEmpty ? nil : request,
-            hasAttachments: hasAttachments || hasFilesPreamble
-        )
     }
 
     nonisolated static func resetTranscriptBackedSessionTrackingForTests() {

@@ -487,6 +487,26 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertNotNil(session.promptSubmitTime)
     }
 
+    func testUserPromptStoresImageAttachments() {
+        let store = SessionStore.shared
+        let attachment = UserPromptImageAttachment(
+            displayName: "screenshot.png",
+            path: "/tmp/screenshot.png"
+        )
+
+        let session = store.process(makeEvent(
+            sessionId: "image-attachment-\(UUID().uuidString)",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "look at this",
+            userPromptHasAttachments: true,
+            userPromptImageAttachments: [attachment]
+        ))
+
+        XCTAssertEqual(session.lastUserPrompt, "look at this")
+        XCTAssertEqual(session.lastUserPromptImageAttachments, [attachment])
+    }
+
     func testPermissionRequestForAskUserQuestionUsesProvidedOptions() {
         let store = SessionStore.shared
         let session = store.process(makeEvent(
@@ -1890,6 +1910,7 @@ final class SessionStoreTests: XCTestCase {
         status: String,
         userPrompt: String? = nil,
         userPromptHasAttachments: Bool = false,
+        userPromptImageAttachments: [UserPromptImageAttachment] = [],
         tool: String? = nil,
         toolUseId: String? = nil,
         toolInput: [String: AnyCodable]? = nil,
@@ -1909,6 +1930,7 @@ final class SessionStoreTests: XCTestCase {
             toolUseId: toolUseId,
             userPrompt: userPrompt,
             userPromptHasAttachments: userPromptHasAttachments,
+            userPromptImageAttachments: userPromptImageAttachments,
             permissionMode: permissionMode,
             permissionSuggestions: permissionSuggestions,
             interactive: true,
