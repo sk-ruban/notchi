@@ -49,11 +49,7 @@ struct AssistantTextRowView: View {
     }
 
     private var inlineMarkdownText: some View {
-        let attributed = try? AttributedString(
-            markdown: truncatedText,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )
-        return Text(attributed ?? AttributedString(truncatedText))
+        Text(FileChipText.inlineAttributed(truncatedText))
             .panelFont(size: 13)
             .foregroundColor(.white)
             .lineLimit(2)

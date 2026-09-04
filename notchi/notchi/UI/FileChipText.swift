@@ -65,7 +65,20 @@ enum FileChipText {
     enum Segment: Equatable {
         case plain(AttributedString)
         case code(String)
-        case chip(String)
+        case chip(String, link: URL? = nil)
+    }
+
+    static func inlineAttributed(_ markdown: String) -> AttributedString {
+        (try? AttributedString(
+            markdown: markdown,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(markdown)
+    }
+
+    private static func localFileLink(_ link: URL) -> URL? {
+        if link.isFileURL { return link }
+        guard link.scheme == nil, link.path.hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath: link.path)
     }
 
     static func segments(from attributed: AttributedString) -> [Segment] {
@@ -97,12 +110,12 @@ enum FileChipText {
 
             if isCode {
                 result.append(isFilenameShaped(text) ? .chip(text) : .code(text))
-            } else if run.link != nil {
+            } else if let link = run.link {
                 let basename = (text as NSString).lastPathComponent
-                if isFilenameShaped(basename) {
-                    result.append(.chip(basename))
+                if let fileLink = localFileLink(link), isFilenameShaped(basename) {
+                    result.append(.chip(basename, link: fileLink))
                 } else {
-                    appendPlainScanningFilenames(sub)
+                    result.append(.plain(sub))
                 }
             } else {
                 appendPlainScanningFilenames(sub)
@@ -127,10 +140,7 @@ enum FileChipText {
         fontSize: CGFloat,
         fontScale: CGFloat = 1
     ) -> Text {
-        let attributed = (try? AttributedString(
-            markdown: markdown,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )) ?? AttributedString(markdown)
+        let attributed = inlineAttributed(markdown)
 
         let scaledSize = fontSize * fontScale
         let chipFont = Font.system(size: scaledSize - 1, design: .monospaced).weight(.medium)
@@ -143,7 +153,7 @@ enum FileChipText {
                 output = output + SwiftUI.Text(sub).foregroundColor(baseColor)
             case .code(let code):
                 output = output + SwiftUI.Text(styled(code, surface: surface)).font(chipFont)
-            case .chip(let name):
+            case .chip(let name, let link):
                 if let icon = iconStyle(forFilename: name),
                    let image = sizedIcon(icon.assetName, pointSize: scaledSize - 2) {
                     output = output
@@ -151,18 +161,17 @@ enum FileChipText {
                             .foregroundColor(icon.tint)
                             .baselineOffset(-scaledSize * 0.1)
                         + SwiftUI.Text(verbatim: "\u{202F}")
-                        + SwiftUI.Text(styled(name, surface: surface)).font(chipFont)
-                } else {
-                    output = output + SwiftUI.Text(styled(name, surface: surface)).font(chipFont)
                 }
+                output = output + SwiftUI.Text(styled(name, surface: surface, link: link)).font(chipFont)
             }
         }
         return output
     }
 
-    private static func styled(_ text: String, surface: ChipSurface) -> AttributedString {
+    private static func styled(_ text: String, surface: ChipSurface, link: URL? = nil) -> AttributedString {
         var styled = AttributedString(text)
         styled.foregroundColor = surface.chipForeground
+        styled.link = link
         return styled
     }
 

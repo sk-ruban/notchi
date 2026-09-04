@@ -62,13 +62,60 @@ final class FileChipTextTests: XCTestCase {
         }
     }
 
-    func testSegmentsChipsFilenameLinksByBasename() throws {
+    func testSegmentsChipsFilenameLinksByBasenameAndKeepsLink() throws {
         let attributed = try AttributedString(
             markdown: "[NotchContentView.swift](/Users/ruban/notchi/NotchContentView.swift) emits logs",
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )
         let segments = FileChipText.segments(from: attributed)
 
-        XCTAssertTrue(segments.contains(.chip("NotchContentView.swift")))
+        XCTAssertEqual(segments.count, 2)
+        XCTAssertEqual(
+            segments[0],
+            .chip("NotchContentView.swift", link: URL(fileURLWithPath: "/Users/ruban/notchi/NotchContentView.swift"))
+        )
+    }
+
+    func testSegmentsKeepFileSchemeLinksOnChips() throws {
+        let attributed = try AttributedString(
+            markdown: "[Foo.swift](file:///Users/ruban/Foo.swift)",
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )
+        let segments = FileChipText.segments(from: attributed)
+
+        XCTAssertEqual(segments, [.chip("Foo.swift", link: URL(string: "file:///Users/ruban/Foo.swift"))])
+    }
+
+    func testSegmentsKeepWebLinksPlainWithLinkIntact() throws {
+        let attributed = try AttributedString(
+            markdown: "see [notchi.app](https://notchi.app) and [appcast.xml](https://updates.notchi.app/appcast.xml)",
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )
+        let segments = FileChipText.segments(from: attributed)
+
+        let linkedRuns = segments.compactMap { segment -> URL? in
+            guard case .plain(let sub) = segment else { return nil }
+            return sub.runs.first?.link
+        }
+        XCTAssertEqual(linkedRuns, [
+            URL(string: "https://notchi.app"),
+            URL(string: "https://updates.notchi.app/appcast.xml"),
+        ])
+        XCTAssertFalse(segments.contains { if case .chip = $0 { return true } else { return false } })
+    }
+
+    func testInlineAttributedRendersBoldWithoutLiteralAsterisks() {
+        let rendered = FileChipText.inlineAttributed("fix the **P2** issue")
+        XCTAssertEqual(String(rendered.characters), "fix the P2 issue")
+
+        let boldRun = rendered.runs.first { run in
+            run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+        }
+        XCTAssertEqual(boldRun.map { String(rendered.characters[$0.range]) }, "P2")
+    }
+
+    func testInlineAttributedPreservesNewlinesAndIgnoresBlockSyntax() {
+        let rendered = FileChipText.inlineAttributed("- first line\nsecond line")
+        XCTAssertEqual(String(rendered.characters), "- first line\nsecond line")
     }
 }
