@@ -278,6 +278,31 @@ final class TerminalJumpServiceTests: XCTestCase {
         XCTAssertEqual(activatedProcessIds, [10])
     }
 
+    func testCodexDesktopSessionFallsBackToThreadURLWhenHostActivationFails() {
+        let session = SessionData(sessionId: "thread-123", provider: .codex, cwd: "/tmp/project")
+        session.updateCodexRuntime(processId: 30, origin: .desktop)
+        var openedURLs: [URL] = []
+        var activatedProcessIds: [pid_t] = []
+        let service = makeService(
+            openURL: { url in
+                openedURLs.append(url)
+                return true
+            },
+            processSnapshot: { self.makeSnapshot(parentProcessId: Self.terminalAncestry[$0]) },
+            bundleIdentifierForProcess: { Self.t3CodeBundles[$0] },
+            activateProcess: { processId in
+                activatedProcessIds.append(processId)
+                return false
+            }
+        )
+
+        let didJump = service.jump(to: session)
+
+        XCTAssertTrue(didJump)
+        XCTAssertEqual(activatedProcessIds, [10])
+        XCTAssertEqual(openedURLs.map(\.absoluteString), ["codex://threads/thread-123"])
+    }
+
     func testCodexDesktopSessionHostedByCodexAppOpensThreadURL() {
         let session = SessionData(sessionId: "thread-123", provider: .codex, cwd: "/tmp/project")
         session.updateCodexRuntime(processId: 30, origin: .desktop)

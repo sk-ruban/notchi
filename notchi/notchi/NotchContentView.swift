@@ -785,7 +785,7 @@ struct NotchContentView: View {
         usageDetailProvider = nil
         guard sessionStore.activeSessionCount >= 2 else {
             if let sessionKey = ProviderSessionKey(stableId: sessionId),
-               let session = sessionStore.sessions[sessionKey] {
+               let session = sessionStore.session(for: sessionKey) {
                 TerminalJumpService.shared.jump(to: session)
             }
             return

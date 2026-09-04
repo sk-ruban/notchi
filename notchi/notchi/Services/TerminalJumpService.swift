@@ -29,8 +29,9 @@ struct TerminalJumpService {
     @discardableResult
     func jump(to session: SessionData) -> Bool {
         if let processId = Self.hostBackedProcessId(for: session),
-           let hostProcessId = terminalProcessID(hosting: processId) {
-            return activateProcess(hostProcessId)
+           let hostProcessId = terminalProcessID(hosting: processId),
+           activateProcess(hostProcessId) {
+            return true
         }
 
         if let url = Self.codexDesktopThreadURL(for: session) {
