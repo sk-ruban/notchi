@@ -49,6 +49,18 @@ final class FileChipTextTests: XCTestCase {
         XCTAssertEqual(segments[1], .chip("NotchPanelManager.swift"))
     }
 
+    func testSegmentsChipsBareFilenamesWithDottedBasenames() throws {
+        let attributed = try AttributedString(
+            markdown: "edit vite.config.ts and My.App.swift",
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )
+        let segments = FileChipText.segments(from: attributed)
+
+        XCTAssertEqual(segments.count, 4)
+        XCTAssertEqual(segments[1], .chip("vite.config.ts"))
+        XCTAssertEqual(segments[3], .chip("My.App.swift"))
+    }
+
     func testSegmentsIgnoresBareTokensWithUnknownExtensions() throws {
         let attributed = try AttributedString(
             markdown: "bump to v1.2.5 today",

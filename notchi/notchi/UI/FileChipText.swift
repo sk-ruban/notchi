@@ -59,7 +59,7 @@ enum FileChipText {
 
     private static let knownExtensionPattern: Regex<AnyRegexOutput>? = {
         let exts = chippableExtensions.sorted { $0.count > $1.count }.joined(separator: "|")
-        return try? Regex("\\b[A-Za-z0-9_][A-Za-z0-9_+-]*\\.(?:\(exts))\\b")
+        return try? Regex("\\b[A-Za-z0-9_][A-Za-z0-9_.+-]*\\.(?:\(exts))\\b")
     }()
 
     enum Segment: Equatable {
