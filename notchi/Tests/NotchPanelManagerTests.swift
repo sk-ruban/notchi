@@ -771,6 +771,41 @@ final class NotchPanelManagerTests: XCTestCase {
         XCTAssertEqual(received.value, 2)
     }
 
+    func testExpandForDictationWhenCollapsedAutoCollapsesAfterDictation() async {
+        let defaults = makeDefaults()
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+        configureGeometry(for: manager)
+
+        XCTAssertFalse(manager.isExpanded)
+
+        manager.expandForDictation()
+        XCTAssertTrue(manager.isExpanded)
+        XCTAssertFalse(manager.wasExpandedBeforeDictation)
+
+        manager.collapseAfterDictation()
+        XCTAssertFalse(manager.isExpanded)
+        XCTAssertFalse(manager.wasExpandedBeforeDictation)
+    }
+
+    func testExpandForDictationWhenAlreadyExpandedRemainsExpandedAfterDictation() async {
+        let defaults = makeDefaults()
+        let sessionCount = SessionCountBox(0)
+        let manager = makeManager(sessionCount: sessionCount, defaults: defaults)
+        configureGeometry(for: manager)
+
+        manager.expand()
+        XCTAssertTrue(manager.isExpanded)
+
+        manager.expandForDictation()
+        XCTAssertTrue(manager.isExpanded)
+        XCTAssertTrue(manager.wasExpandedBeforeDictation)
+
+        manager.collapseAfterDictation()
+        XCTAssertTrue(manager.isExpanded)
+        XCTAssertFalse(manager.wasExpandedBeforeDictation)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "NotchPanelManagerTests-\(UUID().uuidString)"
         defaultsSuiteNames.append(suiteName)

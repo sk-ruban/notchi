@@ -60,3 +60,7 @@ tmp/
 
 # Download tracking
 docs/downloads.csv
+
+# whisper.cpp build (regenerate via scripts/build-whisper-xcframework.sh)
+/build/whisper-src/
+/third_party/whisper.xcframework/

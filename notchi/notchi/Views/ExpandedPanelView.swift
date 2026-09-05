@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 private struct PanelSwapTransitionModifier: ViewModifier {
@@ -411,6 +412,47 @@ struct ExpandedPanelView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                        if SpeechToTextService.shared.phase != .idle {
+                            DictationBoxView(
+                                service: SpeechToTextService.shared,
+                                targetLabel: effectiveSession.map { sessionStore.displaySessionLabel(for: $0) },
+                                onSend: { _ in
+                                    Task { @MainActor in
+                                        let result = await SpeechToTextService.shared.send(
+                                            using: { text, session in
+                                                await PromptInjectionService.shared.inject(
+                                                    text,
+                                                    into: session,
+                                                    fallbackAppPID: SpeechToTextService.shared.originAppPID
+                                                )
+                                            },
+                                            targetSession: effectiveSession
+                                        )
+                                        if result == .sent {
+                                            NotchPanelManager.shared.collapseAfterDictation()
+                                        }
+                                    }
+                                },
+                                onCTA: { cta in
+                                    switch cta {
+                                    case .grantAccessibility: DictationPermission.requestAccessibility()
+                                    case .downloadModel:
+                                        if let model = WhisperCatalog.model(id: AppSettings.dictationModelId) {
+                                            Task { try? await WhisperModelStore.shared.download(model) }
+                                        }
+                                    case .grantMicrophone: AVCaptureDevice.requestAccess(for: .audio) { _ in }
+                                    case .retry: SpeechToTextService.shared.startRecording()
+                                    case .noSession, .sessionNotInjectable, .none: break
+                                    }
+                                },
+                                onCancel: {
+                                    SpeechToTextService.shared.reset()
+                                    NotchPanelManager.shared.collapseAfterDictation()
+                                }
+                            )
+                            .padding(.horizontal, 12)
+                        }
 
                         if !isShowingUsageDetail {
                             sharedUsageBar

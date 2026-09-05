@@ -14,17 +14,18 @@ ATTEMPT2_LOG_PATH="${BUILD_ROOT}/test-attempt-2.log"
 
 usage() {
     cat <<'EOF'
-Usage: ./scripts/test.sh [focused|all]
+Usage: ./scripts/test.sh [focused|all|dictation]
 
 Presets:
-  focused   Run the most frequently touched suites (default)
-  all       Run the full test suite
+  focused    Run the most frequently touched suites (default)
+  dictation  Run the speech dictation test suites
+  all        Run the full test suite
 EOF
 }
 
 preset="${1:-focused}"
 case "$preset" in
-    focused|all)
+    focused|all|dictation)
         ;;
     -h|--help)
         usage
@@ -38,6 +39,11 @@ esac
 
 mkdir -p "$BUILD_ROOT"
 
+if [[ ! -d "third_party/whisper.xcframework" ]]; then
+    echo "===> whisper.xcframework missing; building via scripts/build-whisper-xcframework.sh..."
+    ./scripts/build-whisper-xcframework.sh
+fi
+
 TEST_ARGS=()
 if [[ "$preset" == "focused" ]]; then
     TEST_ARGS=(
@@ -50,6 +56,15 @@ if [[ "$preset" == "focused" ]]; then
         "-only-testing:Tests/CostHistoryStoreTests"
         "-only-testing:Tests/ClaudeModelPricingTests"
         "-only-testing:Tests/HookScriptImportIsolationTests"
+    )
+elif [[ "$preset" == "dictation" ]]; then
+    TEST_ARGS=(
+        "-only-testing:Tests/AppSettingsDictationTests"
+        "-only-testing:Tests/DictationPresentationTests"
+        "-only-testing:Tests/PromptInjectionServiceTests"
+        "-only-testing:Tests/PushToTalkServiceTests"
+        "-only-testing:Tests/SpeechToTextServiceTests"
+        "-only-testing:Tests/WhisperModelStoreTests"
     )
 fi
 

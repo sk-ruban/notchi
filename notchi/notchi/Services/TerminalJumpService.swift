@@ -1,5 +1,8 @@
 import AppKit
 import Darwin
+import os.log
+
+nonisolated private let logger = Logger(subsystem: "com.ruban.notchi", category: "TerminalJump")
 
 @MainActor
 struct TerminalJumpService {
@@ -49,6 +52,121 @@ struct TerminalJumpService {
 
     func hostBundleIdentifier(hosting processId: pid_t) -> String? {
         terminalProcessID(hosting: processId).flatMap(bundleIdentifierForProcess)
+    }
+
+    // The pid of the terminal app hosting the session's CLI process — the
+    // target for direct key-event injection (CGEvent.postToPid).
+    func terminalProcessId(for session: SessionData) -> pid_t? {
+        guard let processId = Self.terminalBackedProcessId(for: session),
+              let terminalProcessId = terminalProcessID(hosting: processId) else {
+            return nil
+        }
+        return terminalProcessId
+    }
+
+    /// Injects `text` (as a submitted line) straight into the terminal tab hosting
+    /// `session`, in the BACKGROUND — no focus/activation — via AppleScript keyed
+    /// by the CLI process's controlling tty. Returns:
+    ///   • true  → delivered
+    ///   • false → scriptable terminal but delivery failed (tab gone / Automation denied)
+    ///   • nil   → terminal not scriptable or tty unknown; caller should fall back
+    func injectViaScript(_ text: String, into session: SessionData) async -> Bool? {
+        guard let cliPID = Self.terminalBackedProcessId(for: session),
+              let terminalPID = terminalProcessID(hosting: cliPID),
+              let bundleId = bundleIdentifierForProcess(terminalPID),
+              let tty = Self.controllingTTY(of: cliPID),
+              let script = Self.writeTextScript(bundleId: bundleId, tty: tty, text: text) else {
+            return nil
+        }
+        return await Self.runAppleScript(script)
+    }
+
+    private nonisolated static func controllingTTY(of pid: pid_t) -> String? {
+        var info = proc_bsdinfo()
+        let size = MemoryLayout<proc_bsdinfo>.size
+        let result = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(size))
+        guard result == Int32(size) else { return nil }
+        let dev = dev_t(bitPattern: info.e_tdev)
+        guard dev != -1, let name = devname(dev, S_IFCHR) else { return nil }
+        return "/dev/" + String(cString: name)
+    }
+
+    // ponytail: newlines flattened to spaces — dictated speech is single-line and
+    // an embedded newline in a terminal write submits early; preserve multiline
+    // only if a real need shows up.
+    private nonisolated static func escapeForAppleScript(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+    }
+
+    // Only Terminal.app and iTerm2 can write into a specific tab by tty without
+    // focusing it. Every other "terminal" in the supported list (Warp, kitty,
+    // VSCode/JetBrains integrated terminals, …) has no such API → nil, caller falls back.
+    private nonisolated static func writeTextScript(bundleId: String, tty: String, text: String) -> String? {
+        let escaped = escapeForAppleScript(text)
+        switch bundleId {
+        case "com.apple.Terminal":
+            return """
+            tell application "Terminal"
+                repeat with w in windows
+                    repeat with t in tabs of w
+                        if tty of t is "\(tty)" then
+                            do script "\(escaped)" in t
+                            return "ok"
+                        end if
+                    end repeat
+                end repeat
+            end tell
+            return "notfound"
+            """
+        case "com.googlecode.iterm2":
+            return """
+            tell application "iTerm2"
+                repeat with w in windows
+                    repeat with t in tabs of w
+                        repeat with s in sessions of t
+                            if tty of s is "\(tty)" then
+                                tell s to write text "\(escaped)"
+                                return "ok"
+                            end if
+                        end repeat
+                    end repeat
+                end repeat
+            end tell
+            return "notfound"
+            """
+        default:
+            return nil
+        }
+    }
+
+    // Runs off the main thread via `osascript` so a slow/busy Terminal (or an
+    // Automation prompt) never freezes the notch UI. Returns true only when the
+    // script printed "ok" (tab found + written).
+    private nonisolated static func runAppleScript(_ source: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                process.arguments = ["-e", source]
+                let stdout = Pipe()
+                process.standardOutput = stdout
+                process.standardError = Pipe()
+                do {
+                    try process.run()
+                } catch {
+                    logger.error("tab-write osascript failed to launch: \(error.localizedDescription, privacy: .public)")
+                    continuation.resume(returning: false)
+                    return
+                }
+                process.waitUntilExit()
+                let data = stdout.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                continuation.resume(returning: process.terminationStatus == 0 && output == "ok")
+            }
+        }
     }
 
     static func codexDesktopThreadURL(for session: SessionData) -> URL? {

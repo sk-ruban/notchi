@@ -22,5 +22,9 @@
 	<string>ZfouVFLXx9vyEimCHW+JWgAtikAq19KsWbig7FkB2QA=</string>
 	<key>SUVerifyUpdateBeforeExtraction</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Notchi transcribes your speech on-device so you can dictate prompts from the notch.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Notchi focuses the terminal tab of the session you selected so dictated prompts land in the right place.</string>
 </dict>
 </plist>
