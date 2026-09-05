@@ -26,6 +26,9 @@ final class SessionStore {
     private var resolveGitPullRequest: @Sendable (String, String) -> GitPullRequestLookup = { branch, cwd in
         GitPullRequestResolver.shared.lookup(forBranch: branch, repositoryAt: cwd)
     }
+    private var resolveHostBundleIdentifier: @MainActor (pid_t) -> String? = { processId in
+        TerminalJumpService.shared.hostBundleIdentifier(hosting: processId)
+    }
     private var invalidateGitPullRequestCache: @Sendable (String) -> Void = { cwd in
         GitPullRequestResolver.shared.invalidate(repositoryAt: cwd)
     }
@@ -167,8 +170,12 @@ final class SessionStore {
         refreshGitBranch(for: session, sessionKey: event.sessionKey, cwd: event.cwd)
         ensureGitRefreshLoop()
 
+        let previousHostProcessId = session.hostProcessId
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
+        if let hostProcessId = session.hostProcessId, hostProcessId != previousHostProcessId {
+            session.updateHostBundleIdentifier(resolveHostBundleIdentifier(pid_t(hostProcessId)))
+        }
         if event.provider == .codex, let transcriptPath = event.transcriptPath {
             session.updateCodexThreadMetadata(
                 transcriptPath: transcriptPath,
@@ -684,6 +691,16 @@ final class SessionStore {
 
     func setGitPullRequestCacheInvalidatorForTesting(_ invalidator: @escaping @Sendable (String) -> Void) {
         invalidateGitPullRequestCache = invalidator
+    }
+
+    func setHostBundleIdentifierResolverForTesting(_ resolver: @escaping @MainActor (pid_t) -> String?) {
+        resolveHostBundleIdentifier = resolver
+    }
+
+    func resetHostBundleIdentifierResolverForTesting() {
+        resolveHostBundleIdentifier = { processId in
+            TerminalJumpService.shared.hostBundleIdentifier(hosting: processId)
+        }
     }
 
     func setGitRefreshIntervalForTesting(_ interval: Duration) {
