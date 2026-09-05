@@ -55,6 +55,7 @@ final class SessionData: Identifiable {
     private(set) var claudeProcessId: Int?
     private(set) var codexProcessId: Int?
     private(set) var codexOrigin: CodexOrigin?
+    private(set) var hostBundleIdentifier: String?
     private(set) var codexTitle: String?
     private(set) var codexTranscriptPath: String?
     private(set) var codexArchived: Bool = false
@@ -105,6 +106,10 @@ final class SessionData: Identifiable {
 
     var isCodexThreadBacked: Bool {
         provider == .codex && codexTranscriptPath != nil
+    }
+
+    var hostProcessId: Int? {
+        provider == .codex ? codexProcessId : claudeProcessId
     }
 
     // Sprite positioning constants (normalized 0..1 range for X, points for Y)
@@ -307,6 +312,10 @@ final class SessionData: Identifiable {
         if let origin {
             codexOrigin = origin
         }
+    }
+
+    func updateHostBundleIdentifier(_ bundleIdentifier: String?) {
+        hostBundleIdentifier = bundleIdentifier.flatMap { $0.isEmpty ? nil : $0 }
     }
 
     func updateCodexTitle(_ title: String?) {

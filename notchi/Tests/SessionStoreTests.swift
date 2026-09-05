@@ -487,6 +487,63 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertNotNil(session.promptSubmitTime)
     }
 
+    func testProcessResolvesHostBundleIdentifierOnceForNewProcessId() {
+        let store = SessionStore.shared
+        var resolvedProcessIds: [pid_t] = []
+        store.setHostBundleIdentifierResolverForTesting { processId in
+            resolvedProcessIds.append(processId)
+            return "com.t3tools.t3code"
+        }
+        defer { store.resetHostBundleIdentifierResolverForTesting() }
+        let sessionId = "host-resolution-\(UUID().uuidString)"
+
+        let session = store.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            event: .sessionStarted,
+            status: "waiting_for_input",
+            codexProcessId: 42
+        ))
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            event: .stop,
+            status: "waiting_for_input",
+            codexProcessId: 42
+        ))
+
+        XCTAssertEqual(session.hostBundleIdentifier, "com.t3tools.t3code")
+        XCTAssertEqual(resolvedProcessIds, [42])
+    }
+
+    func testProcessClearsHostBundleIdentifierWhenNewProcessHasNoSupportedHost() {
+        let store = SessionStore.shared
+        store.setHostBundleIdentifierResolverForTesting { processId in
+            processId == 42 ? "com.t3tools.t3code" : nil
+        }
+        defer { store.resetHostBundleIdentifierResolverForTesting() }
+        let sessionId = "host-migration-\(UUID().uuidString)"
+
+        let session = store.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            event: .sessionStarted,
+            status: "waiting_for_input",
+            codexProcessId: 42
+        ))
+        XCTAssertEqual(session.hostBundleIdentifier, "com.t3tools.t3code")
+
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            event: .stop,
+            status: "waiting_for_input",
+            codexProcessId: 43
+        ))
+
+        XCTAssertNil(session.hostBundleIdentifier)
+    }
+
     func testUserPromptStoresImageAttachments() {
         let store = SessionStore.shared
         let attachment = UserPromptImageAttachment(
@@ -1916,7 +1973,9 @@ final class SessionStoreTests: XCTestCase {
         toolInput: [String: AnyCodable]? = nil,
         permissionSuggestions: [AnyCodable]? = nil,
         interactionRequestId: String? = nil,
-        permissionMode: String? = nil
+        permissionMode: String? = nil,
+        claudeProcessId: Int? = nil,
+        codexProcessId: Int? = nil
     ) -> HookEvent {
         HookEvent(
             provider: provider,
@@ -1934,6 +1993,8 @@ final class SessionStoreTests: XCTestCase {
             permissionMode: permissionMode,
             permissionSuggestions: permissionSuggestions,
             interactive: true,
+            claudeProcessId: claudeProcessId,
+            codexProcessId: codexProcessId,
             interactionRequestId: interactionRequestId
         )
     }

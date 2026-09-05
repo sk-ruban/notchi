@@ -13,25 +13,31 @@ struct TerminalJumpService {
     private let processSnapshot: @MainActor (pid_t) -> ProcessSnapshot?
     private let bundleIdentifierForProcess: @MainActor (pid_t) -> String?
     private let activateProcess: @MainActor (pid_t) -> Bool
+    private let activateApplication: @MainActor (String) -> Bool
 
     init(
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         processSnapshot: @escaping @MainActor (pid_t) -> ProcessSnapshot? = Self.defaultProcessSnapshot,
         bundleIdentifierForProcess: @escaping @MainActor (pid_t) -> String? = Self.defaultBundleIdentifier,
-        activateProcess: @escaping @MainActor (pid_t) -> Bool = Self.defaultActivateProcess
+        activateProcess: @escaping @MainActor (pid_t) -> Bool = Self.defaultActivateProcess,
+        activateApplication: @escaping @MainActor (String) -> Bool = Self.defaultActivateApplication
     ) {
         self.openURL = openURL
         self.processSnapshot = processSnapshot
         self.bundleIdentifierForProcess = bundleIdentifierForProcess
         self.activateProcess = activateProcess
+        self.activateApplication = activateApplication
     }
 
     @discardableResult
     func jump(to session: SessionData) -> Bool {
         if let processId = Self.hostBackedProcessId(for: session),
-           let hostProcessId = terminalProcessID(hosting: processId),
-           activateProcess(hostProcessId) {
-            return true
+           let hostProcessId = terminalProcessID(hosting: processId) {
+            return activateProcess(hostProcessId)
+        }
+
+        if let hostBundleIdentifier = session.hostBundleIdentifier {
+            return activateApplication(hostBundleIdentifier)
         }
 
         if let url = Self.codexDesktopThreadURL(for: session) {
@@ -39,6 +45,10 @@ struct TerminalJumpService {
         }
 
         return false
+    }
+
+    func hostBundleIdentifier(hosting processId: pid_t) -> String? {
+        terminalProcessID(hosting: processId).flatMap(bundleIdentifierForProcess)
     }
 
     static func codexDesktopThreadURL(for session: SessionData) -> URL? {
@@ -140,6 +150,14 @@ struct TerminalJumpService {
 
     private static func defaultActivateProcess(_ processId: pid_t) -> Bool {
         guard let app = NSRunningApplication(processIdentifier: processId) else {
+            return false
+        }
+
+        return app.activate()
+    }
+
+    private static func defaultActivateApplication(_ bundleIdentifier: String) -> Bool {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
             return false
         }
 
