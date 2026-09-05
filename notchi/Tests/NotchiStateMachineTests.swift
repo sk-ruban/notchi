@@ -365,6 +365,33 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
     }
 
+    func testCodexDesktopSessionHostedByKnownAppEndsAfterProcessMisses() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.isCodexProcessAlive = { _ in false }
+        SessionStore.shared.setHostBundleIdentifierResolverForTesting { _ in "com.t3tools.t3code" }
+        defer { SessionStore.shared.resetHostBundleIdentifierResolverForTesting() }
+        let sessionId = "codex-hosted-exit-\(UUID().uuidString)"
+        let sessionKey = ProviderSessionKey(provider: .codex, rawSessionId: sessionId)
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello",
+            codexProcessId: 12345,
+            codexOrigin: .desktop
+        ))
+
+        XCTAssertEqual(SessionStore.shared.session(for: sessionKey)?.hostBundleIdentifier, "com.t3tools.t3code")
+
+        stateMachine.reconcileCodexProcessLivenessForTesting()
+        XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
+
+        stateMachine.reconcileCodexProcessLivenessForTesting()
+        XCTAssertNil(SessionStore.shared.session(for: sessionKey))
+    }
+
     func testArchivedCodexThreadRemovesSessionOnMetadataReconcile() {
         let stateMachine = NotchiStateMachine.shared
         stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
