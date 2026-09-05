@@ -7,6 +7,10 @@ struct SettingsAppearanceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
+            IslandBackgroundSettingsView()
+
+            Divider().background(Color.white.opacity(0.08))
+
             ScreenPickerRow(screenSelector: ScreenSelector.shared)
 
             PanelSizeSettingsView()
@@ -23,7 +27,7 @@ struct SettingsAppearanceView: View {
             .buttonStyle(.plain)
 
             Button(action: { showGrassIsland.toggle() }) {
-                SettingsRowView(icon: "leaf", title: "Show Grass Island") {
+                SettingsRowView(icon: "leaf", title: "Show Island") {
                     ToggleSwitch(isOn: showGrassIsland)
                 }
             }
@@ -275,4 +279,41 @@ private struct NotchLayoutSettingsView: View {
         }
     }
 
+}
+
+private struct IslandBackgroundSettingsView: View {
+    @AppStorage(AppSettings.islandBackgroundKey) private var backgroundRaw = IslandBackground.grassland.rawValue
+
+    private var selection: IslandBackground { IslandBackground.resolve(backgroundRaw) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SettingsLayout.pickerInset) {
+            SettingsRowView(icon: "photo", title: "Island Background") {
+                EmptyView()
+            }
+
+            HStack(spacing: 8) {
+                ForEach(IslandBackground.allCases) { option in
+                    Button(action: { backgroundRaw = option.rawValue }) {
+                        IslandBackgroundView(background: option)
+                            .frame(height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .padding(6)
+                            .frame(maxWidth: .infinity)
+                            .background(TerminalColors.subtleBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(selection == option ? TerminalColors.green : .clear, lineWidth: 1)
+                            }
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NoHighlightButtonStyle())
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(option.displayName)
+                    .accessibilityAddTraits(selection == option ? .isSelected : [])
+                }
+            }
+        }
+    }
 }

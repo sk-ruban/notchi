@@ -187,6 +187,7 @@ enum ExpandedPanelScale: String, CaseIterable, Identifiable {
 
 struct AppSettings {
     static let showSpriteWhenIdleKey = "showSpriteWhenIdle"
+    static let islandBackgroundKey = "islandBackground"
     static let showGrassIslandKey = "showGrassIsland"
     static let showGitBranchAndPullRequestKey = "showGitBranchAndPullRequest"
     static let expandOnHoverKey = "expandOnHover"
@@ -306,6 +307,15 @@ struct AppSettings {
     static var showSpriteWhenIdle: Bool {
         get { showSpriteWhenIdle(in: .standard) }
         set { UserDefaults.standard.set(newValue, forKey: showSpriteWhenIdleKey) }
+    }
+
+    static func islandBackground(in defaults: UserDefaults) -> IslandBackground {
+        IslandBackground.resolve(defaults.string(forKey: islandBackgroundKey))
+    }
+
+    static var islandBackground: IslandBackground {
+        get { islandBackground(in: .standard) }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: islandBackgroundKey) }
     }
 
     static var showGrassIsland: Bool {
