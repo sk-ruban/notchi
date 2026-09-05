@@ -516,6 +516,37 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(resolvedProcessIds, [42])
     }
 
+    func testProcessRejectsProcessIdsThatDoNotFitInPid() {
+        let store = SessionStore.shared
+        var resolvedProcessIds: [pid_t] = []
+        store.setHostBundleIdentifierResolverForTesting { processId in
+            resolvedProcessIds.append(processId)
+            return "com.t3tools.t3code"
+        }
+        defer { store.resetHostBundleIdentifierResolverForTesting() }
+        let outOfRangeProcessId = Int(Int32.max) + 1
+
+        let codexSession = store.process(makeEvent(
+            sessionId: "oversized-codex-pid-\(UUID().uuidString)",
+            provider: .codex,
+            event: .sessionStarted,
+            status: "waiting_for_input",
+            codexProcessId: outOfRangeProcessId
+        ))
+        let claudeSession = store.process(makeEvent(
+            sessionId: "oversized-claude-pid-\(UUID().uuidString)",
+            event: .sessionStarted,
+            status: "waiting_for_input",
+            claudeProcessId: outOfRangeProcessId
+        ))
+
+        XCTAssertNil(codexSession.codexProcessId)
+        XCTAssertNil(claudeSession.claudeProcessId)
+        XCTAssertNil(codexSession.hostBundleIdentifier)
+        XCTAssertNil(claudeSession.hostBundleIdentifier)
+        XCTAssertTrue(resolvedProcessIds.isEmpty)
+    }
+
     func testProcessClearsHostBundleIdentifierWhenNewProcessHasNoSupportedHost() {
         let store = SessionStore.shared
         store.setHostBundleIdentifierResolverForTesting { processId in
