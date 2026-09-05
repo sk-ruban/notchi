@@ -96,8 +96,8 @@ final class SessionData: Identifiable {
         return nil
     }
 
-    var isCodexCLIProcessBacked: Bool {
-        provider == .codex && codexOrigin == .cli && codexProcessId != nil
+    var isCodexProcessMonitored: Bool {
+        provider == .codex && codexProcessId != nil && (codexOrigin == .cli || hostBundleIdentifier != nil)
     }
 
     var isClaudeProcessBacked: Bool {

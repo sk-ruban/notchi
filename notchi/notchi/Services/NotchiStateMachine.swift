@@ -296,7 +296,7 @@ final class NotchiStateMachine {
     }
 
     private func reconcileCodexProcessLiveness() {
-        let trackedSessions = sessionStore.sessions.values.filter { $0.isCodexCLIProcessBacked }
+        let trackedSessions = sessionStore.sessions.values.filter { $0.isCodexProcessMonitored }
         let trackedKeys = Set(trackedSessions.map(\.sessionKey))
         codexProcessMissCounts = codexProcessMissCounts.filter { trackedKeys.contains($0.key) }
 
@@ -411,7 +411,7 @@ final class NotchiStateMachine {
     }
 
     private func refreshCodexProcessMonitoring() {
-        let shouldMonitor = sessionStore.sessions.values.contains { $0.isCodexCLIProcessBacked }
+        let shouldMonitor = sessionStore.sessions.values.contains { $0.isCodexProcessMonitored }
 
         if shouldMonitor {
             guard codexProcessMonitorTask == nil else { return }
