@@ -7,9 +7,9 @@ import os.log
 nonisolated private let logger = Logger(subsystem: "com.ruban.notchi", category: "PromptInjection")
 
 nonisolated protocol KeyEventPosting {
-    /// Types `text` then Return into the app owning `pid` — via synthesized
-    /// Unicode key events, so the clipboard is never touched.
-    func postTextAndReturn(_ text: String, toPID pid: pid_t)
+    /// Types `text` into the app owning `pid` via synthesized Unicode key events.
+    /// If `withReturn` is true, posts a Return key event immediately after typing.
+    func postText(_ text: String, toPID pid: pid_t, withReturn: Bool)
 }
 
 @MainActor
@@ -26,6 +26,7 @@ struct PromptInjectionService {
     // fallback so keystrokes are never posted into an unrelated app.
     private let isTerminalPID: @MainActor (pid_t) -> Bool
     private let accessibilityTrusted: @Sendable () -> Bool
+    private let activateProcess: @MainActor (pid_t) -> Bool
 
     init(
         poster: KeyEventPosting = CGEventKeyPoster(),
@@ -35,13 +36,15 @@ struct PromptInjectionService {
             guard let bundleId = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier else { return false }
             return TerminalFocusDetector.terminalBundleIds.contains(bundleId)
         },
-        accessibilityTrusted: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() }
+        accessibilityTrusted: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() },
+        activateProcess: @escaping @MainActor (pid_t) -> Bool = { NSRunningApplication(processIdentifier: $0)?.activate() ?? false }
     ) {
         self.poster = poster
         self.scriptInject = scriptInject
         self.resolveTerminalPID = resolveTerminalPID
         self.isTerminalPID = isTerminalPID
         self.accessibilityTrusted = accessibilityTrusted
+        self.activateProcess = activateProcess
     }
 
     // Not `nonisolated`: `codexOrigin` is a mutable, MainActor-isolated property
@@ -77,9 +80,10 @@ struct PromptInjectionService {
             return .failed
         }
 
-        // Fallback (non-scriptable terminals, e.g. VSCode/Warp): type the text +
-        // Return into the terminal's focused tab. Needs Accessibility and is NOT
-        // background — it lands wherever that terminal is focused.
+        // Fallback (non-scriptable terminals, e.g. VSCode/Warp): type the text into
+        // the terminal. Needs Accessibility and is NOT background — it requires
+        // the target terminal to be activated so keystrokes are not sent to an
+        // arbitrary background window.
         guard accessibilityTrusted() else {
             logger.error("inject: accessibility not trusted; cannot post key events")
             return .needsAccessibility
@@ -101,8 +105,18 @@ struct PromptInjectionService {
             return .failed
         }
 
-        poster.postTextAndReturn(text, toPID: targetPID)
-        logger.info("inject: typed text to pid \(targetPID, privacy: .public) for \(session.provider.rawValue, privacy: .public) session (fallback)")
+        // Activate the target terminal so the user sees the receiving window
+        // and keystrokes are received by the active focus rather than lost or
+        // misdirected to a background process.
+        _ = activateProcess(targetPID)
+
+        // If dictation started from this exact terminal app (i.e. frontmost when
+        // hotkey held), the user was already in this context: send Return to submit.
+        // Otherwise, the terminal was in the background: type the text WITHOUT
+        // Return so the user can verify the target tab/pane before executing.
+        let isInitiatedFromTarget = (fallbackAppPID == targetPID)
+        poster.postText(text, toPID: targetPID, withReturn: isInitiatedFromTarget)
+        logger.info("inject: typed text to pid \(targetPID, privacy: .public) for \(session.provider.rawValue, privacy: .public) session (fallback, withReturn=\(isInitiatedFromTarget, privacy: .public))")
         return .sent
     }
 }
@@ -111,12 +125,14 @@ struct PromptInjectionService {
 struct CGEventKeyPoster: KeyEventPosting {
     nonisolated init() {}
 
-    nonisolated func postTextAndReturn(_ text: String, toPID pid: pid_t) {
+    nonisolated func postText(_ text: String, toPID pid: pid_t, withReturn: Bool) {
         let source = CGEventSource(stateID: .combinedSessionState)
         // WHY: type the prompt as Unicode key events instead of a ⌘V paste, so we
         // never overwrite the user's clipboard (string OR rich data).
         typeUnicode(text, source: source, pid: pid)
-        postKey(CGKeyCode(kVK_Return), source: source, pid: pid)
+        if withReturn {
+            postKey(CGKeyCode(kVK_Return), source: source, pid: pid)
+        }
     }
 
     nonisolated private func typeUnicode(_ text: String, source: CGEventSource?, pid: pid_t) {

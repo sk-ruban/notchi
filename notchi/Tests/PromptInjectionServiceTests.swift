@@ -7,8 +7,12 @@ final class PromptInjectionServiceTests: XCTestCase {
         var callCount = 0
         var lastText: String?
         var lastPID: pid_t?
-        func postTextAndReturn(_ text: String, toPID pid: pid_t) {
-            callCount += 1; lastText = text; lastPID = pid
+        var lastWithReturn: Bool?
+        func postText(_ text: String, toPID pid: pid_t, withReturn: Bool) {
+            callCount += 1
+            lastText = text
+            lastPID = pid
+            lastWithReturn = withReturn
         }
     }
 
@@ -37,14 +41,20 @@ final class PromptInjectionServiceTests: XCTestCase {
 
     // MARK: - Background script path (preferred)
 
-    func testScriptInjectDeliversInBackgroundWithoutKeystrokes() async {
+    func testScriptInjectDeliversInBackgroundWithoutKeystrokesOrActivation() async {
         let poster = FakePoster()
+        var activatedPID: pid_t?
         let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
-        let service = makeService(poster: poster, scriptInject: { _, _ in true })
+        let service = makeService(
+            poster: poster,
+            scriptInject: { _, _ in true },
+            activateProcess: { activatedPID = $0; return true }
+        )
 
         let result = await service.inject("run tests", into: session)
         XCTAssertEqual(result, .sent)
         XCTAssertEqual(poster.callCount, 0, "background path must not synthesize keystrokes")
+        XCTAssertNil(activatedPID, "background script path must not steal focus/activate app")
     }
 
     func testScriptInjectFailureReturnsFailed() async {
@@ -56,16 +66,44 @@ final class PromptInjectionServiceTests: XCTestCase {
 
     // MARK: - Fallback keystroke path (non-scriptable terminals; scriptInject → nil)
 
-    func testFallbackTypesTextToResolvedPid() async {
+    func testFallbackTypesTextWithReturnWhenInitiatedFromTargetTerminal() async {
         let poster = FakePoster()
+        var activatedPID: pid_t?
         let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
-        let service = makeService(poster: poster, resolvePID: { _ in 4321 })
+        let service = makeService(
+            poster: poster,
+            resolvePID: { _ in 4321 },
+            activateProcess: { activatedPID = $0; return true }
+        )
 
-        let result = await service.inject("run tests", into: session)
+        // fallbackAppPID == targetPID indicates dictation started from this terminal
+        let result = await service.inject("run tests", into: session, fallbackAppPID: 4321)
         XCTAssertEqual(result, .sent)
         XCTAssertEqual(poster.callCount, 1)
         XCTAssertEqual(poster.lastText, "run tests")
         XCTAssertEqual(poster.lastPID, 4321)
+        XCTAssertEqual(poster.lastWithReturn, true, "should submit Return when initiated from target terminal")
+        XCTAssertEqual(activatedPID, 4321, "should activate target terminal")
+    }
+
+    func testFallbackTypesTextWithoutReturnWhenTargetWasInBackground() async {
+        let poster = FakePoster()
+        var activatedPID: pid_t?
+        let session = SessionData(sessionId: "c", provider: .claude, cwd: "/tmp")
+        let service = makeService(
+            poster: poster,
+            resolvePID: { _ in 4321 },
+            activateProcess: { activatedPID = $0; return true }
+        )
+
+        // fallbackAppPID (9999) != targetPID (4321): terminal was in background
+        let result = await service.inject("run tests", into: session, fallbackAppPID: 9999)
+        XCTAssertEqual(result, .sent)
+        XCTAssertEqual(poster.callCount, 1)
+        XCTAssertEqual(poster.lastText, "run tests")
+        XCTAssertEqual(poster.lastPID, 4321)
+        XCTAssertEqual(poster.lastWithReturn, false, "must NOT submit Return when terminal was in background")
+        XCTAssertEqual(activatedPID, 4321, "should activate target terminal so user sees destination")
     }
 
     func testFallbackUsesFrontmostPidWhenTerminalUnresolved() async {
@@ -76,6 +114,7 @@ final class PromptInjectionServiceTests: XCTestCase {
         let result = await service.inject("hi", into: session, fallbackAppPID: 99)
         XCTAssertEqual(result, .sent)
         XCTAssertEqual(poster.lastPID, 99)
+        XCTAssertEqual(poster.lastWithReturn, true)
     }
 
     func testFallbackRejectsNonTerminalFrontmostApp() async {
@@ -116,14 +155,16 @@ final class PromptInjectionServiceTests: XCTestCase {
         scriptInject: @escaping @MainActor (String, SessionData) async -> Bool? = { _, _ in nil },
         resolvePID: @escaping @MainActor (SessionData) -> pid_t? = { _ in nil },
         isTerminalPID: @escaping @MainActor (pid_t) -> Bool = { _ in true },
-        trusted: Bool = true
+        trusted: Bool = true,
+        activateProcess: @escaping @MainActor (pid_t) -> Bool = { _ in true }
     ) -> PromptInjectionService {
         PromptInjectionService(
             poster: poster,
             scriptInject: scriptInject,
             resolveTerminalPID: resolvePID,
             isTerminalPID: isTerminalPID,
-            accessibilityTrusted: { trusted }
+            accessibilityTrusted: { trusted },
+            activateProcess: activateProcess
         )
     }
 }
