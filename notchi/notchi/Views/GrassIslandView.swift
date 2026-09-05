@@ -81,6 +81,8 @@ struct IslandBackgroundView: View {
 // MARK: - Visual layer (placed in .background, no interaction)
 
 struct GrassIslandView: View {
+    @AppStorage(AppSettings.islandBackgroundKey) private var backgroundRaw = IslandBackground.grassland.rawValue
+
     let sessions: [SessionData]
     var selectedSessionId: String?
     var hoveredSessionId: String?
@@ -91,7 +93,7 @@ struct GrassIslandView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
-                IslandBackgroundView(background: .grassland)
+                IslandBackgroundView(background: IslandBackground.resolve(backgroundRaw))
                     .frame(width: geometry.size.width, height: geometry.size.height)
 
                 if !sessions.isEmpty {
@@ -184,12 +186,6 @@ struct GrassTapOverlay: View {
 }
 
 // MARK: - Private views
-
-private struct NoHighlightButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-    }
-}
 
 private struct SpriteTapTarget: View {
     let sessionId: String

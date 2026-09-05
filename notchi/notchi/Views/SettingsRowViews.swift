@@ -1,5 +1,12 @@
 import SwiftUI
 
+struct NoHighlightButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        // Image previews and sprite targets should retain their colors while pressed.
+        configuration.label
+    }
+}
+
 struct SettingsStatusBadge: View {
     let text: String
     let color: Color
