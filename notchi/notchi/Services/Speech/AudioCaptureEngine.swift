@@ -28,6 +28,9 @@ final class AudioCaptureEngine: AudioCapturing, @unchecked Sendable {
 
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            throw AudioCaptureError.converterUnavailable
+        }
         guard let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: Self.targetSampleRate,
@@ -37,8 +40,10 @@ final class AudioCaptureEngine: AudioCapturing, @unchecked Sendable {
             throw AudioCaptureError.converterUnavailable
         }
 
+        // Defensively remove any dangling tap before installing a new one.
+        input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            guard let self else { return }
+            guard let self, inputFormat.sampleRate > 0 else { return }
             let ratio = Self.targetSampleRate / inputFormat.sampleRate
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1
             guard let out = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }

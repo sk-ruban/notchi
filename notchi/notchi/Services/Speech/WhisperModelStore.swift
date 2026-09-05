@@ -15,11 +15,18 @@ final class WhisperModelStore {
     private let downloader: @Sendable (URL, URL, @Sendable @escaping (Double) -> Void) async throws -> Void
 
     init(
-        fileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
+        fileExists: @escaping @Sendable (URL) -> Bool = WhisperModelStore.defaultFileExists,
         downloader: @escaping @Sendable (URL, URL, @Sendable @escaping (Double) -> Void) async throws -> Void = WhisperModelStore.liveDownloader
     ) {
         self.fileExists = fileExists
         self.downloader = downloader
+    }
+
+    nonisolated static func defaultFileExists(at url: URL) -> Bool {
+        let path = url.path
+        guard FileManager.default.fileExists(atPath: path) else { return false }
+        let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+        return size > 0
     }
 
     nonisolated static func modelsDirectory() -> URL {
@@ -65,12 +72,55 @@ final class WhisperModelStore {
     }
 
     nonisolated static let liveDownloader: @Sendable (URL, URL, @Sendable @escaping (Double) -> Void) async throws -> Void = { remote, destination, progress in
-        let (tempURL, response) = try await URLSession.shared.download(from: remote)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
+        let delegate = DownloadProgressDelegate(progress: progress)
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        let tempURL: URL = try await withCheckedThrowingContinuation { continuation in
+            delegate.continuation = continuation
+            let task = session.downloadTask(with: remote)
+            task.resume()
         }
         progress(1.0)
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.moveItem(at: tempURL, to: destination)
+    }
+}
+
+private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    let progress: @Sendable (Double) -> Void
+    var continuation: CheckedContinuation<URL, Error>?
+
+    init(progress: @escaping @Sendable (Double) -> Void) {
+        self.progress = progress
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        progress(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            continuation?.resume(throwing: URLError(.badServerResponse))
+            return
+        }
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        do {
+            try FileManager.default.moveItem(at: location, to: temp)
+            continuation?.resume(returning: temp)
+        } catch {
+            continuation?.resume(throwing: error)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error else { return }
+        continuation?.resume(throwing: error)
     }
 }

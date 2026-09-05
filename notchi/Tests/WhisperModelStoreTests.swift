@@ -54,4 +54,21 @@ final class WhisperModelStoreTests: XCTestCase {
         try await store.download(model)
         XCTAssertEqual(store.downloadProgress[model.id], 1.0)
     }
+
+    func testDefaultFileExistsRequiresNonZeroFileSize() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("whisper-store-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let nonexistent = tempDir.appendingPathComponent("missing.bin")
+        XCTAssertFalse(WhisperModelStore.defaultFileExists(at: nonexistent))
+
+        let empty = tempDir.appendingPathComponent("empty.bin")
+        FileManager.default.createFile(atPath: empty.path, contents: Data())
+        XCTAssertFalse(WhisperModelStore.defaultFileExists(at: empty))
+
+        let valid = tempDir.appendingPathComponent("valid.bin")
+        FileManager.default.createFile(atPath: valid.path, contents: Data([0x01, 0x02, 0x03]))
+        XCTAssertTrue(WhisperModelStore.defaultFileExists(at: valid))
+    }
 }

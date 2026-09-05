@@ -39,6 +39,8 @@ struct SettingsGeneralView: View {
             }
             .buttonStyle(.plain)
 
+            Divider().background(Color.white.opacity(0.08))
+
             DictationSettingsView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

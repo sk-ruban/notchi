@@ -207,7 +207,23 @@ final class NotchPanelManager {
         notificationCenter.post(name: .notchiPanelExpansionDidChange, object: self)
     }
 
-    func expandForDictation() { expand() }
+    private(set) var wasExpandedBeforeDictation = false
+
+    func expandForDictation() {
+        if !isExpanded {
+            wasExpandedBeforeDictation = false
+            expand()
+        } else {
+            wasExpandedBeforeDictation = true
+        }
+    }
+
+    func collapseAfterDictation() {
+        if !wasExpandedBeforeDictation {
+            collapse()
+        }
+        wasExpandedBeforeDictation = false
+    }
 
     func collapse() {
         guard isExpanded else { return }

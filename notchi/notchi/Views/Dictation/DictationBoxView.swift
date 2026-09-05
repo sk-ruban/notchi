@@ -8,6 +8,9 @@ struct DictationBoxView: View {
     let onCTA: (DictationCTA) -> Void
     var onCancel: () -> Void = {}
 
+    @Environment(\.panelScale) private var panelScale
+    private var fontScale: CGFloat { PanelTypography.fontScale(panelScale: panelScale) }
+
     private var isEmpty: Bool {
         service.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -16,19 +19,19 @@ struct DictationBoxView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(DictationPresentation.statusText(for: service.phase))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 11 * fontScale, weight: .medium))
                     .foregroundColor(TerminalColors.secondaryText)
                 Spacer()
                 if let targetLabel {
                     Text(targetLabel)
-                        .font(.system(size: 10))
+                        .font(.system(size: 10 * fontScale))
                         .foregroundColor(TerminalColors.dimmedText)
                 }
             }
 
             if DictationPresentation.showsEditor(service.phase, hasText: !isEmpty) {
-                DictationTextField(text: $service.transcript, onSubmit: submit, onCancel: onCancel)
-                    .frame(minHeight: 44, maxHeight: 88)
+                DictationTextField(text: $service.transcript, fontScale: fontScale, onSubmit: submit, onCancel: onCancel)
+                    .frame(minHeight: 44 * fontScale, maxHeight: 88 * fontScale)
                     .padding(6)
                     .background(TerminalColors.subtleBackground)
                     .cornerRadius(8)
@@ -43,19 +46,19 @@ struct DictationBoxView: View {
                         HStack(spacing: 6) {
                             ProgressView().controlSize(.mini)
                             Text(DictationPresentation.statusText(for: service.phase))
-                                .font(.system(size: 10))
+                                .font(.system(size: 10 * fontScale))
                                 .foregroundColor(TerminalColors.dimmedText)
                             Spacer()
                         }
                     } else {
                         HStack(spacing: 8) {
                             Text("Return to send · ⌥Return newline · Esc to discard")
-                                .font(.system(size: 10))
+                                .font(.system(size: 10 * fontScale))
                                 .foregroundColor(TerminalColors.dimmedText)
                             Spacer()
                             Button(action: submit) {
                                 Text("Send")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.system(size: 12 * fontScale, weight: .semibold))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 12).padding(.vertical, 5)
                                     .background(TerminalColors.iMessageBlue)
@@ -66,14 +69,14 @@ struct DictationBoxView: View {
                         }
                     }
                 }
-                .frame(height: 26)
+                .frame(height: 26 * fontScale)
             }
 
             let cta = DictationPresentation.cta(for: service.phase)
             if cta != .none, !ctaLabel(cta).isEmpty {
                 Button(action: { onCTA(cta) }) {
                     Text(ctaLabel(cta))
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 11 * fontScale, weight: .medium))
                         .foregroundColor(TerminalColors.amber)
                 }
                 .buttonStyle(.plain)
@@ -103,6 +106,7 @@ struct DictationBoxView: View {
 /// Multiline editor where Return submits and ⌥Return / ⇧Return inserts a newline.
 private struct DictationTextField: NSViewRepresentable {
     @Binding var text: String
+    var fontScale: CGFloat = 1.0
     let onSubmit: () -> Void
     var onCancel: () -> Void = {}
 
@@ -113,7 +117,7 @@ private struct DictationTextField: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.onSubmit = { context.coordinator.parent.onSubmit() }
         textView.onCancel = { context.coordinator.parent.onCancel() }
-        textView.font = .systemFont(ofSize: 13)
+        textView.font = .systemFont(ofSize: 13 * fontScale)
         textView.textColor = .white
         textView.insertionPointColor = .white
         textView.drawsBackground = false
@@ -135,11 +139,6 @@ private struct DictationTextField: NSViewRepresentable {
         scroll.hasVerticalScroller = true
         scroll.borderType = .noBorder
         scroll.documentView = textView
-
-        Task { @MainActor in
-            textView.window?.makeFirstResponder(textView)
-            textView.setSelectedRange(NSRange(location: (textView.string as NSString).length, length: 0))
-        }
         return scroll
     }
 
@@ -148,6 +147,7 @@ private struct DictationTextField: NSViewRepresentable {
         guard let textView = nsView.documentView as? SubmittingTextView else { return }
         textView.onSubmit = { context.coordinator.parent.onSubmit() }
         textView.onCancel = { context.coordinator.parent.onCancel() }
+        textView.font = .systemFont(ofSize: 13 * fontScale)
         if textView.string != text {
             textView.string = text
             // Setting .string resets the caret to 0; for an external update
@@ -171,12 +171,27 @@ private struct DictationTextField: NSViewRepresentable {
         var onSubmit: (() -> Void)?
         var onCancel: (() -> Void)?
 
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window {
+                window.makeFirstResponder(self)
+                setSelectedRange(NSRange(location: (string as NSString).length, length: 0))
+            }
+        }
+
         // Esc discards the dictation box.
         override func cancelOperation(_ sender: Any?) {
             onCancel?()
         }
 
         override func keyDown(with event: NSEvent) {
+            // If the user is composing text in an IME (e.g. CJK/Vietnamese), Return
+            // confirms the marked composition candidate — don't submit early.
+            if hasMarkedText() {
+                super.keyDown(with: event)
+                return
+            }
+
             // 36 = Return, 76 = keypad Enter
             guard event.keyCode == 36 || event.keyCode == 76 else {
                 super.keyDown(with: event)

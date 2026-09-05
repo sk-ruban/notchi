@@ -419,7 +419,7 @@ struct ExpandedPanelView: View {
                                 targetLabel: effectiveSession.map { sessionStore.displaySessionLabel(for: $0) },
                                 onSend: { _ in
                                     Task { @MainActor in
-                                        _ = await SpeechToTextService.shared.send(
+                                        let result = await SpeechToTextService.shared.send(
                                             using: { text, session in
                                                 await PromptInjectionService.shared.inject(
                                                     text,
@@ -429,6 +429,9 @@ struct ExpandedPanelView: View {
                                             },
                                             targetSession: effectiveSession
                                         )
+                                        if result == .sent {
+                                            NotchPanelManager.shared.collapseAfterDictation()
+                                        }
                                     }
                                 },
                                 onCTA: { cta in
@@ -443,7 +446,10 @@ struct ExpandedPanelView: View {
                                     case .noSession, .sessionNotInjectable, .none: break
                                     }
                                 },
-                                onCancel: { SpeechToTextService.shared.reset() }
+                                onCancel: {
+                                    SpeechToTextService.shared.reset()
+                                    NotchPanelManager.shared.collapseAfterDictation()
+                                }
                             )
                             .padding(.horizontal, 12)
                         }
