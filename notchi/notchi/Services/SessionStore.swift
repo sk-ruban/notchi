@@ -173,8 +173,10 @@ final class SessionStore {
         let previousHostProcessId = session.hostProcessId
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
-        if let hostProcessId = session.hostProcessId, hostProcessId != previousHostProcessId {
-            session.updateHostBundleIdentifier(resolveHostBundleIdentifier(pid_t(hostProcessId)))
+        if let hostProcessId = session.hostProcessId,
+           hostProcessId != previousHostProcessId,
+           let processId = pid_t(exactly: hostProcessId) {
+            session.updateHostBundleIdentifier(resolveHostBundleIdentifier(processId))
         }
         if event.provider == .codex, let transcriptPath = event.transcriptPath {
             session.updateCodexThreadMetadata(

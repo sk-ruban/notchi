@@ -297,7 +297,7 @@ final class SessionData: Identifiable {
     func updateClaudeRuntime(processId: Int?) {
         guard provider == .claude,
               let processId,
-              processId > 0 else { return }
+              Self.isValidProcessId(processId) else { return }
 
         claudeProcessId = processId
     }
@@ -305,13 +305,17 @@ final class SessionData: Identifiable {
     func updateCodexRuntime(processId: Int?, origin: CodexOrigin?) {
         guard provider == .codex else { return }
 
-        if let processId, processId > 0 {
+        if let processId, Self.isValidProcessId(processId) {
             codexProcessId = processId
         }
 
         if let origin {
             codexOrigin = origin
         }
+    }
+
+    private static func isValidProcessId(_ processId: Int) -> Bool {
+        processId > 0 && processId <= Int(pid_t.max)
     }
 
     func updateHostBundleIdentifier(_ bundleIdentifier: String?) {
