@@ -294,8 +294,8 @@ private struct IslandBackgroundSettingsView: View {
 
             HStack(spacing: 8) {
                 ForEach(IslandBackground.allCases) { option in
-                    Button(action: { backgroundRaw = option.rawValue }) {
-                        IslandBackgroundView(background: option)
+                    Button(action: { AppSettings.islandBackground = option }) {
+                        preview(for: option)
                             .frame(height: 48)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                             .padding(6)
@@ -310,10 +310,31 @@ private struct IslandBackgroundSettingsView: View {
                     }
                     .buttonStyle(NoHighlightButtonStyle())
                     .frame(maxWidth: .infinity)
+                    .help(option.displayName)
                     .accessibilityLabel(option.displayName)
                     .accessibilityAddTraits(selection == option ? .isSelected : [])
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func preview(for option: IslandBackground) -> some View {
+        if option == .automatic {
+            HStack(spacing: 0) {
+                ForEach(IslandBackground.terrains) { terrain in
+                    IslandBackgroundView(background: terrain)
+                }
+            }
+            .overlay {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(5)
+                    .background(.black.opacity(0.55), in: Circle())
+            }
+        } else {
+            IslandBackgroundView(background: option)
         }
     }
 }

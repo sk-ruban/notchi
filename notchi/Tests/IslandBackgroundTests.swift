@@ -29,7 +29,7 @@ final class IslandBackgroundTests: XCTestCase {
     }
 
     func testEveryBackgroundHasABundledImageWithExpectedDimensions() {
-        for background in IslandBackground.allCases {
+        for background in IslandBackground.terrains {
             let image = NSImage(named: background.assetName)
             XCTAssertNotNil(image, "Missing asset for \(background)")
             let expectedSize = background == .grassland
