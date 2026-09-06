@@ -58,6 +58,8 @@ struct IslandBackgroundView: View {
                     )
             }
         }
+        // Apply the panel fade once to the complete surface, not to each overlapping layer.
+        .compositingGroup()
     }
 
     private func tilePaint(assetName: String) -> ImagePaint {

@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+import SwiftUI
 @testable import notchi
 
 final class IslandBackgroundTests: XCTestCase {
@@ -39,6 +40,20 @@ final class IslandBackgroundTests: XCTestCase {
     }
     func testGroundCraterAssetContainsTheFourStitchedTiles() {
         XCTAssertEqual(NSImage(named: "IslandCrater")?.size, NSSize(width: 32, height: 32))
+    }
+
+    func testGroundAndCratersFadeWithUniformOpacity() throws {
+        let renderer = ImageRenderer(content:
+            IslandBackgroundView(background: .ground)
+                .frame(width: 512, height: 160)
+                .opacity(0.5)
+        )
+        let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+        // A separately faded crater over faded ground produces 0.75 alpha instead of 0.5.
+        for (x, y) in [(10, 10), (128, 64), (384, 104)] {
+            let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y))
+            XCTAssertEqual(color.alphaComponent, 0.5, accuracy: 0.01, "Unexpected opacity at \(x), \(y)")
+        }
     }
 
     func testWaterAnimationAdvancesInSheetOrderAndLoops() {
