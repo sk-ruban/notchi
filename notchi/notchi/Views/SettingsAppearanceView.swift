@@ -289,7 +289,12 @@ private struct IslandBackgroundSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.pickerInset) {
             SettingsRowView(icon: "photo", title: "Island Background") {
-                EmptyView()
+                if selection == .automatic {
+                    Text("Cycles every 30 min")
+                        .panelFont(size: 11)
+                        .foregroundColor(TerminalColors.secondaryText)
+                        .lineLimit(1)
+                }
             }
 
             HStack(spacing: 8) {

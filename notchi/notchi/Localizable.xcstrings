@@ -1452,6 +1452,40 @@
         }
       }
     },
+    "Cycles every 30 min" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30分ごとに切り替わります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30분마다 전환됩니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đổi mỗi 30 phút"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每30分钟切换"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每30分鐘切換"
+          }
+        }
+      }
+    },
 
     "Day" : {
       "comment" : "Label for the x-axis in the cost dashboard chart.",
