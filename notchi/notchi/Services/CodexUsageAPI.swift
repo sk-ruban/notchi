@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct CodexAPIAuth: Equatable {
+nonisolated struct CodexAPIAuth: Sendable, Equatable {
     let accessToken: String
     let accountId: String?
 
@@ -26,6 +26,12 @@ nonisolated struct CodexAPIAuth: Equatable {
     }
 }
 
+nonisolated enum CodexAuthRead: Sendable, Equatable {
+    case authenticated(CodexAPIAuth)
+    case signedOut
+    case unavailable
+}
+
 nonisolated struct CodexAPIUsage: Equatable {
     var session: QuotaPeriod? = nil
     var weekly: QuotaPeriod? = nil
@@ -41,6 +47,22 @@ nonisolated enum CodexUsageAPI {
     static func authFileURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/auth.json")
+    }
+
+    static func loadAuth() -> CodexAuthRead {
+        guard let data = try? Data(contentsOf: authFileURL()) else { return .unavailable }
+        return authRead(from: data)
+    }
+
+    static func authRead(from data: Data) -> CodexAuthRead {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .unavailable
+        }
+        if root["auth_mode"] as? String == "apikey" { return .signedOut }
+        if root["tokens"] is NSNull { return .signedOut }
+        guard let auth = CodexAPIAuth.load(from: data),
+              let accountId = auth.accountId, !accountId.isEmpty else { return .unavailable }
+        return .authenticated(auth)
     }
 
     static func makeRequest(auth: CodexAPIAuth) -> URLRequest {
