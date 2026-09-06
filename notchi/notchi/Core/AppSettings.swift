@@ -315,7 +315,12 @@ struct AppSettings {
 
     static var islandBackground: IslandBackground {
         get { islandBackground(in: .standard) }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: islandBackgroundKey) }
+        set {
+            if newValue == .automatic, islandBackground != .automatic {
+                IslandBackgroundRotation.shared.restart()
+            }
+            UserDefaults.standard.set(newValue.rawValue, forKey: islandBackgroundKey)
+        }
     }
 
     static var showGrassIsland: Bool {

@@ -27,7 +27,9 @@ struct IslandBackgroundView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            if background == .water {
+            if background == .automatic {
+                AutomaticIslandBackgroundView()
+            } else if background == .water {
                 TimelineView(.animation(minimumInterval: 1 / WaterAnimation.framesPerSecond, paused: reduceMotion)) { timeline in
                     let frame = WaterAnimation.frameIndex(at: timeline.date, reduceMotion: reduceMotion)
                     Rectangle().fill(tilePaint(assetName: WaterAnimation.assetName(frame: frame)))
@@ -77,6 +79,17 @@ struct IslandBackgroundView: View {
             sourceRect: CGRect(x: (1 - width) / 2, y: (1 - height) / 2, width: width, height: height),
             scale: scale
         )
+    }
+}
+
+private struct AutomaticIslandBackgroundView: View {
+    private let rotation = IslandBackgroundRotation.shared
+
+    var body: some View {
+        let cycle = rotation.cycle
+        TimelineView(.periodic(from: cycle.startedAt, by: IslandBackgroundCycle.interval)) { timeline in
+            IslandBackgroundView(background: cycle.background(at: timeline.date))
+        }
     }
 }
 

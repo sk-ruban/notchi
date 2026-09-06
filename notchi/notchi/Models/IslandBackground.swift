@@ -1,14 +1,18 @@
 import Foundation
 
 enum IslandBackground: String, CaseIterable, Identifiable {
+    case automatic
     case grassland
     case water
     case ground
+
+    static let terrains: [IslandBackground] = [.grassland, .water, .ground]
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
+        case .automatic: String(localized: "Auto")
         case .grassland: String(localized: "Grassland")
         case .water: String(localized: "Water")
         case .ground: String(localized: "Ground")
@@ -17,7 +21,7 @@ enum IslandBackground: String, CaseIterable, Identifiable {
 
     var assetName: String {
         switch self {
-        case .grassland: "GrassIsland"
+        case .automatic, .grassland: "GrassIsland"
         case .water: WaterAnimation.assetName(frame: 0)
         case .ground: "IslandGround"
         }
