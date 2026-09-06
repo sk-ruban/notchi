@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
                 NotchiStateMachine.shared.handleEvent(event)
             }
             await ClaudeUsageService.shared.startPolling()
-            await CodexUsageService.shared.refreshFromAPI()
+            await CodexUsageService.shared.startPolling()
             await CostHistoryStore.shared.start()
             await CostHistoryStore.sharedCodex.start()
         }
@@ -84,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         globalShortcutService.stop()
         integrationCoordinator.stop()
         ClaudeUsageService.shared.stopPolling()
+        CodexUsageService.shared.stopPolling()
     }
 
     @MainActor private func setupNotchWindow() {

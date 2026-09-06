@@ -349,7 +349,7 @@ struct ExpandedPanelView: View {
             isUsingExtraUsage: false,
             isLoading: false,
             error: nil,
-            statusMessage: codexUsageService.statusMessage,
+            statusMessage: nil,
             isStale: codexUsageService.isUsageStale,
             recoveryAction: .none,
             lastObservedAt: codexUsageService.lastObservedAt,
