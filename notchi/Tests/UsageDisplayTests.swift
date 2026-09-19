@@ -70,14 +70,23 @@ final class UsageDisplayTests: XCTestCase {
         XCTAssertNil(UsageMetrics.extraUsageDisplay(extra))
     }
 
-    func testExtraUsageDisplayComputesPercentUsed() {
-        let extra = ExtraUsage(isEnabled: true, monthlyLimit: 20, usedCredits: 5, utilization: nil)
+    func testExtraUsageDisplayConvertsCentsToDollarsAndComputesPercentUsed() {
+        let extra = ExtraUsage(isEnabled: true, monthlyLimit: 2000, usedCredits: 313, utilization: 15.65)
 
         let display = UsageMetrics.extraUsageDisplay(extra)
 
-        XCTAssertEqual(display?.usedCredits, 5)
-        XCTAssertEqual(display?.monthlyLimit, 20)
-        XCTAssertEqual(display?.percentUsed, 25)
+        XCTAssertEqual(display?.usedUSD, 3.13)
+        XCTAssertEqual(display?.monthlyLimitUSD, 20)
+        XCTAssertEqual(display?.percentUsed, 16)
+    }
+
+    func testExtraUsageDisplayShowsThousandDollarLimitForHundredThousandCents() {
+        let extra = ExtraUsage(isEnabled: true, monthlyLimit: 100_000, usedCredits: 0, utilization: 0)
+
+        let display = UsageMetrics.extraUsageDisplay(extra)
+
+        XCTAssertEqual(display?.monthlyLimitUSD, 1000)
+        XCTAssertEqual(display?.percentUsed, 0)
     }
 
     func testClaudeHasDataTrueWhenAnyPeriodOrExtraUsagePresent() {
@@ -106,9 +115,11 @@ final class UsageDisplayTests: XCTestCase {
         XCTAssertFalse(UsageMetrics.codexHasData(usage: nil, weeklyUsage: nil))
     }
 
-    func testCurrencyFormatsWholeAndFractionalAmounts() {
+    func testCurrencyFormatsWholeFractionalAndGroupedAmounts() {
         XCTAssertEqual(ExtraUsageRowView.currency(20), "$20")
         XCTAssertEqual(ExtraUsageRowView.currency(4.2), "$4.20")
+        XCTAssertEqual(ExtraUsageRowView.currency(1000), "$1,000")
+        XCTAssertEqual(ExtraUsageRowView.currency(1234.5), "$1,234.50")
     }
 
     func testTokenFormatterUsesCompactSuffixes() {

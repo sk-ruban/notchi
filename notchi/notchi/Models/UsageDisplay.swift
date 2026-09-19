@@ -8,12 +8,12 @@ nonisolated struct UsagePeriodDisplay: Equatable {
 }
 
 nonisolated struct ExtraUsageDisplay: Equatable {
-    let usedCredits: Double
-    let monthlyLimit: Double
+    let usedUSD: Double
+    let monthlyLimitUSD: Double
 
     var percentUsed: Int {
-        guard monthlyLimit > 0 else { return 0 }
-        return min(max(Int((usedCredits / monthlyLimit * 100).rounded()), 0), 100)
+        guard monthlyLimitUSD > 0 else { return 0 }
+        return min(max(Int((usedUSD / monthlyLimitUSD * 100).rounded()), 0), 100)
     }
 }
 
@@ -44,6 +44,12 @@ nonisolated enum UsageMetrics {
               let usedCredits = extraUsage.usedCredits else {
             return nil
         }
-        return ExtraUsageDisplay(usedCredits: usedCredits, monthlyLimit: monthlyLimit)
+        return ExtraUsageDisplay(
+            usedUSD: usedCredits / centsPerDollar,
+            monthlyLimitUSD: monthlyLimit / centsPerDollar
+        )
     }
+
+    // The OAuth usage endpoint reports extra_usage credits in cents.
+    private static let centsPerDollar = 100.0
 }

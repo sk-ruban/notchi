@@ -363,26 +363,34 @@ struct ExtraUsageRowView: View {
     var body: some View {
         let color = TerminalColors.usageColor(forPercentUsed: display.percentUsed)
         VStack(alignment: .leading, spacing: 7) {
-            Text("Extra usage")
-                .panelFont(size: 14, weight: .semibold)
-                .foregroundColor(TerminalColors.primaryText)
-            UsageProgressBar(percentUsed: display.percentUsed, color: color)
-            HStack {
-                Text("\(Self.currency(display.usedCredits)) used")
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Extra usage")
+                    .panelFont(size: 14, weight: .semibold)
+                    .foregroundColor(TerminalColors.primaryText)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                Text(verbatim: "\(Self.currency(display.usedUSD)) / \(Self.currency(display.monthlyLimitUSD))")
+                    .panelFont(size: 10)
                     .foregroundColor(TerminalColors.secondaryText)
-                Spacer()
-                Text("\(Self.currency(display.monthlyLimit)) limit")
-                    .foregroundColor(TerminalColors.secondaryText)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(display.percentUsed)%")
+                    .panelFont(size: 11, weight: .semibold, design: .monospaced)
+                    .foregroundColor(color)
+                    .lineLimit(1)
+                    .fixedSize()
             }
-            .panelFont(size: 10)
+            UsageProgressBar(percentUsed: display.percentUsed, color: color)
         }
     }
 
     static func currency(_ value: Double) -> String {
-        if value == value.rounded() {
-            return "$\(Int(value))"
-        }
-        return String(format: "$%.2f", value)
+        let fractionDigits = value == value.rounded() ? 0 : 2
+        return value.formatted(
+            .currency(code: "USD")
+                .locale(Locale(identifier: "en_US"))
+                .precision(.fractionLength(fractionDigits))
+        )
     }
 }
 
