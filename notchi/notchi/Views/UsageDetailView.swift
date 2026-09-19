@@ -32,11 +32,11 @@ struct UsageDetailView: View {
     }
 
     var claudeHasData: Bool {
-        claudeUsage.hasUsageData
+        claudeUsage.hasUsageData || !costStore.buckets.isEmpty
     }
 
     var codexHasData: Bool {
-        codexUsage.hasUsageData
+        codexUsage.hasUsageData || !codexCostStore.buckets.isEmpty
     }
 
     var showsToggle: Bool {

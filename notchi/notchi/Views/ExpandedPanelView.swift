@@ -244,6 +244,7 @@ struct ExpandedPanelView: View {
 
     private var hasUsageDetailData: Bool {
         usageService.hasUsageData || codexUsageService.hasUsageData
+            || !CostHistoryStore.shared.buckets.isEmpty || !CostHistoryStore.sharedCodex.buckets.isEmpty
     }
 
     private var state: NotchiState {
