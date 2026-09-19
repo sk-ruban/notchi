@@ -107,7 +107,10 @@ final class CodexHookStatusServiceTests: XCTestCase {
         print(json.dumps({'id': query['id'], 'result': {'data': []}}), flush=True)
         sys.stdin.read()
         """)
-        let data = try XCTUnwrap(CodexHookStatusService.queryHooks(executable: executable, timeout: 2))
+        let data = try XCTUnwrap(
+            CodexHookStatusService.queryHooks(executable: executable, timeout: 2),
+            fixtureDiagnostics(executable)
+        )
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(object["id"] as? Int, 2)
         XCTAssertNotNil(object["result"])
@@ -139,9 +142,25 @@ final class CodexHookStatusServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         let executable = directory.appendingPathComponent("codex")
-        try ("#!/usr/bin/python3\n" + source + "\n").write(to: executable, atomically: true, encoding: .utf8)
+        let script = directory.appendingPathComponent("server.py")
+        try (source + "\n").write(to: script, atomically: true, encoding: .utf8)
+        // The Xcode test host environment (DYLD_*, SDKROOT) crashes the /usr/bin/python3 shim on
+        // CI, so run python with the same clean environment as the hook isolation tests.
+        let launcher = """
+        #!/bin/sh
+        exec /usr/bin/env -i PATH=/usr/bin:/bin HOME="$HOME" \
+            /usr/bin/python3 -I "$(dirname "$0")/server.py" 2>"$(dirname "$0")/stderr.log"
+
+        """
+        try launcher.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         return executable
+    }
+
+    private func fixtureDiagnostics(_ executable: URL) -> String {
+        let log = executable.deletingLastPathComponent().appendingPathComponent("stderr.log")
+        let stderr = (try? String(contentsOf: log, encoding: .utf8)) ?? "<no stderr captured>"
+        return "fixture stderr: \(stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 
     private func response(

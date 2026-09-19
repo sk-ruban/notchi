@@ -60,6 +60,7 @@ struct PanelSettingsView: View {
     @State private var codexSetup: CodexHookSetup?
     @State private var isCheckingCodex = false
     @State private var codexCheckRevision = 0
+    @State private var codexCheckTask: Task<CodexHookSetup, Never>?
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
 
@@ -444,9 +445,14 @@ struct PanelSettingsView: View {
         let applicationURLs = ["com.openai.codex", "com.openai.chat"].compactMap {
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
         }
-        let result = await Task.detached(priority: .utility) {
+        _ = await codexCheckTask?.value
+        guard !Task.isCancelled else { return }
+        let task = Task.detached(priority: .utility) {
             CodexHookStatusService.check(applicationURLs: applicationURLs)
-        }.value
+        }
+        codexCheckTask = task
+        let result = await task.value
+        if codexCheckTask == task { codexCheckTask = nil }
         guard !Task.isCancelled else { return }
         codexSetup = result
         isCheckingCodex = false
