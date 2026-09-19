@@ -41,6 +41,14 @@ https://github.com/user-attachments/assets/e417bd40-cae8-47c0-998a-905166cf3513
 
    <img src="assets/usage-dashboard.png" alt="Usage dashboard with cost chart and quota bars" width="450">
 
+### Finish Codex setup
+
+If Codex shows **Needs Approval**, open **Settings → Agent Hooks → Codex**.
+
+<img src="assets/codex-setup.png" alt="Codex hook approval setup in Notchi" width="400">
+
+Click **Open in Terminal**, enter `/hooks`, and approve the three Notchi hooks. Then **start a new Codex chat and send a message**.
+
 ## How it works
 
 ```
