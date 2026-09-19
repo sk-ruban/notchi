@@ -57,6 +57,9 @@ struct PanelSettingsView: View {
     @State private var claudeHooksEnabled = AppSettings.areHooksEnabled(for: .claude)
     @State private var codexHooksEnabled = AppSettings.areHooksEnabled(for: .codex)
     @State private var areHooksExpanded = false
+    @State private var codexSetup: CodexHookSetup?
+    @State private var isCheckingCodex = false
+    @State private var codexCheckRevision = 0
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
 
@@ -92,6 +95,12 @@ struct PanelSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             refreshHookStatuses()
+        }
+        .task(id: codexCheckRevision) {
+            await checkCodexSetup()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if areHooksExpanded { refreshHookStatuses() }
         }
     }
 
@@ -176,6 +185,14 @@ struct PanelSettingsView: View {
         VStack(alignment: .leading, spacing: 4) {
             hookProviderRow(for: .claude, status: claudeHooksStatus)
             hookProviderRow(for: .codex, status: codexHooksStatus)
+            if codexHooksStatus == .installed, codexSetup?.readiness != .approved {
+                CodexHookSetupView(
+                    setup: codexSetup,
+                    isChecking: isCheckingCodex,
+                    hasSession: hasCodexSession,
+                    recheck: refreshHookStatuses
+                )
+            }
         }
         .padding(.vertical, SettingsLayout.pickerInset)
         .background(TerminalColors.subtleBackground)
@@ -191,7 +208,7 @@ struct PanelSettingsView: View {
 
                 Spacer()
 
-                statusBadge(hookProviderStatus(status))
+                statusBadge(provider == .codex && status == .installed ? codexSetupBadge() : hookProviderStatus(status))
 
                 ToggleSwitch(isOn: hooksEnabled(for: provider))
             }
@@ -355,6 +372,10 @@ struct PanelSettingsView: View {
             return StatusBadge(text: String(localized: "Error"), color: TerminalColors.red)
         }
 
+        if codexHooksStatus == .installed, codexSetup?.readiness != .approved {
+            return codexSetupBadge(includeProvider: true)
+        }
+
         let installedCount = enabledStates.filter { $0 == .installed }.count
         if installedCount == enabledStates.count {
             return StatusBadge(text: String(localized: "Installed"), color: TerminalColors.green)
@@ -386,6 +407,49 @@ struct PanelSettingsView: View {
         case .disabled:
             StatusBadge(text: String(localized: "Off"), color: TerminalColors.dimmedText)
         }
+    }
+
+    private var hasCodexSession: Bool {
+        sessionStore.sortedSessions.contains { $0.provider == .codex }
+    }
+
+    private func codexSetupBadge(includeProvider: Bool = false) -> StatusBadge {
+        guard let codexSetup else {
+            return StatusBadge(text: String(localized: "Checking…"), color: TerminalColors.dimmedText)
+        }
+        switch codexSetup.readiness {
+        case .approved:
+            return StatusBadge(text: hasCodexSession ? String(localized: "Connected") : String(localized: "Approved"), color: TerminalColors.green)
+        case .needsApproval:
+            return StatusBadge(
+                text: includeProvider ? String(localized: "Codex Needs Approval") : String(localized: "Needs Approval"),
+                color: TerminalColors.amber
+            )
+        case .disabled:
+            return StatusBadge(text: String(localized: "Disabled in Codex"), color: TerminalColors.amber)
+        case .notRegistered:
+            return StatusBadge(text: String(localized: "Set Up"), color: TerminalColors.amber)
+        case .unverified:
+            return StatusBadge(text: String(localized: "Not Verified"), color: TerminalColors.amber)
+        }
+    }
+
+    private func checkCodexSetup() async {
+        guard codexHooksStatus == .installed else {
+            codexSetup = nil
+            isCheckingCodex = false
+            return
+        }
+        isCheckingCodex = true
+        let applicationURLs = ["com.openai.codex", "com.openai.chat"].compactMap {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
+        }
+        let result = await Task.detached(priority: .utility) {
+            CodexHookStatusService.check(applicationURLs: applicationURLs)
+        }.value
+        guard !Task.isCancelled else { return }
+        codexSetup = result
+        isCheckingCodex = false
     }
 
     private func usageStatus() -> StatusBadge {
@@ -422,6 +486,8 @@ struct PanelSettingsView: View {
         case .codex:
             codexHooksEnabled = enabled
             codexHooksStatus = status
+            codexSetup = nil
+            codexCheckRevision += 1
         }
     }
 
@@ -430,6 +496,7 @@ struct PanelSettingsView: View {
         codexHooksStatus = IntegrationCoordinator.shared.installStatus(for: .codex)
         claudeHooksEnabled = AppSettings.areHooksEnabled(for: .claude)
         codexHooksEnabled = AppSettings.areHooksEnabled(for: .codex)
+        codexCheckRevision += 1
     }
 
     private func statusBadge(_ text: String, color: Color) -> some View {
