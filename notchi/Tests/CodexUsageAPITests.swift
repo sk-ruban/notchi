@@ -2,6 +2,24 @@ import XCTest
 @testable import notchi
 
 final class CodexUsageAPITests: XCTestCase {
+    func testUnlimitedCreditsWithoutQuotaWindows() throws {
+        let data = Data(#"{"rate_limit":null,"credits":{"has_credits":true,"unlimited":true,"balance":null}}"#.utf8)
+        let response = try JSONDecoder().decode(CodexUsageAPIResponse.self, from: data)
+        let usage = CodexUsageAPI.usage(from: response, now: Date())
+
+        XCTAssertTrue(usage.hasUnlimitedCredits)
+        XCTAssertNil(usage.session)
+        XCTAssertNil(usage.weekly)
+        XCTAssertNil(usage.creditsBalance)
+    }
+
+    func testMissingQuotasDoNotImplyUnlimitedCredits() throws {
+        for json in [#"{}"#, #"{"credits":{"unlimited":false}}"#, #"{"credits":{"unlimited":null}}"#] {
+            let response = try JSONDecoder().decode(CodexUsageAPIResponse.self, from: Data(json.utf8))
+            XCTAssertFalse(CodexUsageAPI.usage(from: response, now: Date()).hasUnlimitedCredits)
+        }
+    }
+
     private func makeJWT(exp: Double) -> String {
         let payload = try! JSONSerialization.data(withJSONObject: ["exp": exp])
         let encoded = payload.base64EncodedString()

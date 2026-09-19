@@ -31,15 +31,15 @@ struct UsageDetailView: View {
         _selectedTab = State(initialValue: .provider(defaultProvider))
     }
 
-    private var claudeHasData: Bool {
+    var claudeHasData: Bool {
         claudeUsage.hasUsageData
     }
 
-    private var codexHasData: Bool {
+    var codexHasData: Bool {
         codexUsage.hasUsageData
     }
 
-    private var showsToggle: Bool {
+    var showsToggle: Bool {
         claudeHasData && codexHasData
     }
 
@@ -100,7 +100,7 @@ struct UsageDetailView: View {
     }
 
     private var codexCreditsUSD: Double? {
-        resolvedProvider == .codex ? codexUsage.currentExtraCreditsUSD : nil
+        resolvedProvider == .codex && !codexUsage.hasUnlimitedCredits ? codexUsage.currentExtraCreditsUSD : nil
     }
 
     private var extraUsage: ExtraUsageDisplay? {
@@ -156,6 +156,7 @@ struct UsageDetailView: View {
 
     private var usageRowCount: Int {
         periods.count + (extraUsage == nil ? 0 : 1) + (codexCreditsUSD == nil ? 0 : 1)
+            + (resolvedProvider == .codex && codexUsage.hasUnlimitedCredits ? 1 : 0)
     }
 
     @ViewBuilder private var usageRows: some View {
@@ -165,6 +166,12 @@ struct UsageDetailView: View {
 
         if let extraUsage {
             ExtraUsageRowView(display: extraUsage)
+        }
+
+        if resolvedProvider == .codex && codexUsage.hasUnlimitedCredits {
+            Text("No spending cap")
+                .panelFont(size: 14, weight: .semibold)
+                .foregroundColor(TerminalColors.primaryText)
         }
 
         if let codexCreditsUSD {

@@ -349,7 +349,8 @@ struct ExpandedPanelView: View {
             isUsingExtraUsage: false,
             isLoading: false,
             error: nil,
-            statusMessage: nil,
+            statusMessage: codexUsageService.hasUnlimitedCredits && codexUsageService.displayUsage == nil
+                ? String(localized: "No spending cap") : nil,
             isStale: codexUsageService.isUsageStale,
             recoveryAction: .none,
             lastObservedAt: codexUsageService.lastObservedAt,
@@ -561,6 +562,7 @@ struct ExpandedPanelView: View {
         if let state = sharedUsageBarState {
             UsageBarView(
                 usage: state.usage,
+                hasUnlimitedCredits: state.isProviderSpecific && state.provider == .codex && codexUsageService.hasUnlimitedCredits,
                 isUsingExtraUsage: state.isUsingExtraUsage,
                 isLoading: state.isLoading,
                 error: state.error,

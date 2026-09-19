@@ -2,6 +2,7 @@ import SwiftUI
 
 struct UsageBarView: View {
     let usage: QuotaPeriod?
+    let hasUnlimitedCredits: Bool
     let isUsingExtraUsage: Bool
     let isLoading: Bool
     let error: String?
@@ -20,6 +21,7 @@ struct UsageBarView: View {
 
     init(
         usage: QuotaPeriod?,
+        hasUnlimitedCredits: Bool = false,
         isUsingExtraUsage: Bool = false,
         isLoading: Bool,
         error: String?,
@@ -35,6 +37,7 @@ struct UsageBarView: View {
         onOpenDetail: (() -> Void)? = nil
     ) {
         self.usage = usage
+        self.hasUnlimitedCredits = hasUnlimitedCredits
         self.isUsingExtraUsage = isUsingExtraUsage
         self.isLoading = isLoading
         self.error = error
@@ -48,6 +51,10 @@ struct UsageBarView: View {
         self.onConnect = onConnect
         self.onRetry = onRetry
         self.onOpenDetail = onOpenDetail
+    }
+
+    var showsUnlimitedCredits: Bool {
+        hasUnlimitedCredits && usage == nil
     }
 
     var shouldShowRecoveryButton: Bool {
@@ -108,6 +115,7 @@ struct UsageBarView: View {
 
     var shouldShowConnectPlaceholder: Bool {
         !isEnabled
+            && !hasUnlimitedCredits
             && usage == nil
             && !isLoading
             && error == nil
@@ -151,6 +159,10 @@ struct UsageBarView: View {
                     Text(error)
                         .panelFont(size: 11, weight: .medium)
                         .foregroundColor(TerminalColors.red.opacity(0.8))
+                } else if showsUnlimitedCredits {
+                    Text("No spending cap")
+                        .panelFont(size: 11, weight: .medium)
+                        .foregroundColor(TerminalColors.secondaryText)
                 } else if let usage, let resetTime = usage.formattedResetTime {
                     HStack(alignment: .center, spacing: 4) {
                         Text(resetLabelText(for: resetTime))
@@ -204,7 +216,9 @@ struct UsageBarView: View {
                 }
             }
 
-            progressBar
+            if !showsUnlimitedCredits {
+                progressBar
+            }
         }
         .padding(.top, compact ? 0 : 5)
         .contentShape(Rectangle())

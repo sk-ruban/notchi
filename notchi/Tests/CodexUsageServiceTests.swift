@@ -3,6 +3,41 @@ import XCTest
 
 @MainActor
 final class CodexUsageServiceTests: XCTestCase {
+    func testUnlimitedCreditsKeepDashboardAvailableWithoutQuotasAndClearOnReset() async {
+        let service = CodexUsageService(dependencies: CodexUsageServiceDependencies(
+            loadAuth: { .authenticated(CodexAPIAuth(accessToken: "token", accountId: "account")) },
+            fetchAPIUsage: { _ in CodexAPIUsage(hasUnlimitedCredits: true) },
+            now: { Date(timeIntervalSince1970: 1_010) }
+        ))
+
+        await service.refreshFromAPI()
+
+        XCTAssertTrue(service.hasUnlimitedCredits)
+        XCTAssertTrue(service.hasUsageData)
+        XCTAssertNil(service.displayUsage)
+        XCTAssertEqual(service.lastObservedAt, Date(timeIntervalSince1970: 1_010))
+
+        service.clear()
+        XCTAssertFalse(service.hasUnlimitedCredits)
+        XCTAssertFalse(service.hasUsageData)
+    }
+
+    func testQuotaAccountDoesNotShowUnlimitedCredits() async {
+        let service = CodexUsageService(dependencies: CodexUsageServiceDependencies(
+            loadAuth: { .authenticated(CodexAPIAuth(accessToken: "token", accountId: "account")) },
+            fetchAPIUsage: { _ in
+                CodexAPIUsage(session: QuotaPeriod(utilization: 42, resetDate: nil))
+            },
+            now: { Date() }
+        ))
+
+        await service.refreshFromAPI()
+
+        XCTAssertFalse(service.hasUnlimitedCredits)
+        XCTAssertTrue(service.hasUsageData)
+        XCTAssertEqual(service.displayUsage?.usagePercentage, 42)
+    }
+
     func testRefreshPublishesWeeklyOnlySnapshot() async {
         let service = CodexUsageService(dependencies: CodexUsageServiceDependencies(
             loadAuth: { .authenticated(CodexAPIAuth(accessToken: "token", accountId: "account")) },
