@@ -2,6 +2,18 @@ import XCTest
 @testable import notchi
 
 final class UsageBarViewTests: XCTestCase {
+    func testUnlimitedLabelRequiresExplicitFlagAndNoQuota() {
+        let quota = QuotaPeriod(utilization: 42, resetDate: Date(timeIntervalSinceNow: 3_600))
+        for (usage, unlimited, expected) in [(nil, true, true), (quota, true, false), (quota, false, false), (nil, false, false)] as [(QuotaPeriod?, Bool, Bool)] {
+            let view = UsageBarView(
+                usage: usage, hasUnlimitedCredits: unlimited, isLoading: false,
+                error: nil, statusMessage: nil, isStale: false, recoveryAction: .none
+            )
+            XCTAssertEqual(view.showsUnlimitedCredits, expected)
+            if usage != nil { XCTAssertEqual(view.barFillPercentage, 42) }
+        }
+    }
+
     func testPlaceholderShowsOnlyWhenTrulyDisconnected() {
         let view = UsageBarView(
             usage: nil,

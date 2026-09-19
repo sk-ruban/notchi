@@ -98,11 +98,12 @@ final class CodexUsageService {
     var currentUsage: QuotaPeriod?
     var currentWeeklyUsage: QuotaPeriod?
     var currentReviewsUsage: QuotaPeriod?
+    var hasUnlimitedCredits = false
     var currentExtraCreditsUSD: Double?
     var isUsageStale = false
     var lastObservedAt: Date?
     var hasUsageData: Bool {
-        UsageMetrics.codexHasData(usage: currentUsage, weeklyUsage: currentWeeklyUsage)
+        hasUnlimitedCredits || UsageMetrics.codexHasData(usage: currentUsage, weeklyUsage: currentWeeklyUsage)
     }
 
     var displayUsage: QuotaPeriod? {
@@ -193,6 +194,7 @@ final class CodexUsageService {
         currentUsage = unexpiredOnly(fetched.session, now: observedAt)
         currentWeeklyUsage = unexpiredOnly(fetched.weekly, now: observedAt)
         currentReviewsUsage = unexpiredOnly(fetched.reviews, now: observedAt)
+        hasUnlimitedCredits = fetched.hasUnlimitedCredits
         currentExtraCreditsUSD = fetched.creditsBalance.map { $0 * CodexUsageAPI.creditUSDRate }
         lastObservedAt = hasUsageData ? observedAt : nil
         isUsageStale = false
@@ -206,6 +208,7 @@ final class CodexUsageService {
         currentWeeklyUsage = nil
         currentReviewsUsage = nil
         currentExtraCreditsUSD = nil
+        hasUnlimitedCredits = false
         lastAPIUsageFetchAt = nil
         isUsageStale = false
         lastObservedAt = nil

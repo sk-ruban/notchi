@@ -37,6 +37,7 @@ nonisolated struct CodexAPIUsage: Equatable {
     var weekly: QuotaPeriod? = nil
     var reviews: QuotaPeriod? = nil
     var creditsBalance: Double? = nil
+    var hasUnlimitedCredits = false
 }
 
 nonisolated enum CodexUsageAPI {
@@ -119,7 +120,8 @@ nonisolated enum CodexUsageAPI {
             session: period(windows.session),
             weekly: period(windows.weekly),
             reviews: period(response.codeReviewRateLimit?.primaryWindow),
-            creditsBalance: creditsBalance
+            creditsBalance: creditsBalance,
+            hasUnlimitedCredits: response.credits?.unlimited == true
         )
     }
 
@@ -177,14 +179,17 @@ nonisolated struct CodexUsageAPIResponse: Decodable {
     struct Credits: Decodable {
         let balance: Double?
         let hasCredits: Bool?
+        let unlimited: Bool?
 
         enum CodingKeys: String, CodingKey {
             case balance
+            case unlimited
             case hasCredits = "has_credits"
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            unlimited = try container.decodeIfPresent(Bool.self, forKey: .unlimited)
             hasCredits = try container.decodeIfPresent(Bool.self, forKey: .hasCredits)
             if let number = try? container.decodeIfPresent(Double.self, forKey: .balance) {
                 balance = number
