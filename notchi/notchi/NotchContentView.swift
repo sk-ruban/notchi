@@ -462,18 +462,46 @@ struct NotchContentView: View {
         return percentage
     }
 
-    private var usageRingPercentage: Int? {
-        Self.collapsedRingPercentage(
+    enum CollapsedRingContent: Equatable {
+        case percentage(Int)
+        case unlimited
+    }
+
+    static func collapsedRingContent(
+        isUsageEnabled: Bool,
+        provider: AgentProvider,
+        claudeUsage: QuotaPeriod?,
+        codexSessionUsage: QuotaPeriod?,
+        codexWeeklyUsage: QuotaPeriod?,
+        codexHasUnlimitedCredits: Bool
+    ) -> CollapsedRingContent? {
+        guard isUsageEnabled else { return nil }
+        if let percentage = collapsedRingPercentage(
+            isUsageEnabled: isUsageEnabled,
+            provider: provider,
+            claudeUsage: claudeUsage,
+            codexSessionUsage: codexSessionUsage,
+            codexWeeklyUsage: codexWeeklyUsage
+        ) {
+            return .percentage(percentage)
+        }
+        let hasCodexQuota = codexSessionUsage != nil || codexWeeklyUsage != nil
+        return provider == .codex && codexHasUnlimitedCredits && !hasCodexQuota ? .unlimited : nil
+    }
+
+    private var collapsedRingContent: CollapsedRingContent? {
+        Self.collapsedRingContent(
             isUsageEnabled: AppSettings.isUsageEnabled,
             provider: ringProvider,
             claudeUsage: usageService.currentUsage,
             codexSessionUsage: codexUsageService.currentUsage,
-            codexWeeklyUsage: codexUsageService.currentWeeklyUsage
+            codexWeeklyUsage: codexUsageService.currentWeeklyUsage,
+            codexHasUnlimitedCredits: codexUsageService.hasUnlimitedCredits
         )
     }
 
     private var isCollapsedRingVisible: Bool {
-        (leftContent == .ring || rightContent == .ring) && usageRingPercentage != nil
+        (leftContent == .ring || rightContent == .ring) && collapsedRingContent != nil
     }
 
     private var compactContentWidth: CGFloat {
@@ -846,8 +874,8 @@ struct NotchContentView: View {
 
     @ViewBuilder
     private func ringSlot(side: NotchSide) -> some View {
-        if let usageRingPercentage, !isLaunchWaveActive {
-            UsageRingView(percentage: usageRingPercentage, isStale: ringIsStale)
+        if let collapsedRingContent, !isLaunchWaveActive {
+            UsageRingView(content: collapsedRingContent, isStale: ringIsStale)
                 .opacity(collapsedHeaderSpriteVisuals.opacity)
                 .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
                 .frame(width: sideWidth)

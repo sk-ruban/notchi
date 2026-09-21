@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct UsageRingView: View {
-    let percentage: Int
+    let content: NotchContentView.CollapsedRingContent
     var diameter: CGFloat = 15
     var lineWidth: CGFloat = 3
     var isStale: Bool = false
@@ -9,7 +9,14 @@ struct UsageRingView: View {
     @State private var drawProgress: CGFloat = 0
 
     private var clampedPercentage: Int {
-        min(max(percentage, 0), 100)
+        switch content {
+        case .percentage(let percentage): min(max(percentage, 0), 100)
+        case .unlimited: 0
+        }
+    }
+
+    private var isUnlimited: Bool {
+        content == .unlimited
     }
 
     private var ringColor: Color {
@@ -24,18 +31,27 @@ struct UsageRingView: View {
 
     var body: some View {
         ZStack {
-            UsageRingArc(fraction: Double(drawProgress))
-                .stroke(
-                    ringColor.opacity(0.28),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt)
-                )
-            UsageRingArc(fraction: Double(clampedPercentage) / 100 * Double(drawProgress))
-                .stroke(
-                    ringColor,
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
+            if isUnlimited {
+                Image(systemName: "infinity")
+                    .font(.system(size: diameter * 0.85, weight: .bold))
+                    .foregroundStyle(ringColor)
+                    .opacity(Double(drawProgress))
+                    .accessibilityLabel(String(localized: "No spending cap"))
+            } else {
+                UsageRingArc(fraction: Double(drawProgress))
+                    .stroke(
+                        ringColor.opacity(0.28),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt)
+                    )
+                UsageRingArc(fraction: Double(clampedPercentage) / 100 * Double(drawProgress))
+                    .stroke(
+                        ringColor,
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+            }
         }
-        .frame(width: diameter, height: diameter)
+        .frame(width: isUnlimited ? nil : diameter, height: diameter)
+        .fixedSize()
         .onAppear {
             withAnimation(.spring(response: 0.7, dampingFraction: 0.65)) { drawProgress = 1 }
         }
@@ -68,9 +84,11 @@ private struct UsageRingArc: Shape {
 
 #Preview {
     HStack(spacing: 12) {
-        UsageRingView(percentage: 25)
-        UsageRingView(percentage: 65)
-        UsageRingView(percentage: 95)
+        UsageRingView(content: .percentage(25))
+        UsageRingView(content: .percentage(65))
+        UsageRingView(content: .percentage(95))
+        UsageRingView(content: .unlimited)
+        UsageRingView(content: .unlimited, isStale: true)
     }
     .padding()
     .background(Color.black)

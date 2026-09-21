@@ -163,6 +163,60 @@ final class NotchContentViewTests: XCTestCase {
         )
     }
 
+    func testCollapsedRingContentShowsUnlimitedForCodexWithoutQuota() {
+        XCTAssertEqual(
+            NotchContentView.collapsedRingContent(
+                isUsageEnabled: true,
+                provider: .codex,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                codexHasUnlimitedCredits: true
+            ),
+            .unlimited
+        )
+    }
+
+    func testCollapsedRingContentPrefersQuotaOverUnlimitedCredits() {
+        XCTAssertEqual(
+            NotchContentView.collapsedRingContent(
+                isUsageEnabled: true,
+                provider: .codex,
+                claudeUsage: nil,
+                codexSessionUsage: QuotaPeriod(utilization: 37, resetsAt: nil),
+                codexWeeklyUsage: nil,
+                codexHasUnlimitedCredits: true
+            ),
+            .percentage(37)
+        )
+    }
+
+    func testCollapsedRingContentIgnoresCodexUnlimitedCreditsForClaudeProvider() {
+        XCTAssertNil(
+            NotchContentView.collapsedRingContent(
+                isUsageEnabled: true,
+                provider: .claude,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                codexHasUnlimitedCredits: true
+            )
+        )
+    }
+
+    func testCollapsedRingContentHidesUnlimitedWhenUsageDisabled() {
+        XCTAssertNil(
+            NotchContentView.collapsedRingContent(
+                isUsageEnabled: false,
+                provider: .codex,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                codexHasUnlimitedCredits: true
+            )
+        )
+    }
+
     func testGrassIslandRendersOnlyForExpandedActivityView() {
         XCTAssertTrue(
             NotchContentView.shouldRenderGrassIsland(
