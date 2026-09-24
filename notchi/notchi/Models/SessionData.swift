@@ -247,6 +247,13 @@ final class SessionData: Identifiable {
         return harnessInjectedPromptMarkers.contains { trimmed.hasPrefix($0) }
     }
 
+    // Claude Code wraps pasted text in <pasted_content id="…"> tags before it reaches the transcript.
+    private nonisolated static let pastedContentTagPattern = /\s*<\/?pasted_content id="[^"]*">\s*/
+
+    nonisolated static func strippingPastedContentTags(_ prompt: String) -> String {
+        prompt.replacing(pastedContentTagPattern) { _ in " " }
+    }
+
     func recordUserPrompt(
         _ prompt: String?,
         hasAttachments: Bool = false,
@@ -262,7 +269,7 @@ final class SessionData: Identifiable {
             }
             return
         }
-        if let trimmedPrompt = prompt?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if let trimmedPrompt = prompt.map(Self.strippingPastedContentTags)?.trimmingCharacters(in: .whitespacesAndNewlines),
            !trimmedPrompt.isEmpty {
             lastUserPrompt = String(trimmedPrompt.prefix(Self.storedPromptMaxLength))
         } else {
