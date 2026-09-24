@@ -12,6 +12,7 @@ struct UserPromptBubbleView: View {
     @State private var collapsedTextWidth: CGFloat?
 
     private static let collapsedLineLimit = 3
+    private var bubbleShape: RoundedRectangle { RoundedRectangle(cornerRadius: 18) }
 
     var body: some View {
         let renderedPrompt = promptText
@@ -35,10 +36,10 @@ struct UserPromptBubbleView: View {
         .foregroundColor(.white)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(TerminalColors.iMessageBlue)
-        )
+        .background(bubbleShape.fill(TerminalColors.iMessageBlue))
+        // lineLimit isn't animatable: the text jumps to full height while the frame animates,
+        // so clip to the animating frame to keep the overflow from painting outside the bubble.
+        .clipShape(bubbleShape)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isExpanded = hovering
