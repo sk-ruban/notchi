@@ -763,8 +763,7 @@ struct ExpandedPanelView: View {
                                         hasOtherAttachments: effectiveSession?.lastUserPromptHasOtherAttachments == true,
                                         imageAttachments: effectiveSession?.lastUserPromptImageAttachments ?? []
                                     )
-                                        .frame(maxWidth: .infinity, alignment: .trailing)
-                                        .padding(.bottom, 8)
+                                    .padding(.bottom, 8)
                                 }
 
                                 ForEach(unifiedActivityItems) { item in

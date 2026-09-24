@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum ChipSurface {
@@ -133,6 +134,60 @@ enum FileChipText {
         return AttributedString(sub[lower..<upper])
     }
 
+    /// Rewrites local file links to their basename so the string's characters match what is drawn,
+    /// which lets callers slice it (e.g. for truncation) before rendering.
+    static func displayAttributed(_ attributed: AttributedString) -> AttributedString {
+        var result = AttributedString()
+        for run in attributed.runs {
+            var piece = AttributedString(attributed[run.range])
+            if let link = run.link, run.inlinePresentationIntent?.contains(.code) != true {
+                let text = String(piece.characters)
+                let basename = (text as NSString).lastPathComponent
+                if localFileLink(link) != nil, isFilenameShaped(basename), basename != text {
+                    piece = AttributedString(basename, attributes: run.attributes)
+                }
+            }
+            result.append(piece)
+        }
+        return result
+    }
+
+    /// Mirrors the fonts `render` uses so TextKit can lay the text out the way SwiftUI will.
+    static func measurementAttributedString(
+        from attributed: AttributedString,
+        fontSize: CGFloat,
+        fontScale: CGFloat = 1
+    ) -> NSAttributedString {
+        let scaledSize = fontSize * fontScale
+        let baseFont = NSFont.systemFont(ofSize: scaledSize)
+        let boldFont = NSFont.boldSystemFont(ofSize: scaledSize)
+        let chipFont = NSFont.monospacedSystemFont(ofSize: scaledSize - 1, weight: .medium)
+        let iconAdvance = (scaledSize - 2) + ("\u{202F}" as NSString).size(withAttributes: [.font: baseFont]).width
+
+        let output = NSMutableAttributedString()
+        for segment in segments(from: attributed) {
+            switch segment {
+            case .plain(let sub):
+                for run in sub.runs {
+                    let isBold = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+                    output.append(NSAttributedString(
+                        string: String(sub[run.range].characters),
+                        attributes: [.font: isBold ? boldFont : baseFont]
+                    ))
+                }
+            case .code(let code):
+                output.append(NSAttributedString(string: code, attributes: [.font: chipFont]))
+            case .chip(let name, _):
+                let chip = NSMutableAttributedString(string: name, attributes: [.font: chipFont])
+                if iconStyle(forFilename: name) != nil, !name.isEmpty {
+                    chip.addAttribute(.kern, value: iconAdvance, range: NSRange(location: 0, length: 1))
+                }
+                output.append(chip)
+            }
+        }
+        return output
+    }
+
     static func render(
         markdown: String,
         surface: ChipSurface,
@@ -140,8 +195,22 @@ enum FileChipText {
         fontSize: CGFloat,
         fontScale: CGFloat = 1
     ) -> Text {
-        let attributed = inlineAttributed(markdown)
+        render(
+            attributed: inlineAttributed(markdown),
+            surface: surface,
+            baseColor: baseColor,
+            fontSize: fontSize,
+            fontScale: fontScale
+        )
+    }
 
+    static func render(
+        attributed: AttributedString,
+        surface: ChipSurface,
+        baseColor: Color,
+        fontSize: CGFloat,
+        fontScale: CGFloat = 1
+    ) -> Text {
         let scaledSize = fontSize * fontScale
         let chipFont = Font.system(size: scaledSize - 1, design: .monospaced).weight(.medium)
 

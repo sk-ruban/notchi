@@ -10,8 +10,11 @@ struct UserPromptBubbleView: View {
     @Environment(\.panelScale) private var panelScale
     @State private var isExpanded = false
     @State private var collapsedTextWidth: CGFloat?
+    @State private var availableWidth: CGFloat = 0
 
     private static let collapsedLineLimit = 3
+    private static let fontSize: CGFloat = 13
+    private static let horizontalPadding: CGFloat = 14
     private var bubbleShape: RoundedRectangle { RoundedRectangle(cornerRadius: 18) }
 
     var body: some View {
@@ -32,9 +35,9 @@ struct UserPromptBubbleView: View {
                     .frame(width: isExpanded ? collapsedTextWidth : nil, alignment: .leading)
             }
         }
-        .panelFont(size: 13)
+        .panelFont(size: Self.fontSize)
         .foregroundColor(.white)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, 10)
         .background(bubbleShape.fill(TerminalColors.iMessageBlue))
         // lineLimit isn't animatable: the text jumps to full height while the frame animates,
@@ -44,6 +47,12 @@ struct UserPromptBubbleView: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isExpanded = hovering
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            availableWidth = width
         }
     }
 
@@ -63,22 +72,41 @@ struct UserPromptBubbleView: View {
         }
     }
 
-    private var promptText: Text? {
-        let body = text.map(chippedText)
-        guard hasOtherAttachments else { return body }
-
-        let label = Text("Attached file").bold()
-        return body.map { label + Text("\n") + $0 } ?? label
+    private var fontScale: CGFloat {
+        PanelTypography.fontScale(panelScale: panelScale)
     }
 
-    private func chippedText(_ prompt: String) -> Text {
-        FileChipText.render(
-            markdown: prompt,
+    private var promptText: Text? {
+        guard let attributed = promptAttributed else { return nil }
+        return FileChipText.render(
+            attributed: isExpanded ? attributed : collapsedPrompt(attributed),
             surface: .userBubble,
             baseColor: .white,
-            fontSize: 13,
-            fontScale: PanelTypography.fontScale(panelScale: panelScale)
+            fontSize: Self.fontSize,
+            fontScale: fontScale
         )
+    }
+
+    private var promptAttributed: AttributedString? {
+        let body = text.map { FileChipText.displayAttributed(FileChipText.inlineAttributed($0)) }
+        guard hasOtherAttachments else { return body }
+
+        var label = AttributedString(String(localized: "Attached file"))
+        label.inlinePresentationIntent = .stronglyEmphasized
+        guard let body else { return label }
+        return label + AttributedString("\n") + body
+    }
+
+    private func collapsedPrompt(_ attributed: AttributedString) -> AttributedString {
+        let textWidth = availableWidth - 2 * Self.horizontalPadding
+        let collapsed = PromptTailTruncation.collapsed(
+            attributed,
+            width: textWidth,
+            lineLimit: Self.collapsedLineLimit
+        ) { candidate in
+            FileChipText.measurementAttributedString(from: candidate, fontSize: Self.fontSize, fontScale: fontScale)
+        }
+        return collapsed ?? attributed
     }
 }
 
