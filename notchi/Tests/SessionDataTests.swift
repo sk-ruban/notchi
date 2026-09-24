@@ -12,6 +12,24 @@ final class SessionDataTests: XCTestCase {
         XCTAssertEqual(session.currentModeDisplay, "Auto")
     }
 
+    func testRecordUserPromptUnwrapsPastedContentTags() {
+        let session = SessionData(sessionId: "pasted-session", provider: .claude, cwd: "/tmp/project")
+
+        session.recordUserPrompt(
+            "look at this <pasted_content id=\"c32b\">\nfix the bubble\n</pasted_content id=\"c32b\"> please"
+        )
+
+        XCTAssertEqual(session.lastUserPrompt, "look at this fix the bubble please")
+    }
+
+    func testRecordUserPromptKeepsPromptsWithoutPastedContentTagsUnchanged() {
+        let session = SessionData(sessionId: "plain-session", provider: .claude, cwd: "/tmp/project")
+
+        session.recordUserPrompt("what does <pasted_content> mean in <b>this</b> file?")
+
+        XCTAssertEqual(session.lastUserPrompt, "what does <pasted_content> mean in <b>this</b> file?")
+    }
+
     func testDefaultPermissionModeShowsNoBadge() {
         let session = SessionData(sessionId: "default-session", provider: .claude, cwd: "/tmp/project")
 
