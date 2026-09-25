@@ -45,6 +45,39 @@ final class PromptTailTruncationTests: XCTestCase {
         XCTAssertEqual(collapsed(word), String(repeating: "a", count: 32) + "…")
     }
 
+    // The truncation slices the attributed string by character offsets taken from the measured
+    // layout, so the measurement string must map 1:1 onto the display string's characters.
+    func testMeasurementStringMatchesDisplayCharactersForChipsAndLinks() {
+        let display = FileChipText.displayAttributed(FileChipText.inlineAttributed(
+            "see `Foo.swift` and [Bar.swift](/tmp/Bar.swift) plus main.py"
+        ))
+        let expected = "see Foo.swift and Bar.swift plus main.py"
+
+        let measured = FileChipText.measurementAttributedString(from: display, fontSize: 13)
+
+        XCTAssertEqual(String(display.characters), expected)
+        XCTAssertEqual(measured.string, expected)
+    }
+
+    func testChipHeavyPromptTruncatesBetweenWholeTokens() throws {
+        let prompt = "edit `AppDelegate.swift` then `SessionStore.swift` and `ExpandedPanelView.swift` plus "
+            + "`FileChipText.swift` before `UserPromptBubbleView.swift` and finally `NotchContentView.swift` ok"
+        let display = FileChipText.displayAttributed(FileChipText.inlineAttributed(prompt))
+        let original = String(display.characters)
+
+        let result = try XCTUnwrap(PromptTailTruncation.collapsed(display, width: 180, lineLimit: Self.lineLimit) {
+            FileChipText.measurementAttributedString(from: $0, fontSize: 13)
+        })
+        let text = String(result.characters)
+
+        XCTAssertTrue(text.hasSuffix(PromptTailTruncation.ellipsis))
+        let kept = String(text.dropLast())
+        XCTAssertTrue(original.hasPrefix(kept))
+        let next = original[original.index(original.startIndex, offsetBy: kept.count)]
+        XCTAssertTrue(next.isWhitespace, "cut landed inside a token before \(next)")
+        XCTAssertFalse(kept.last?.isWhitespace ?? true)
+    }
+
     func testKeepsAttributesOnRetainedPrefix() throws {
         var text = AttributedString("aaaa bbbb cccc dddd eeee ffff gggg hhhh")
         let boldRange = try XCTUnwrap(text.range(of: "bbbb"))
