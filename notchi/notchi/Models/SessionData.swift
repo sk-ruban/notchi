@@ -269,7 +269,8 @@ final class SessionData: Identifiable {
             }
             return
         }
-        if let trimmedPrompt = prompt.map(Self.strippingPastedContentTags)?.trimmingCharacters(in: .whitespacesAndNewlines),
+        let normalizedPrompt = provider == .claude ? prompt.map(Self.strippingPastedContentTags) : prompt
+        if let trimmedPrompt = normalizedPrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
            !trimmedPrompt.isEmpty {
             lastUserPrompt = String(trimmedPrompt.prefix(Self.storedPromptMaxLength))
         } else {

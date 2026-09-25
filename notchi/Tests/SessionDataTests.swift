@@ -30,6 +30,15 @@ final class SessionDataTests: XCTestCase {
         XCTAssertEqual(session.lastUserPrompt, "what does <pasted_content> mean in <b>this</b> file?")
     }
 
+    func testRecordUserPromptLeavesCodexPromptsVerbatim() {
+        let session = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
+        let prompt = "why does <pasted_content id=\"x\">text</pasted_content id=\"x\"> show up?"
+
+        session.recordUserPrompt(prompt)
+
+        XCTAssertEqual(session.lastUserPrompt, prompt)
+    }
+
     func testDefaultPermissionModeShowsNoBadge() {
         let session = SessionData(sessionId: "default-session", provider: .claude, cwd: "/tmp/project")
 
