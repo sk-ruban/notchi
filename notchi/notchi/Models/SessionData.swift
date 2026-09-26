@@ -57,6 +57,7 @@ final class SessionData: Identifiable {
     private(set) var codexOrigin: CodexOrigin?
     private(set) var hostBundleIdentifier: String?
     private(set) var codexTitle: String?
+    private(set) var claudeSessionName: String?
     private(set) var codexTranscriptPath: String?
     private(set) var codexArchived: Bool = false
     private(set) var codexCompactionSignal: CodexCompactionSignal?
@@ -328,6 +329,14 @@ final class SessionData: Identifiable {
 
     func updateHostBundleIdentifier(_ bundleIdentifier: String?) {
         hostBundleIdentifier = bundleIdentifier.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    func updateClaudeSessionName(_ name: String?) {
+        guard provider == .claude,
+              let name = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else { return }
+
+        claudeSessionName = name.truncatedForPrompt()
     }
 
     func updateCodexTitle(_ title: String?) {

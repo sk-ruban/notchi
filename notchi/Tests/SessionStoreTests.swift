@@ -516,6 +516,43 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(resolvedProcessIds, [42])
     }
 
+    func testClaudeSessionNameReplacesProjectLabel() {
+        let store = SessionStore.shared
+        store.setClaudeSessionNameResolverForTesting { processId in
+            processId == 4242 ? "tally-domain-audit" : nil
+        }
+        defer { store.resetClaudeSessionNameResolverForTesting() }
+
+        let session = store.process(makeEvent(
+            sessionId: "claude-name-\(UUID().uuidString)",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "check the audit",
+            claudeProcessId: 4242
+        ))
+        defer { store.dismissSession(session.sessionKey) }
+
+        XCTAssertEqual(store.displaySessionLabel(for: session), "tally-domain-audit")
+        XCTAssertEqual(store.displayTitle(for: session), "tally-domain-audit - check the audit")
+    }
+
+    func testClaudeSessionLabelFallsBackWhenUnnamed() {
+        let store = SessionStore.shared
+        store.setClaudeSessionNameResolverForTesting { _ in nil }
+        defer { store.resetClaudeSessionNameResolverForTesting() }
+
+        let session = store.process(makeEvent(
+            sessionId: "claude-unnamed-\(UUID().uuidString)",
+            event: .sessionStarted,
+            status: "waiting_for_input",
+            claudeProcessId: 4243
+        ))
+        defer { store.dismissSession(session.sessionKey) }
+
+        XCTAssertNil(session.claudeSessionName)
+        XCTAssertEqual(store.displaySessionLabel(for: session), "tmp #\(store.displaySessionNumber(for: session))")
+    }
+
     func testProcessRejectsProcessIdsThatDoNotFitInPid() {
         let store = SessionStore.shared
         var resolvedProcessIds: [pid_t] = []
