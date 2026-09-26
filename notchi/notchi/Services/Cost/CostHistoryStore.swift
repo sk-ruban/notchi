@@ -15,7 +15,9 @@ final class CostHistoryStore {
     private let scanProvider: @Sendable (Date) async -> DayModelBuckets
     private var timer: Timer?
     private let refreshInterval: TimeInterval = 90
+    private let pricingRetryInterval: TimeInterval = 60 * 60
     private let pricingCatalog: PricingCatalog?
+    private var lastPricingRefresh: Date?
 
     init(windowDays: Int = 30, calendar: Calendar = .current, provider: CostProvider = .claude,
          scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
@@ -71,6 +73,7 @@ final class CostHistoryStore {
     func start() {
         guard timer == nil else { return }
         if let catalog = pricingCatalog {
+            lastPricingRefresh = Date()
             Task.detached(priority: .utility) { await catalog.refreshFromNetwork() }
         }
         Task { await refresh() }
@@ -84,7 +87,14 @@ final class CostHistoryStore {
         isScanning = true
         defer { isScanning = false }
         let now = Date()
-        let buckets = await scanProvider(now)
+        var buckets = await scanProvider(now)
+        // Models released after launch scan as unpriced until the catalog is re-fetched.
+        if let catalog = pricingCatalog, Self.hasUnpricedRequests(buckets),
+           lastPricingRefresh.map({ now.timeIntervalSince($0) >= pricingRetryInterval }) ?? true {
+            lastPricingRefresh = now
+            await catalog.refreshFromNetwork()
+            buckets = await scanProvider(now)
+        }
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
         self.buckets = buckets
@@ -92,6 +102,12 @@ final class CostHistoryStore {
             provider: provider, buckets: buckets,
             windowStart: windowStart, today: now, calendar: calendar)
         lastScan = now
+    }
+
+    private static func hasUnpricedRequests(_ buckets: DayModelBuckets) -> Bool {
+        buckets.values.contains { models in
+            models.values.contains { $0.pricedCount < $0.requestCount }
+        }
     }
 }
 

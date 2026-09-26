@@ -34,6 +34,83 @@ final class CostHistoryStoreTests: XCTestCase {
         await store.refresh()
         XCTAssertEqual(store.report?.provider, .claude)
     }
+
+    @MainActor
+    func testRefreshPricesModelReleasedAfterLaunchWithoutRestart() async throws {
+        let newModel = "claude-released-after-launch-1"
+        let inputPerMillion = 2.0
+        let outputPerMillion = 10.0
+        let inputTokens = 1_000
+        let outputTokens = 500
+        let expectedCostUSD = Double(inputTokens) * inputPerMillion / 1_000_000
+            + Double(outputTokens) * outputPerMillion / 1_000_000
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let projectDir = dir.appendingPathComponent("projects/p", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let line = """
+        {"type":"assistant","timestamp":"\(timestamp)","requestId":"r1",\
+        "message":{"id":"m1","model":"\(newModel)",\
+        "usage":{"input_tokens":\(inputTokens),"output_tokens":\(outputTokens),\
+        "cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+
+        """
+        try line.data(using: .utf8)!.write(to: projectDir.appendingPathComponent("s.jsonl"))
+
+        // The anchors are included so the refresh passes the plausibility guard.
+        let modelsDev = """
+        {"anthropic":{"models":{
+          "\(newModel)":{"cost":{"input":\(inputPerMillion),"output":\(outputPerMillion)}},
+          "claude-sonnet-4-6":{"cost":{"input":3,"output":15}},
+          "claude-opus-4-8":{"cost":{"input":5,"output":25}}
+        }}}
+        """.data(using: .utf8)!
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { modelsDev })
+        XCTAssertNil(catalog.pricing(model: newModel, on: Date()), "precondition: launch-time pricing lacks the new model")
+
+        let store = CostHistoryStore(windowDays: 30, calendar: .current, pricing: catalog,
+                                     projectsRoots: [dir.appendingPathComponent("projects")],
+                                     cacheURL: dir.appendingPathComponent("cache.json"))
+        await store.refresh()
+
+        XCTAssertEqual(store.report?.todayCostUSD ?? 0, expectedCostUSD, accuracy: 1e-12)
+        XCTAssertEqual(store.report?.entries.last?.pricedFraction, 1)
+    }
+
+    private actor FetchCounter {
+        private(set) var count = 0
+        func increment() { count += 1 }
+    }
+
+    @MainActor
+    func testUnpriceableModelFetchesCatalogOnceWithinRetryInterval() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let projectDir = dir.appendingPathComponent("projects/p", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        let line = """
+        {"type":"assistant","timestamp":"\(ISO8601DateFormatter().string(from: Date()))","requestId":"r1",\
+        "message":{"id":"m1","model":"model-models-dev-never-lists",\
+        "usage":{"input_tokens":10,"output_tokens":5,\
+        "cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+
+        """
+        try line.data(using: .utf8)!.write(to: projectDir.appendingPathComponent("s.jsonl"))
+
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            await counter.increment()
+            return nil
+        })
+        let store = CostHistoryStore(windowDays: 30, calendar: .current, pricing: catalog,
+                                     projectsRoots: [dir.appendingPathComponent("projects")],
+                                     cacheURL: dir.appendingPathComponent("cache.json"))
+        await store.refresh()
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 1)
+    }
 }
 
 final class DailyCostReportTests: XCTestCase {

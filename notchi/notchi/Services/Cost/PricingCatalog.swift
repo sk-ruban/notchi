@@ -116,9 +116,12 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
     private var table: [String: ClaudeModelPricing]
     private let snapshotURL: URL?
     private let config: ProviderConfig
+    private let fetchCatalog: @Sendable () async -> Data?
 
-    init(config: ProviderConfig = .claude, fallbackBundle: Bundle, snapshotURL: URL? = nil) {
+    init(config: ProviderConfig = .claude, fallbackBundle: Bundle, snapshotURL: URL? = nil,
+         fetchCatalog: @escaping @Sendable () async -> Data? = PricingCatalog.fetchModelsDev) {
         self.config = config
+        self.fetchCatalog = fetchCatalog
         table = Self.loadFallback(bundle: fallbackBundle, config: config)
         if let url = snapshotURL, let overlay = Self.loadSnapshot(url: url) {
             table.merge(overlay) { _, new in new }
@@ -128,6 +131,7 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
 
     init(table: [String: ClaudeModelPricing]) {
         self.config = .claude
+        self.fetchCatalog = { nil }
         self.table = table
         self.snapshotURL = nil
     }
@@ -163,9 +167,13 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         return table[key]
     }
 
+    static func fetchModelsDev() async -> Data? {
+        guard let url = URL(string: "https://models.dev/api.json") else { return nil }
+        return try? await URLSession.shared.data(from: url).0
+    }
+
     func refreshFromNetwork() async {
-        guard let url = URL(string: "https://models.dev/api.json") else { return }
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return }
+        guard let data = await fetchCatalog() else { return }
         processNetworkData(data)
     }
 
