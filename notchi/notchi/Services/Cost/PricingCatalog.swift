@@ -172,7 +172,8 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         return try? await URLSession.shared.data(from: url).0
     }
 
-    func refreshFromNetwork() async {
+    // @concurrent keeps the multi-megabyte decode off the caller's actor, which is usually MainActor.
+    @concurrent func refreshFromNetwork() async {
         guard let data = await fetchCatalog() else { return }
         processNetworkData(data)
     }
