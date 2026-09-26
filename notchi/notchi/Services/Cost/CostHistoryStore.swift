@@ -15,7 +15,9 @@ final class CostHistoryStore {
     private let scanProvider: @Sendable (Date) async -> DayModelBuckets
     private var timer: Timer?
     private let refreshInterval: TimeInterval = 90
+    private let pricingRetryInterval: TimeInterval = 60 * 60
     private let pricingCatalog: PricingCatalog?
+    private var lastPricingRefresh: Date?
 
     init(windowDays: Int = 30, calendar: Calendar = .current, provider: CostProvider = .claude,
          scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
@@ -70,9 +72,6 @@ final class CostHistoryStore {
 
     func start() {
         guard timer == nil else { return }
-        if let catalog = pricingCatalog {
-            Task.detached(priority: .utility) { await catalog.refreshFromNetwork() }
-        }
         Task { await refresh() }
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
@@ -85,6 +84,15 @@ final class CostHistoryStore {
         defer { isScanning = false }
         let now = Date()
         let buckets = await scanProvider(now)
+        // Publish before fetching so a slow models.dev never holds back fresh usage.
+        publish(buckets, now: now)
+        guard let catalog = pricingCatalog, shouldRefreshPricing(after: buckets, now: now) else { return }
+        lastPricingRefresh = now
+        await catalog.refreshFromNetwork()
+        publish(await scanProvider(now), now: now)
+    }
+
+    private func publish(_ buckets: DayModelBuckets, now: Date) {
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
         self.buckets = buckets
@@ -92,6 +100,19 @@ final class CostHistoryStore {
             provider: provider, buckets: buckets,
             windowStart: windowStart, today: now, calendar: calendar)
         lastScan = now
+    }
+
+    /// Fetches once at launch, then again only when a model released since scans unpriced.
+    private func shouldRefreshPricing(after buckets: DayModelBuckets, now: Date) -> Bool {
+        guard let lastPricingRefresh else { return true }
+        return Self.hasUnpricedRequests(buckets)
+            && now.timeIntervalSince(lastPricingRefresh) >= pricingRetryInterval
+    }
+
+    private static func hasUnpricedRequests(_ buckets: DayModelBuckets) -> Bool {
+        buckets.values.contains { models in
+            models.values.contains { $0.pricedCount < $0.requestCount }
+        }
     }
 }
 

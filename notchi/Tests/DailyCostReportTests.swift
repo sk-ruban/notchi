@@ -34,6 +34,115 @@ final class CostHistoryStoreTests: XCTestCase {
         await store.refresh()
         XCTAssertEqual(store.report?.provider, .claude)
     }
+
+    /// Writes one assistant usage line timestamped now and returns a store scanning it.
+    @MainActor
+    private func storeScanningSession(model: String, inputTokens: Int, outputTokens: Int,
+                                      catalog: PricingCatalog) throws -> CostHistoryStore {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let projectDir = dir.appendingPathComponent("projects/p", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        let line = """
+        {"type":"assistant","timestamp":"\(ISO8601DateFormatter().string(from: Date()))","requestId":"r1",\
+        "message":{"id":"m1","model":"\(model)",\
+        "usage":{"input_tokens":\(inputTokens),"output_tokens":\(outputTokens),\
+        "cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+
+        """
+        try line.data(using: .utf8)!.write(to: projectDir.appendingPathComponent("s.jsonl"))
+        return CostHistoryStore(windowDays: 30, calendar: .current, pricing: catalog,
+                                projectsRoots: [dir.appendingPathComponent("projects")],
+                                cacheURL: dir.appendingPathComponent("cache.json"))
+    }
+
+    private actor FetchCounter {
+        private(set) var count = 0
+        func increment() { count += 1 }
+    }
+
+    @MainActor
+    func testRefreshPricesModelReleasedAfterLaunchWithoutRestart() async throws {
+        let newModel = "claude-released-after-launch-1"
+        let inputPerMillion = 2.0
+        let outputPerMillion = 10.0
+        let inputTokens = 1_000
+        let outputTokens = 500
+        let expectedCostUSD = Double(inputTokens) * inputPerMillion / 1_000_000
+            + Double(outputTokens) * outputPerMillion / 1_000_000
+
+        // The anchors are included so the refresh passes the plausibility guard.
+        let modelsDev = """
+        {"anthropic":{"models":{
+          "\(newModel)":{"cost":{"input":\(inputPerMillion),"output":\(outputPerMillion)}},
+          "claude-sonnet-4-6":{"cost":{"input":3,"output":15}},
+          "claude-opus-4-8":{"cost":{"input":5,"output":25}}
+        }}}
+        """.data(using: .utf8)!
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { modelsDev })
+        XCTAssertNil(catalog.pricing(model: newModel, on: Date()), "precondition: launch-time pricing lacks the new model")
+
+        let store = try storeScanningSession(model: newModel, inputTokens: inputTokens,
+                                             outputTokens: outputTokens, catalog: catalog)
+        await store.refresh()
+
+        XCTAssertEqual(store.report?.todayCostUSD ?? 0, expectedCostUSD, accuracy: 1e-12)
+        XCTAssertEqual(store.report?.entries.last?.pricedFraction, 1)
+    }
+
+    @MainActor
+    func testUnpriceableModelFetchesCatalogOnceWithinRetryInterval() async throws {
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            await counter.increment()
+            return nil
+        })
+        let store = try storeScanningSession(model: "model-models-dev-never-lists",
+                                             inputTokens: 10, outputTokens: 5, catalog: catalog)
+        await store.refresh()
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 1)
+    }
+
+    @MainActor
+    func testFirstRefreshFetchesCatalogWhenEveryModelIsPriced() async throws {
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            await counter.increment()
+            return nil
+        })
+        let store = try storeScanningSession(model: "claude-sonnet-4-6",
+                                             inputTokens: 10, outputTokens: 5, catalog: catalog)
+        XCTAssertNotNil(catalog.pricing(model: "claude-sonnet-4-6", on: Date()), "precondition: fallback prices the model")
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 1, "launch refresh must still pick up price changes for known models")
+    }
+
+    @MainActor
+    func testScanIsPublishedBeforeSlowCatalogFetchCompletes() async throws {
+        let inputTokens = 10
+        let outputTokens = 5
+        let (fetchStarted, fetchStartedContinuation) = AsyncStream<Void>.makeStream()
+        let (fetchRelease, fetchReleaseContinuation) = AsyncStream<Void>.makeStream()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            fetchStartedContinuation.yield()
+            for await _ in fetchRelease {}
+            return nil
+        })
+        let store = try storeScanningSession(model: "model-models-dev-never-lists",
+                                             inputTokens: inputTokens, outputTokens: outputTokens,
+                                             catalog: catalog)
+
+        let refresh = Task { await store.refresh() }
+        for await _ in fetchStarted { break }
+
+        XCTAssertEqual(store.report?.todayTokens, inputTokens + outputTokens)
+        fetchReleaseContinuation.finish()
+        await refresh.value
+    }
 }
 
 final class DailyCostReportTests: XCTestCase {

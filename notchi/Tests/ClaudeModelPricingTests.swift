@@ -1,4 +1,5 @@
 import XCTest
+import os
 @testable import notchi
 
 final class ClaudeModelPricingTests: XCTestCase {
@@ -148,6 +149,23 @@ final class ClaudeModelPricingTests: XCTestCase {
         XCTAssertEqual(kept.files.count, 1, "matching signature must keep the cache")
         XCTAssertEqual(kept.buckets.count, 1)
         XCTAssertEqual(kept.pricingSignature, staleSig)
+    }
+
+    private nonisolated static func isOnMainThread() -> Bool { Thread.isMainThread }
+
+    @MainActor
+    func testNetworkRefreshFromMainActorRunsOffTheMainThread() async {
+        let fetchedOnMainThread = OSAllocatedUnfairLock<Bool?>(initialState: nil)
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            let onMain = Self.isOnMainThread()
+            fetchedOnMainThread.withLock { $0 = onMain }
+            return nil
+        })
+
+        await catalog.refreshFromNetwork()
+
+        XCTAssertEqual(fetchedOnMainThread.withLock { $0 }, false,
+                       "decoding the multi-megabyte catalog must not block the main thread")
     }
 
     func testPlausibilityGuardAcceptsBothAnchorsAndRejectsPartial() {
