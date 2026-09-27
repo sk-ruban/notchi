@@ -247,7 +247,9 @@ struct NotchiState: Equatable {
              (.claude, .idle, .happy),
              (.codex, .idle, .elated),
              (.codex, .idle, .happy),
-             (.codex, .working, .happy):
+             (.codex, .working, .happy),
+             (.devin, .idle, .elated),
+             (.devin, .idle, .happy):
             return Self.expressiveSpriteTargetFPS
         default:
             return nil

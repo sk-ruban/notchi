@@ -112,6 +112,43 @@ final class SessionDataTests: XCTestCase {
 
         XCTAssertEqual(claude.state.spriteFamily, .claude)
         XCTAssertEqual(codex.state.spriteFamily, .codex)
+        XCTAssertEqual(
+            SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project").state.spriteFamily,
+            .devin
+        )
+    }
+
+    func testDevinSobFallsBackToDevinSadSheet() {
+        let state = NotchiState(task: .idle, emotion: .sob, spriteFamily: .devin)
+
+        XCTAssertEqual(state.spriteSheetName, "devin_idle_sad")
+    }
+
+    func testDevinEmotionalWorkingAndWaitingFallBackToNeutralSheets() {
+        let expectedSheets: [(NotchiState, String)] = [
+            (NotchiState(task: .working, emotion: .happy, spriteFamily: .devin), "devin_working_neutral"),
+            (NotchiState(task: .working, emotion: .sob, spriteFamily: .devin), "devin_working_neutral"),
+            (NotchiState(task: .waiting, emotion: .sad, spriteFamily: .devin), "devin_waiting_neutral"),
+            (NotchiState(task: .sleeping, emotion: .happy, spriteFamily: .devin), "devin_sleeping_neutral"),
+        ]
+
+        for (state, expectedSheet) in expectedSheets {
+            XCTAssertEqual(state.spriteSheetName, expectedSheet)
+        }
+    }
+
+    func testDevinSheetsInferNonDefaultFrameCounts() {
+        let expectedFrameCounts: [(NotchiState, Int)] = [
+            (NotchiState(task: .idle, spriteFamily: .devin), 7),
+            (NotchiState(task: .idle, emotion: .elated, spriteFamily: .devin), 17),
+            (NotchiState(task: .working, spriteFamily: .devin), 4),
+            (NotchiState(task: .compacting, spriteFamily: .devin), 8),
+            (NotchiState(task: .waving, spriteFamily: .devin), 24),
+        ]
+
+        for (state, expectedFrameCount) in expectedFrameCounts {
+            XCTAssertEqual(state.frameCount, expectedFrameCount, state.spriteSheetName)
+        }
     }
 
     func testMissingCodexEmotionSpriteFallsBackWithinCodexFamily() {
@@ -129,6 +166,9 @@ final class SessionDataTests: XCTestCase {
             (NotchiState(task: .idle, emotion: .elated, spriteFamily: .codex), 7.0),
             (NotchiState(task: .idle, emotion: .happy, spriteFamily: .codex), 7.0),
             (NotchiState(task: .working, emotion: .happy, spriteFamily: .codex), 7.0),
+            (NotchiState(task: .idle, emotion: .elated, spriteFamily: .devin), 7.0),
+            (NotchiState(task: .idle, emotion: .happy, spriteFamily: .devin), 7.0),
+            (NotchiState(task: .waving, spriteFamily: .devin), 24.0 / 2.6),
             (NotchiState(task: .waving, spriteFamily: .claude), 25.0 / 2.6),
             (NotchiState(task: .waving, spriteFamily: .codex), 25.0 / 2.6)
         ]

@@ -2053,6 +2053,40 @@
         }
       }
     },
+    "Devin Mascot" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devinのマスコット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devin 마스코트"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linh vật Devin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devin 吉祥物"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devin 吉祥物"
+          }
+        }
+      }
+    },
     "Disabled in Codex" : {
       "localizations" : {
         "ja" : {

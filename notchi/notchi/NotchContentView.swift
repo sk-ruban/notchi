@@ -243,6 +243,7 @@ struct NotchContentView: View {
         switch content {
         case .claude: sessionStore.latestSession(for: .claude)
         case .codex: sessionStore.latestSession(for: .codex)
+        case .devin: sessionStore.latestSession(for: .devin)
         case .latest: sessionStore.latestSession(excluding: excluded)
         case .nothing, .ring: nil
         }
@@ -256,6 +257,7 @@ struct NotchContentView: View {
         switch content {
         case .claude: spriteFamily == AgentProvider.claude.spriteFamily
         case .codex: spriteFamily == AgentProvider.codex.spriteFamily
+        case .devin: spriteFamily == AgentProvider.devin.spriteFamily
         case .latest: spriteFamily != excluded?.spriteFamily
         case .nothing, .ring: false
         }
@@ -853,7 +855,7 @@ struct NotchContentView: View {
             Color.clear.frame(width: sideWidth)
         case .ring:
             ringSlot(side: side)
-        case .latest, .claude, .codex:
+        case .latest, .claude, .codex, .devin:
             spriteSlot(content: spriteContent(for: content, side: side), side: side)
                 .simultaneousGesture(collapsedSpriteGesture(for: content, side: side))
         }

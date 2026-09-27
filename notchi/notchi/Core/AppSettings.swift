@@ -131,6 +131,7 @@ enum NotchSlotContent: String, CaseIterable, Identifiable {
     case ring
     case claude
     case codex
+    case devin
     case nothing
 
     var id: String { rawValue }
@@ -141,6 +142,7 @@ enum NotchSlotContent: String, CaseIterable, Identifiable {
         case .ring: String(localized: "Usage Ring")
         case .claude: String(localized: "Claude Mascot")
         case .codex: String(localized: "Codex Mascot")
+        case .devin: String(localized: "Devin Mascot")
         case .nothing: String(localized: "Nothing")
         }
     }
@@ -149,13 +151,14 @@ enum NotchSlotContent: String, CaseIterable, Identifiable {
         switch self {
         case .claude: .claude
         case .codex: .codex
+        case .devin: .devin
         case .nothing, .ring, .latest: nil
         }
     }
 
     var isSprite: Bool {
         switch self {
-        case .latest, .claude, .codex: true
+        case .latest, .claude, .codex, .devin: true
         case .nothing, .ring: false
         }
     }
