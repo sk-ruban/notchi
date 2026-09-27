@@ -14,6 +14,19 @@ final class PanelSettingsViewTests: XCTestCase {
         )
     }
 
+    func testUsageBadgeShowsConnectedWhenDevinUsageIsAvailable() {
+        XCTAssertEqual(
+            PanelUsageBadgeState.resolve(
+                isClaudeUsageConnected: false,
+                hasActiveClaudeSession: false,
+                hasActiveCodexSession: false,
+                codexHooksInstalled: false,
+                hasActiveDevinSessionWithUsage: true
+            ),
+            .connected
+        )
+    }
+
     func testUsageBadgeStillShowsSetupWhenClaudeUsageNeedsConnection() {
         XCTAssertEqual(
             PanelUsageBadgeState.resolve(

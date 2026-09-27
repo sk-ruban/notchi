@@ -170,6 +170,7 @@ struct ExpandedPanelView: View {
     let sessionStore: SessionStore
     let usageService: ClaudeUsageService
     let codexUsageService: CodexUsageService
+    let devinUsageService: DevinUsageService
     let usageDetailProvider: AgentProvider?
     @Binding var showingSettings: Bool
     @Binding var settingsPath: [SettingsScreen]
@@ -194,6 +195,7 @@ struct ExpandedPanelView: View {
         sessionStore: SessionStore,
         usageService: ClaudeUsageService,
         codexUsageService: CodexUsageService,
+        devinUsageService: DevinUsageService,
         usageDetailProvider: AgentProvider?,
         showingSettings: Binding<Bool>,
         settingsPath: Binding<[SettingsScreen]>,
@@ -205,6 +207,7 @@ struct ExpandedPanelView: View {
         self.sessionStore = sessionStore
         self.usageService = usageService
         self.codexUsageService = codexUsageService
+        self.devinUsageService = devinUsageService
         self.usageDetailProvider = usageDetailProvider
         _showingSettings = showingSettings
         _settingsPath = settingsPath
@@ -243,7 +246,7 @@ struct ExpandedPanelView: View {
     }
 
     private var hasUsageDetailData: Bool {
-        usageService.hasUsageData || codexUsageService.hasUsageData
+        usageService.hasUsageData || codexUsageService.hasUsageData || devinUsageService.hasUsageData
             || !CostHistoryStore.shared.buckets.isEmpty || !CostHistoryStore.sharedCodex.buckets.isEmpty
     }
 
@@ -311,6 +314,7 @@ struct ExpandedPanelView: View {
 
         let includesClaude = Self.includesClaudeUsage(activeSessions: activeSessions)
         let includesCodex = Self.includesCodexUsage(activeSessions: activeSessions)
+        let includesDevin = Self.includesDevinUsage(activeSessions: activeSessions)
         let period = mainUsageBarPeriod
 
         let claudePeriod = Self.effectiveMainUsagePeriod(
@@ -358,10 +362,34 @@ struct ExpandedPanelView: View {
             period: codexPeriod
         ) : nil
 
+        let devinPeriod = Self.effectiveMainUsagePeriod(
+            for: period,
+            sessionUsage: devinUsageService.currentUsage,
+            weeklyUsage: devinUsageService.currentWeeklyUsage
+        )
+        let devin = includesDevin ? SharedUsageBarState(
+            provider: .devin,
+            usage: Self.mainUsage(
+                for: devinPeriod,
+                sessionUsage: devinUsageService.currentUsage,
+                weeklyUsage: devinUsageService.currentWeeklyUsage
+            ),
+            isUsingExtraUsage: false,
+            isLoading: false,
+            error: nil,
+            statusMessage: nil,
+            isStale: devinUsageService.isUsageStale,
+            recoveryAction: .none,
+            lastObservedAt: devinUsageService.lastObservedAt,
+            period: devinPeriod
+        ) : nil
+
         return Self.sharedUsageBarState(
             contextSession: usageContextSession,
             claude: claude,
-            codex: codex
+            codex: codex,
+            devin: devin,
+            lastUsedProvider: AppSettings.lastUsedAgentProvider
         )
     }
 
@@ -512,6 +540,7 @@ struct ExpandedPanelView: View {
             UsageDetailView(
                 claudeUsage: usageService,
                 codexUsage: codexUsageService,
+                devinUsage: devinUsageService,
                 costStore: CostHistoryStore.shared,
                 codexCostStore: CostHistoryStore.sharedCodex,
                 defaultProvider: usageDetailDefaultProvider
@@ -598,9 +627,12 @@ struct ExpandedPanelView: View {
         activeSessions.contains { $0.provider == .codex }
     }
 
-    static func hasMixedClaudeAndCodexSessions(_ activeSessions: [SessionData]) -> Bool {
-        activeSessions.contains { $0.provider == .claude }
-            && activeSessions.contains { $0.provider == .codex }
+    static func includesDevinUsage(activeSessions: [SessionData]) -> Bool {
+        activeSessions.contains { $0.provider == .devin }
+    }
+
+    static func hasMixedProviderSessions(_ activeSessions: [SessionData]) -> Bool {
+        Set(activeSessions.map(\.provider)).count > 1
     }
 
     static func questionResponseHint(for session: SessionData?) -> String? {
@@ -616,11 +648,11 @@ struct ExpandedPanelView: View {
         guard let state else { return nil }
 
         var parts: [String] = []
-        if hasMixedClaudeAndCodexSessions(activeSessions) {
+        if hasMixedProviderSessions(activeSessions) {
             parts.append(state.provider.displayName)
         }
         if state.period == .weekly || state.period != requestedPeriod {
-            let periodName = state.period.displayName
+            let periodName = state.period.displayName(for: state.provider)
             parts.append(parts.isEmpty ? periodName : periodName.lowercased(with: .autoupdatingCurrent))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " ")
@@ -670,7 +702,7 @@ struct ExpandedPanelView: View {
         provider: AgentProvider,
         appUsageEnabled: Bool = AppSettings.isUsageEnabled
     ) -> Bool {
-        provider == .codex || appUsageEnabled
+        provider != .claude || appUsageEnabled
     }
 
     static func usageDetailDefaultProvider(
@@ -685,25 +717,24 @@ struct ExpandedPanelView: View {
         contextSession: SessionData?,
         claude: SharedUsageBarState?,
         codex: SharedUsageBarState?,
+        devin: SharedUsageBarState? = nil,
+        lastUsedProvider: AgentProvider = .claude,
         claudeUsageEnabled: Bool = AppSettings.isUsageEnabled
     ) -> SharedUsageBarState? {
-        guard let claude, let codex else {
-            return claude ?? codex
+        let candidates = [claude, codex, devin].compactMap { $0 }
+        guard candidates.count > 1 else {
+            return candidates.first
         }
 
-        if let contextSession {
-            return contextSession.provider == .claude ? claude : codex
+        if let contextProvider = contextSession?.provider,
+           let contextState = candidates.first(where: { $0.provider == contextProvider }) {
+            return contextState
         }
 
-        if let claudeObservedAt = claude.lastObservedAt,
-           let codexObservedAt = codex.lastObservedAt,
-           claudeObservedAt != codexObservedAt {
-            let newer = codexObservedAt > claudeObservedAt ? codex : claude
-            let older = codexObservedAt > claudeObservedAt ? claude : codex
-            return preferredOrFallback(newer, older, claudeUsageEnabled: claudeUsageEnabled)
-        }
-
-        return preferredOrFallback(claude, codex, claudeUsageEnabled: claudeUsageEnabled)
+        let preferred = candidates.first { $0.provider == lastUsedProvider } ?? candidates[0]
+        let fallback = candidates.first { $0.provider != preferred.provider && $0.usage != nil }
+        guard let fallback else { return preferred }
+        return preferredOrFallback(preferred, fallback, claudeUsageEnabled: claudeUsageEnabled)
     }
 
     // Only a bar with nothing at all to show swaps to the provider that has data. Loading, error,

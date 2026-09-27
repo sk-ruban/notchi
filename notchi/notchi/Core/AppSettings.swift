@@ -181,6 +181,13 @@ enum MainUsageBarPeriod: String, CaseIterable, Identifiable {
         case .weekly: String(localized: "Weekly")
         }
     }
+
+    func displayName(for provider: AgentProvider) -> String {
+        switch (self, provider) {
+        case (.session, .devin): String(localized: "Daily")
+        default: displayName
+        }
+    }
 }
 
 enum ExpandedPanelMode: String, CaseIterable {

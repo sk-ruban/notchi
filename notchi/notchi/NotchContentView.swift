@@ -166,6 +166,7 @@ struct NotchContentView: View {
     var panelManager: NotchPanelManager = .shared
     var usageService: ClaudeUsageService = .shared
     var codexUsageService: CodexUsageService = .shared
+    var devinUsageService: DevinUsageService = .shared
     var haptics: HapticService = .shared
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject private var updateManager = UpdateManager.shared
@@ -435,16 +436,26 @@ struct NotchContentView: View {
     }
 
     private var ringIsStale: Bool {
-        ringProvider == .codex ? codexUsageService.isUsageStale : usageService.isUsageStale
+        switch ringProvider {
+        case .claude: usageService.isUsageStale
+        case .codex: codexUsageService.isUsageStale
+        case .devin: devinUsageService.isUsageStale
+        }
     }
 
     static func collapsedRingUsage(
         provider: AgentProvider,
         claudeUsage: QuotaPeriod?,
         codexSessionUsage: QuotaPeriod?,
-        codexWeeklyUsage: QuotaPeriod?
+        codexWeeklyUsage: QuotaPeriod?,
+        devinDailyUsage: QuotaPeriod? = nil,
+        devinWeeklyUsage: QuotaPeriod? = nil
     ) -> QuotaPeriod? {
-        provider == .codex ? (codexSessionUsage ?? codexWeeklyUsage) : claudeUsage
+        switch provider {
+        case .claude: claudeUsage
+        case .codex: codexSessionUsage ?? codexWeeklyUsage
+        case .devin: devinDailyUsage ?? devinWeeklyUsage
+        }
     }
 
     static func collapsedRingPercentage(
@@ -452,14 +463,18 @@ struct NotchContentView: View {
         provider: AgentProvider,
         claudeUsage: QuotaPeriod?,
         codexSessionUsage: QuotaPeriod?,
-        codexWeeklyUsage: QuotaPeriod?
+        codexWeeklyUsage: QuotaPeriod?,
+        devinDailyUsage: QuotaPeriod? = nil,
+        devinWeeklyUsage: QuotaPeriod? = nil
     ) -> Int? {
         guard isUsageEnabled else { return nil }
         return collapsedRingUsage(
             provider: provider,
             claudeUsage: claudeUsage,
             codexSessionUsage: codexSessionUsage,
-            codexWeeklyUsage: codexWeeklyUsage
+            codexWeeklyUsage: codexWeeklyUsage,
+            devinDailyUsage: devinDailyUsage,
+            devinWeeklyUsage: devinWeeklyUsage
         )?.usagePercentage
     }
 
@@ -474,7 +489,9 @@ struct NotchContentView: View {
         claudeUsage: QuotaPeriod?,
         codexSessionUsage: QuotaPeriod?,
         codexWeeklyUsage: QuotaPeriod?,
-        codexHasUnlimitedCredits: Bool
+        codexHasUnlimitedCredits: Bool,
+        devinDailyUsage: QuotaPeriod? = nil,
+        devinWeeklyUsage: QuotaPeriod? = nil
     ) -> CollapsedRingContent? {
         guard isUsageEnabled else { return nil }
         if let percentage = collapsedRingPercentage(
@@ -482,7 +499,9 @@ struct NotchContentView: View {
             provider: provider,
             claudeUsage: claudeUsage,
             codexSessionUsage: codexSessionUsage,
-            codexWeeklyUsage: codexWeeklyUsage
+            codexWeeklyUsage: codexWeeklyUsage,
+            devinDailyUsage: devinDailyUsage,
+            devinWeeklyUsage: devinWeeklyUsage
         ) {
             return .percentage(percentage)
         }
@@ -497,7 +516,9 @@ struct NotchContentView: View {
             claudeUsage: usageService.currentUsage,
             codexSessionUsage: codexUsageService.currentUsage,
             codexWeeklyUsage: codexUsageService.currentWeeklyUsage,
-            codexHasUnlimitedCredits: codexUsageService.hasUnlimitedCredits
+            codexHasUnlimitedCredits: codexUsageService.hasUnlimitedCredits,
+            devinDailyUsage: devinUsageService.currentUsage,
+            devinWeeklyUsage: devinUsageService.currentWeeklyUsage
         )
     }
 
@@ -705,6 +726,7 @@ struct NotchContentView: View {
                         sessionStore: sessionStore,
                         usageService: usageService,
                         codexUsageService: CodexUsageService.shared,
+                        devinUsageService: DevinUsageService.shared,
                         usageDetailProvider: usageDetailProvider,
                         showingSettings: $showingPanelSettings,
                         settingsPath: $settingsPath,

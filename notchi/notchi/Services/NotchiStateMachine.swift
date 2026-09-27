@@ -171,6 +171,9 @@ final class NotchiStateMachine {
                     for: event.sessionKey
                 )
             }
+            if event.provider == .devin {
+                Task { await DevinUsageService.shared.refresh() }
+            }
 
         case .sessionEnded:
             pendingSessionStartTimes.removeValue(forKey: event.sessionKey)

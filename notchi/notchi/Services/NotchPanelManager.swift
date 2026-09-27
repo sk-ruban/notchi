@@ -95,7 +95,9 @@ final class NotchPanelManager {
                 provider: AppSettings.lastUsedAgentProvider,
                 claudeUsage: ClaudeUsageService.shared.currentUsage,
                 codexSessionUsage: CodexUsageService.shared.currentUsage,
-                codexWeeklyUsage: CodexUsageService.shared.currentWeeklyUsage
+                codexWeeklyUsage: CodexUsageService.shared.currentWeeklyUsage,
+                devinDailyUsage: DevinUsageService.shared.currentUsage,
+                devinWeeklyUsage: DevinUsageService.shared.currentWeeklyUsage
             ) != nil
         },
         mouseLocationProvider: @escaping @MainActor () -> CGPoint = { NSEvent.mouseLocation },

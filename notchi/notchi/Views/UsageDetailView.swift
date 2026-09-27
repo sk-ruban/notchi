@@ -3,6 +3,7 @@ import SwiftUI
 struct UsageDetailView: View {
     let claudeUsage: ClaudeUsageService
     let codexUsage: CodexUsageService
+    let devinUsage: DevinUsageService
     let costStore: CostHistoryStore
     let codexCostStore: CostHistoryStore
     let defaultProvider: AgentProvider
@@ -19,12 +20,14 @@ struct UsageDetailView: View {
     init(
         claudeUsage: ClaudeUsageService,
         codexUsage: CodexUsageService,
+        devinUsage: DevinUsageService,
         costStore: CostHistoryStore,
         codexCostStore: CostHistoryStore,
         defaultProvider: AgentProvider
     ) {
         self.claudeUsage = claudeUsage
         self.codexUsage = codexUsage
+        self.devinUsage = devinUsage
         self.costStore = costStore
         self.codexCostStore = codexCostStore
         self.defaultProvider = defaultProvider
@@ -39,20 +42,44 @@ struct UsageDetailView: View {
         codexUsage.hasUsageData || !codexCostStore.buckets.isEmpty
     }
 
+    var devinHasData: Bool {
+        devinUsage.hasUsageData
+    }
+
+    private var providersWithData: [AgentProvider] {
+        Self.providersWithData(claudeHasData: claudeHasData, codexHasData: codexHasData, devinHasData: devinHasData)
+    }
+
     var showsToggle: Bool {
+        providersWithData.count > 1
+    }
+
+    private var showsAllTab: Bool {
         claudeHasData && codexHasData
+    }
+
+    var tabs: [UsageTab] {
+        providersWithData.map(UsageTab.provider) + (showsAllTab ? [.all] : [])
     }
 
     private var resolvedTab: UsageTab {
         switch selectedTab {
-        case .all where showsToggle:
+        case .all where showsAllTab:
             return .all
         case .all:
             return .provider(Self.resolvedProvider(
-                selected: defaultProvider, claudeHasData: claudeHasData, codexHasData: codexHasData))
+                selected: defaultProvider,
+                claudeHasData: claudeHasData,
+                codexHasData: codexHasData,
+                devinHasData: devinHasData
+            ))
         case .provider(let provider):
             return .provider(Self.resolvedProvider(
-                selected: provider, claudeHasData: claudeHasData, codexHasData: codexHasData))
+                selected: provider,
+                claudeHasData: claudeHasData,
+                codexHasData: codexHasData,
+                devinHasData: devinHasData
+            ))
         }
     }
 
@@ -66,13 +93,20 @@ struct UsageDetailView: View {
     static func resolvedProvider(
         selected: AgentProvider,
         claudeHasData: Bool,
-        codexHasData: Bool
+        codexHasData: Bool,
+        devinHasData: Bool = false
     ) -> AgentProvider {
-        switch selected {
-        case .claude where !claudeHasData && codexHasData: return .codex
-        case .codex where !codexHasData && claudeHasData: return .claude
-        default: return selected
+        let withData = providersWithData(claudeHasData: claudeHasData, codexHasData: codexHasData, devinHasData: devinHasData)
+        guard let firstWithData = withData.first, !withData.contains(selected) else {
+            return selected
         }
+        return firstWithData
+    }
+
+    private static func providersWithData(claudeHasData: Bool, codexHasData: Bool, devinHasData: Bool) -> [AgentProvider] {
+        [(AgentProvider.claude, claudeHasData), (.codex, codexHasData), (.devin, devinHasData)]
+            .filter(\.1)
+            .map(\.0)
     }
 
     private var periods: [UsagePeriodDisplay] {
@@ -97,7 +131,10 @@ struct UsageDetailView: View {
                 UsageMetrics.periodDisplay(title: String(localized: "Reviews"), usage: codexUsage.currentReviewsUsage, isStale: stale),
             ].compactMap { $0 }
         case .devin:
-            return []
+            return [
+                UsageMetrics.periodDisplay(title: String(localized: "Daily"), usage: devinUsage.currentUsage, isStale: devinUsage.isUsageStale),
+                UsageMetrics.periodDisplay(title: String(localized: "Weekly"), usage: devinUsage.currentWeeklyUsage, isStale: devinUsage.isUsageStale),
+            ].compactMap { $0 }
         }
     }
 
@@ -112,7 +149,7 @@ struct UsageDetailView: View {
     }
 
     private var combinedReport: DailyCostReport? {
-        guard showsToggle else { return nil }
+        guard showsAllTab else { return nil }
         let calendar = costStore.calendar
         let today = Date()
         let windowStart = calendar.date(
@@ -134,6 +171,8 @@ struct UsageDetailView: View {
     @ViewBuilder private var costDashboard: some View {
         let chartHeight = Self.chartHeight(showGrassIsland: showGrassIsland)
         switch resolvedTab {
+        case .provider(.devin):
+            EmptyView()
         case .provider(let provider):
             let stores = provider == .codex
                 ? (main: codexCostStore, peer: costStore)
@@ -296,7 +335,7 @@ struct UsageDetailView: View {
 
     private var providerToggle: some View {
         HStack(spacing: 4) {
-            ForEach([UsageTab.provider(.claude), .provider(.codex), .all], id: \.self) { tab in
+            ForEach(tabs, id: \.self) { tab in
                 Button(action: { selectedTab = tab }) {
                     Text(Self.tabTitle(tab))
                         .panelFont(size: 14, weight: .semibold)

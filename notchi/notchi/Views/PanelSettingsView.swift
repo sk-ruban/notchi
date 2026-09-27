@@ -31,7 +31,8 @@ enum PanelUsageBadgeState: Equatable {
         isClaudeUsageConnected: Bool,
         hasActiveClaudeSession: Bool,
         hasActiveCodexSession: Bool,
-        codexHooksInstalled: Bool
+        codexHooksInstalled: Bool,
+        hasActiveDevinSessionWithUsage: Bool = false
     ) -> PanelUsageBadgeState {
         if isClaudeUsageConnected {
             return .connected
@@ -42,6 +43,10 @@ enum PanelUsageBadgeState: Equatable {
         }
 
         if hasActiveCodexSession, codexHooksInstalled {
+            return .connected
+        }
+
+        if hasActiveDevinSessionWithUsage {
             return .connected
         }
 
@@ -474,7 +479,9 @@ struct PanelSettingsView: View {
             isClaudeUsageConnected: usageConnected,
             hasActiveClaudeSession: sessions.contains { $0.provider == .claude },
             hasActiveCodexSession: sessions.contains { $0.provider == .codex },
-            codexHooksInstalled: codexHooksStatus == .installed
+            codexHooksInstalled: codexHooksStatus == .installed,
+            hasActiveDevinSessionWithUsage: sessions.contains { $0.provider == .devin }
+                && DevinUsageService.shared.hasUsageData
         )
         return StatusBadge(text: state.text, color: state.color)
     }

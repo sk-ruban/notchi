@@ -62,6 +62,48 @@ final class NotchContentViewTests: XCTestCase {
         )
     }
 
+    func testRingProviderFollowsDevinSpriteSession() {
+        let devinSpriteSession = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
+        let codexSelectedSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
+
+        XCTAssertEqual(
+            NotchContentView.collapsedRingProvider(
+                spriteSession: devinSpriteSession,
+                effectiveSession: codexSelectedSession,
+                lastUsedProvider: .claude
+            ),
+            .devin
+        )
+    }
+
+    func testDevinRingShowsDailyUsageAndFallsBackToWeekly() {
+        let daily = QuotaPeriod(utilization: 7, resetDate: nil)
+        let weekly = QuotaPeriod(utilization: 40, resetDate: nil)
+
+        XCTAssertEqual(
+            NotchContentView.collapsedRingUsage(
+                provider: .devin,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                devinDailyUsage: daily,
+                devinWeeklyUsage: weekly
+            ),
+            daily
+        )
+        XCTAssertEqual(
+            NotchContentView.collapsedRingUsage(
+                provider: .devin,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                devinDailyUsage: nil,
+                devinWeeklyUsage: weekly
+            ),
+            weekly
+        )
+    }
+
     func testRingProviderFallsBackToLastUsedProviderWhenIdle() {
         XCTAssertEqual(
             NotchContentView.collapsedRingProvider(

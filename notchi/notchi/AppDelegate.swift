@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
             }
             await ClaudeUsageService.shared.startPolling()
             await CodexUsageService.shared.startPolling()
+            await DevinUsageService.shared.startPolling()
             await CostHistoryStore.shared.start()
             await CostHistoryStore.sharedCodex.start()
         }
@@ -85,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         integrationCoordinator.stop()
         ClaudeUsageService.shared.stopPolling()
         CodexUsageService.shared.stopPolling()
+        DevinUsageService.shared.stopPolling()
     }
 
     @MainActor private func setupNotchWindow() {
@@ -201,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         MainActor.assumeIsolated {
             ClaudeUsageService.shared.startPolling(afterSystemWake: true)
             Task { await CodexUsageService.shared.refreshFromAPI() }
+            Task { await DevinUsageService.shared.refresh() }
         }
     }
 

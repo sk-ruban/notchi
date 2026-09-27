@@ -89,18 +89,52 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertEqual(state?.usage?.usagePercentage, 42)
     }
 
-    func testNoSelectedSessionUsesMostRecentlyObservedUsage() {
+    func testSelectedDevinSessionShowsDevinUsage() {
+        let devinSession = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
+        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 200))
+        let devin = makeUsageState(provider: .devin, usage: 7, observedAt: Date(timeIntervalSince1970: 100))
+
+        let state = ExpandedPanelView.sharedUsageBarState(
+            contextSession: devinSession,
+            claude: claude,
+            codex: nil,
+            devin: devin,
+            lastUsedProvider: .claude
+        )
+
+        XCTAssertEqual(state?.provider, .devin)
+        XCTAssertEqual(state?.usage?.usagePercentage, 7)
+    }
+
+    func testNoSelectedSessionIgnoresDevinsMoreFrequentRefresh() {
+        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
+        let devinRefreshedLater = makeUsageState(provider: .devin, usage: 7, observedAt: Date(timeIntervalSince1970: 200))
+
+        let state = ExpandedPanelView.sharedUsageBarState(
+            contextSession: nil,
+            claude: claude,
+            codex: nil,
+            devin: devinRefreshedLater,
+            lastUsedProvider: .claude
+        )
+
+        XCTAssertEqual(state?.provider, .claude)
+        XCTAssertEqual(state?.usage?.usagePercentage, 42)
+    }
+
+    func testNoSelectedSessionUsesLastUsedProviderEvenWhenAnotherIsNewer() {
         let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
         let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: nil,
             claude: claude,
-            codex: codex
+            codex: codex,
+            lastUsedProvider: .claude
         )
 
-        XCTAssertEqual(state?.provider, .codex)
-        XCTAssertEqual(state?.usage?.usagePercentage, 11)
+        XCTAssertEqual(state?.provider, .claude)
+        XCTAssertEqual(state?.usage?.usagePercentage, 42)
     }
 
     func testContextSessionProviderIsNeverSwappedEvenWhenItHasNoData() {
@@ -133,16 +167,17 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertNil(state?.usage)
     }
 
-    func testRecencyArbitrationFallsBackWhenTheNewerProviderHasNoDataForSelectedPeriod() {
+    func testLastUsedProviderFallsBackWhenItHasNoDataForSelectedPeriod() {
         let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
-        let codexNewerButWithoutDataForPeriod = makeUsageState(
+        let codexLastUsedButWithoutDataForPeriod = makeUsageState(
             provider: .codex, usage: nil, observedAt: Date(timeIntervalSince1970: 200)
         )
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: nil,
             claude: claude,
-            codex: codexNewerButWithoutDataForPeriod
+            codex: codexLastUsedButWithoutDataForPeriod,
+            lastUsedProvider: .codex
         )
 
         XCTAssertEqual(state?.provider, .claude)
@@ -242,6 +277,7 @@ final class ExpandedPanelViewTests: XCTestCase {
             contextSession: nil,
             claude: claudeDisabled,
             codex: codex,
+            lastUsedProvider: .claude,
             claudeUsageEnabled: false
         )
 
@@ -328,9 +364,26 @@ final class ExpandedPanelViewTests: XCTestCase {
         let claude = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
         let codex = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
 
-        XCTAssertTrue(ExpandedPanelView.hasMixedClaudeAndCodexSessions([claude, codex]))
-        XCTAssertFalse(ExpandedPanelView.hasMixedClaudeAndCodexSessions([claude]))
-        XCTAssertFalse(ExpandedPanelView.hasMixedClaudeAndCodexSessions([codex]))
+        let devin = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
+
+        XCTAssertTrue(ExpandedPanelView.hasMixedProviderSessions([claude, codex]))
+        XCTAssertTrue(ExpandedPanelView.hasMixedProviderSessions([codex, devin]))
+        XCTAssertFalse(ExpandedPanelView.hasMixedProviderSessions([claude]))
+        XCTAssertFalse(ExpandedPanelView.hasMixedProviderSessions([devin, devin]))
+    }
+
+    func testDevinSessionPeriodIsLabelledDaily() {
+        let devinSession = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
+        let devin = makeUsageState(provider: .devin, usage: 7, observedAt: Date(timeIntervalSince1970: 100), period: .session)
+
+        XCTAssertEqual(
+            ExpandedPanelView.sharedUsageResetLabelPrefix(
+                state: devin,
+                activeSessions: [devinSession],
+                requestedPeriod: .weekly
+            ),
+            "Daily"
+        )
     }
 
     func testCodexQuestionPromptShowsDirectReplyHint() {
@@ -478,6 +531,18 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertEqual(provider, .claude)
     }
 
+    func testUsageDetailOpensOnDevinContextSession() {
+        let devinSession = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
+
+        let provider = ExpandedPanelView.usageDetailDefaultProvider(
+            requestedProvider: nil,
+            contextSession: devinSession,
+            lastUsedProvider: .codex
+        )
+
+        XCTAssertEqual(provider, .devin)
+    }
+
     func testUsageDetailOpensOnLastUsedProviderWhenIdle() {
         let provider = ExpandedPanelView.usageDetailDefaultProvider(
             requestedProvider: nil,
@@ -492,6 +557,7 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertTrue(ExpandedPanelView.sharedUsageBarIsEnabled(provider: .codex, appUsageEnabled: false))
         XCTAssertFalse(ExpandedPanelView.sharedUsageBarIsEnabled(provider: .claude, appUsageEnabled: false))
         XCTAssertTrue(ExpandedPanelView.sharedUsageBarIsEnabled(provider: .claude, appUsageEnabled: true))
+        XCTAssertTrue(ExpandedPanelView.sharedUsageBarIsEnabled(provider: .devin, appUsageEnabled: false))
     }
 
     private func makeUsageState(

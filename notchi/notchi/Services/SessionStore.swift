@@ -1002,10 +1002,11 @@ nonisolated enum CodexFileSystem {
         .url
     }
 
-    static func runSQLite(query: String, databasePath: String) -> String? {
+    static func runSQLite(query: String, databasePath: String, readOnly: Bool = false) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = ["-batch", "-noheader", "-separator", sqliteSeparator, databasePath, query]
+        process.arguments = (readOnly ? ["-readonly"] : [])
+            + ["-batch", "-noheader", "-separator", sqliteSeparator, databasePath, query]
 
         let stdoutPipe = Pipe()
         process.standardOutput = stdoutPipe
