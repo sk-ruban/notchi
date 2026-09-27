@@ -435,7 +435,7 @@ struct PanelSettingsView: View {
         }
         switch codexSetup.readiness {
         case .approved:
-            return StatusBadge(text: hasCodexSession ? String(localized: "Connected") : String(localized: "Approved"), color: TerminalColors.green)
+            return StatusBadge(text: String(localized: "Installed"), color: TerminalColors.green)
         case .needsApproval:
             return StatusBadge(
                 text: includeProvider ? String(localized: "Codex Needs Approval") : String(localized: "Needs Approval"),
