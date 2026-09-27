@@ -82,12 +82,13 @@ nonisolated final class DevinCostScanner {
     nonisolated private func replies(since windowStart: Date) -> [Reply]? {
         let query = """
             SELECT reply_at, written_at, model, input, output, cache_read, cache_creation FROM (
-              SELECT *, ROW_NUMBER() OVER (PARTITION BY request ORDER BY model IS NULL, row_id) AS copy FROM (
+              SELECT *, ROW_NUMBER() OVER (PARTITION BY request ORDER BY model IS NULL, metrics IS NULL, row_id DESC) AS copy FROM (
                 SELECT row_id, created_at AS written_at,
                   COALESCE(json_extract(chat_message, '$.metadata.request_id'),
                            json_extract(chat_message, '$.message_id'), row_id) AS request,
                   json_extract(chat_message, '$.metadata.created_at') AS reply_at,
                   json_extract(chat_message, '$.metadata.generation_model') AS model,
+                  json_extract(chat_message, '$.metadata.metrics') AS metrics,
                   COALESCE(json_extract(chat_message, '$.metadata.metrics.input_tokens'), 0) AS input,
                   COALESCE(json_extract(chat_message, '$.metadata.metrics.output_tokens'), 0) AS output,
                   COALESCE(json_extract(chat_message, '$.metadata.metrics.cache_read_tokens'), 0) AS cache_read,

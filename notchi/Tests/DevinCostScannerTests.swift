@@ -169,7 +169,7 @@ final class DevinCostScannerTests: XCTestCase {
         XCTAssertTrue(rescanned.buckets.isEmpty)
     }
 
-    func testRequestTotalsComeFromASingleCopy() throws {
+    func testRequestTotalsComeFromTheLatestSingleCopy() throws {
         let database = try makeDatabase()
         try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 100, output: 10, cacheRead: 0)
         try insertReply(database, requestId: "request-1", model: "swe-1-7-medium", input: 50, output: 99, cacheRead: 0)
@@ -177,9 +177,33 @@ final class DevinCostScannerTests: XCTestCase {
         let cache = makeScanner(database).scan(cache: Self.emptyCache, now: Self.now)
 
         let day = try XCTUnwrap(cache.buckets[Self.todayKey])
-        XCTAssertEqual(day.keys.sorted(), ["swe-1-7"])
-        XCTAssertEqual(day["swe-1-7"]?.input, 100)
-        XCTAssertEqual(day["swe-1-7"]?.output, 10)
+        XCTAssertEqual(day.keys.sorted(), ["swe-1-7-medium"])
+        XCTAssertEqual(day["swe-1-7-medium"]?.input, 50)
+        XCTAssertEqual(day["swe-1-7-medium"]?.output, 99)
+    }
+
+    func testLaterCopyWithTokenMetricsWinsOverAnEarlierCopyWithout() throws {
+        let database = try makeDatabase()
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 0, output: 0, cacheRead: 0, includesMetrics: false)
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 100, output: 10, cacheRead: 0)
+
+        let cache = makeScanner(database).scan(cache: Self.emptyCache, now: Self.now)
+
+        let totals = try XCTUnwrap(cache.buckets[Self.todayKey]?["swe-1-7"])
+        XCTAssertEqual(totals.input, 100)
+        XCTAssertEqual(totals.output, 10)
+    }
+
+    func testCopyWithTokenMetricsWinsOverALaterCopyWithout() throws {
+        let database = try makeDatabase()
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 100, output: 10, cacheRead: 0)
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 0, output: 0, cacheRead: 0, includesMetrics: false)
+
+        let cache = makeScanner(database).scan(cache: Self.emptyCache, now: Self.now)
+
+        let totals = try XCTUnwrap(cache.buckets[Self.todayKey]?["swe-1-7"])
+        XCTAssertEqual(totals.input, 100)
+        XCTAssertEqual(totals.output, 10)
     }
 
     func testMissingDatabaseLeavesCacheEmpty() {
@@ -245,23 +269,27 @@ final class DevinCostScannerTests: XCTestCase {
         output: Int,
         cacheRead: Int,
         createdAt: Int = DevinCostScannerTests.replyTime,
-        replyAt: String? = nil
+        replyAt: String? = nil,
+        includesMetrics: Bool = true
     ) throws {
         let generatedAt = replyAt ?? ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(createdAt)))
+        var metadata: [String: Any] = [
+            "request_id": requestId,
+            "created_at": generatedAt,
+            "generation_model": model,
+        ]
+        if includesMetrics {
+            metadata["metrics"] = [
+                "input_tokens": input,
+                "output_tokens": output,
+                "cache_read_tokens": cacheRead,
+                "cache_creation_tokens": NSNull(),
+            ]
+        }
         try insertRow(database, message: [
             "role": "assistant",
             "message_id": "message-\(requestId)",
-            "metadata": [
-                "request_id": requestId,
-                "created_at": generatedAt,
-                "generation_model": model,
-                "metrics": [
-                    "input_tokens": input,
-                    "output_tokens": output,
-                    "cache_read_tokens": cacheRead,
-                    "cache_creation_tokens": NSNull(),
-                ],
-            ],
+            "metadata": metadata,
         ], createdAt: createdAt)
     }
 
