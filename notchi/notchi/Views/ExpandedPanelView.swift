@@ -248,6 +248,7 @@ struct ExpandedPanelView: View {
     private var hasUsageDetailData: Bool {
         usageService.hasUsageData || codexUsageService.hasUsageData || devinUsageService.hasUsageData
             || !CostHistoryStore.shared.buckets.isEmpty || !CostHistoryStore.sharedCodex.buckets.isEmpty
+            || !CostHistoryStore.sharedDevin.buckets.isEmpty
     }
 
     private var state: NotchiState {
@@ -543,6 +544,7 @@ struct ExpandedPanelView: View {
                 devinUsage: devinUsageService,
                 costStore: CostHistoryStore.shared,
                 codexCostStore: CostHistoryStore.sharedCodex,
+                devinCostStore: CostHistoryStore.sharedDevin,
                 defaultProvider: usageDetailDefaultProvider
             )
             .padding(.horizontal, 12)

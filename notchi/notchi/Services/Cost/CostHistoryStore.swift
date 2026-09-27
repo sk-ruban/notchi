@@ -59,6 +59,12 @@ final class CostHistoryStore {
             let scanner = CodexCostScanner(projectsRoots: projectsRoots, pricing: pricing,
                                            windowDays: windowDays, calendar: calendar)
             return { scanner.scan(cache: $0, now: $1) }
+        case .devin:
+            let databaseURL = (projectsRoots.first ?? homeURL(".local/share/devin/cli"))
+                .appendingPathComponent("sessions.db")
+            let scanner = DevinCostScanner(databaseURL: databaseURL, pricing: pricing,
+                                           windowDays: windowDays, calendar: calendar)
+            return { scanner.scan(cache: $0, now: $1) }
         }
     }
 
@@ -82,7 +88,8 @@ final class CostHistoryStore {
     func refresh() async {
         let now = Date()
         guard let buckets = await scanAndPublish(),
-              let catalog = pricingCatalog, shouldRefreshPricing(after: buckets, now: now) else { return }
+              let catalog = pricingCatalog, catalog.canRefreshFromNetwork,
+              shouldRefreshPricing(after: buckets, now: now) else { return }
         // The fetch runs outside isScanning so a slow models.dev never blocks timer scans.
         lastPricingRefresh = now
         await catalog.refreshFromNetwork()
@@ -144,6 +151,11 @@ extension CostHistoryStore {
         provider: .codex, config: .codex,
         projectsRoots: [homeURL(".codex/sessions"), homeURL(".codex/archived_sessions")],
         cacheFile: "codex.json")
+
+    static let sharedDevin = makeStore(
+        provider: .devin, config: .devin,
+        projectsRoots: [homeURL(".local/share/devin/cli")],
+        cacheFile: "devin.json")
 
     private static func homeURL(_ sub: String) -> URL {
         URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(sub, isDirectory: true)

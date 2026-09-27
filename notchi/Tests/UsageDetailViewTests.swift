@@ -15,7 +15,7 @@ final class UsageDetailViewTests: XCTestCase {
         let view = UsageDetailView(
             claudeUsage: claude, codexUsage: codex, devinUsage: DevinUsageService(readUsage: { _ in nil }),
             costStore: claudeCosts,
-            codexCostStore: codexCosts,
+            codexCostStore: codexCosts, devinCostStore: CostHistoryStore(provider: .devin) { _ in [:] },
             defaultProvider: .codex
         )
 
@@ -36,6 +36,7 @@ final class UsageDetailViewTests: XCTestCase {
             claudeUsage: claude, codexUsage: codex, devinUsage: DevinUsageService(readUsage: { _ in nil }),
             costStore: CostHistoryStore { _ in [:] },
             codexCostStore: CostHistoryStore(provider: .codex) { _ in [:] },
+            devinCostStore: CostHistoryStore(provider: .devin) { _ in [:] },
             defaultProvider: .codex
         )
 
@@ -50,6 +51,7 @@ final class UsageDetailViewTests: XCTestCase {
             claudeUsage: ClaudeUsageService(), codexUsage: codex, devinUsage: DevinUsageService(readUsage: { _ in nil }),
             costStore: CostHistoryStore { _ in [:] },
             codexCostStore: CostHistoryStore(provider: .codex) { _ in [:] },
+            devinCostStore: CostHistoryStore(provider: .devin) { _ in [:] },
             defaultProvider: .codex
         )
 
@@ -72,11 +74,33 @@ final class UsageDetailViewTests: XCTestCase {
             claudeUsage: claude, codexUsage: CodexUsageService(), devinUsage: devin,
             costStore: CostHistoryStore { _ in [:] },
             codexCostStore: CostHistoryStore(provider: .codex) { _ in [:] },
+            devinCostStore: CostHistoryStore(provider: .devin) { _ in [:] },
             defaultProvider: .devin
         )
 
         XCTAssertTrue(view.showsToggle)
         XCTAssertEqual(view.tabs, [.provider(.claude), .provider(.devin)])
+    }
+
+    func testAllTabCombinesDevinCostsWithClaude() async {
+        let claudeCosts = CostHistoryStore { _ in
+            ["2026-09-27": ["claude-fable-5": ModelTokenTotals(input: 100, requestCount: 1)]]
+        }
+        let devinCosts = CostHistoryStore(provider: .devin) { _ in
+            ["2026-09-27": ["swe-1-7": ModelTokenTotals(input: 100, requestCount: 1)]]
+        }
+        await claudeCosts.refresh()
+        await devinCosts.refresh()
+        let view = UsageDetailView(
+            claudeUsage: ClaudeUsageService(), codexUsage: CodexUsageService(),
+            devinUsage: DevinUsageService(readUsage: { _ in nil }),
+            costStore: claudeCosts,
+            codexCostStore: CostHistoryStore(provider: .codex) { _ in [:] },
+            devinCostStore: devinCosts,
+            defaultProvider: .devin
+        )
+
+        XCTAssertEqual(view.tabs, [.provider(.claude), .provider(.devin), .all])
     }
 
     func testResolvedProviderReroutesDatalessSelectionToDevinWithData() {

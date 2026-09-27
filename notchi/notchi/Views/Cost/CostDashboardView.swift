@@ -36,11 +36,22 @@ enum CostStatFormatter {
             return String(named.dropFirst(gptPrefix.count))
         }
         if s.hasPrefix("claude-") { s.removeFirst("claude-".count) }
+        if s.lowercased().hasPrefix("swe-") {
+            return sweModelName(s.split(separator: "-").dropFirst().map(String.init))
+        }
         let parts = s.split(separator: "-").map(String.init)
         guard let family = parts.first, !family.isEmpty else { return raw }
         let name = family.prefix(1).uppercased() + family.dropFirst()
         let version = parts.dropFirst().joined(separator: ".")
         return version.isEmpty ? name : "\(name) \(version)"
+    }
+
+    private static func sweModelName(_ parts: [String]) -> String {
+        let version = parts.prefix { Int($0) != nil }
+        guard !version.isEmpty else {
+            return (["SWE"] + parts.map { $0.prefix(1).uppercased() + $0.dropFirst() }).joined(separator: " ")
+        }
+        return "SWE-" + version.joined(separator: ".")
     }
 }
 
@@ -175,8 +186,11 @@ struct CostDashboardView: View {
     }
 
     private func shade(rank: Int, provider: CostProvider) -> Color {
-        let shades = provider == .codex
-            ? TerminalColors.codexChartShades : TerminalColors.claudeChartShades
+        let shades = switch provider {
+        case .claude: TerminalColors.claudeChartShades
+        case .codex: TerminalColors.codexChartShades
+        case .devin: TerminalColors.devinChartShades
+        }
         return shades[min(rank, shades.count - 1)]
     }
 
@@ -188,7 +202,11 @@ struct CostDashboardView: View {
         guard let provider = segmentProvider(s) else {
             return shade(rank: s.rank, provider: reportProvider)
         }
-        return provider == .codex ? TerminalColors.codexAccent : TerminalColors.claudeOrangeDeep
+        return switch provider {
+        case .claude: TerminalColors.claudeOrangeDeep
+        case .codex: TerminalColors.codexAccent
+        case .devin: TerminalColors.devinAccent
+        }
     }
 
     private static let dayFormatter: DateFormatter = {
@@ -255,7 +273,11 @@ struct CostDashboardView: View {
         e.segments.map { s in
             let name: String
             if let provider = segmentProvider(s) {
-                name = provider == .codex ? "Codex" : "Claude"
+                name = switch provider {
+                case .claude: AgentProvider.claude.displayName
+                case .codex: AgentProvider.codex.displayName
+                case .devin: AgentProvider.devin.displayName
+                }
             } else if s.models.count == 1 {
                 name = CostStatFormatter.modelName(s.models[0])
             } else {

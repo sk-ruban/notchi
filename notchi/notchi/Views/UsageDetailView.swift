@@ -6,6 +6,7 @@ struct UsageDetailView: View {
     let devinUsage: DevinUsageService
     let costStore: CostHistoryStore
     let codexCostStore: CostHistoryStore
+    let devinCostStore: CostHistoryStore
     let defaultProvider: AgentProvider
 
     enum UsageTab: Hashable {
@@ -23,6 +24,7 @@ struct UsageDetailView: View {
         devinUsage: DevinUsageService,
         costStore: CostHistoryStore,
         codexCostStore: CostHistoryStore,
+        devinCostStore: CostHistoryStore,
         defaultProvider: AgentProvider
     ) {
         self.claudeUsage = claudeUsage
@@ -30,6 +32,7 @@ struct UsageDetailView: View {
         self.devinUsage = devinUsage
         self.costStore = costStore
         self.codexCostStore = codexCostStore
+        self.devinCostStore = devinCostStore
         self.defaultProvider = defaultProvider
         _selectedTab = State(initialValue: .provider(defaultProvider))
     }
@@ -43,7 +46,11 @@ struct UsageDetailView: View {
     }
 
     var devinHasData: Bool {
-        devinUsage.hasUsageData
+        devinUsage.hasUsageData || !devinCostStore.buckets.isEmpty
+    }
+
+    private var costStoresByProvider: [(provider: AgentProvider, store: CostHistoryStore)] {
+        [(.claude, costStore), (.codex, codexCostStore), (.devin, devinCostStore)]
     }
 
     private var providersWithData: [AgentProvider] {
@@ -55,7 +62,7 @@ struct UsageDetailView: View {
     }
 
     private var showsAllTab: Bool {
-        claudeHasData && codexHasData
+        costStoresByProvider.filter { !$0.store.buckets.isEmpty }.count > 1
     }
 
     var tabs: [UsageTab] {
@@ -156,7 +163,7 @@ struct UsageDetailView: View {
             byAdding: .day, value: -(costStore.windowDays - 1),
             to: calendar.startOfDay(for: today))!
         return DailyCostReport.combinedAcrossProviders(
-            [(.claude, costStore.buckets), (.codex, codexCostStore.buckets)],
+            [(.claude, costStore.buckets), (.codex, codexCostStore.buckets), (.devin, devinCostStore.buckets)],
             windowStart: windowStart, today: today, calendar: calendar)
     }
 
@@ -171,20 +178,16 @@ struct UsageDetailView: View {
     @ViewBuilder private var costDashboard: some View {
         let chartHeight = Self.chartHeight(showGrassIsland: showGrassIsland)
         switch resolvedTab {
-        case .provider(.devin):
-            EmptyView()
         case .provider(let provider):
-            let stores = provider == .codex
-                ? (main: codexCostStore, peer: costStore)
-                : (main: costStore, peer: codexCostStore)
             CostDashboardView(
-                report: stores.main.report,
-                sizingPeerReports: [stores.peer.report, combinedReport].compactMap { $0 },
+                report: costStore(for: provider).report,
+                sizingPeerReports: (costStoresByProvider.filter { $0.provider != provider }.map(\.store.report)
+                    + [combinedReport]).compactMap { $0 },
                 chartHeight: chartHeight)
         case .all:
             CostDashboardView(
                 report: combinedReport,
-                sizingPeerReports: [costStore.report, codexCostStore.report].compactMap { $0 },
+                sizingPeerReports: costStoresByProvider.compactMap(\.store.report),
                 combinesProviders: true,
                 chartHeight: chartHeight)
         }
@@ -284,16 +287,22 @@ struct UsageDetailView: View {
 
     @ViewBuilder private var providerBreakdown: some View {
         VStack(alignment: .leading, spacing: 10) {
-            providerBreakdownRow(
-                name: AgentProvider.claude.displayName,
-                color: TerminalColors.claudeOrangeDeep,
-                report: costStore.report)
-            providerBreakdownRow(
-                name: AgentProvider.codex.displayName,
-                color: TerminalColors.codexAccent,
-                report: codexCostStore.report)
+            ForEach(costStoresByProvider.filter { !$0.store.buckets.isEmpty }, id: \.provider) { entry in
+                providerBreakdownRow(
+                    name: entry.provider.displayName,
+                    color: entry.provider == .claude ? TerminalColors.claudeOrangeDeep : entry.provider.accentColor,
+                    report: entry.store.report)
+            }
         }
         .padding(.top, 5)
+    }
+
+    private func costStore(for provider: AgentProvider) -> CostHistoryStore {
+        switch provider {
+        case .claude: costStore
+        case .codex: codexCostStore
+        case .devin: devinCostStore
+        }
     }
 
     @ViewBuilder private func providerBreakdownRow(

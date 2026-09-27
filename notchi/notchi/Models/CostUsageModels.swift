@@ -3,6 +3,7 @@ import Foundation
 nonisolated enum CostProvider: String, Codable, Sendable, CaseIterable {
     case claude
     case codex
+    case devin
 }
 
 nonisolated struct ModelTokenTotals: Equatable, Sendable, Codable {
@@ -73,7 +74,8 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
 
     static func make(
         provider: CostProvider, buckets: DayModelBuckets,
-        windowStart: Date, today: Date, calendar: Calendar) -> DailyCostReport
+        windowStart: Date, today: Date, calendar: Calendar,
+        shadedModelCount: Int = shadedModelCount) -> DailyCostReport
     {
         var days: [(key: String, date: Date, models: [String: ModelTokenTotals])] = []
         var cursor = calendar.startOfDay(for: windowStart)
@@ -146,7 +148,8 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         }
         let base = make(
             provider: perProvider.first?.provider ?? .claude, buckets: providerBuckets,
-            windowStart: windowStart, today: today, calendar: calendar)
+            windowStart: windowStart, today: today, calendar: calendar,
+            shadedModelCount: CostProvider.allCases.count)
         var windowTotalsByModel: [String: ModelTokenTotals] = [:]
         for entry in base.entries {
             for (model, totals) in modelBuckets[entry.day] ?? [:] {

@@ -21,6 +21,11 @@ struct TerminalColors {
         codexAccent,
         Color(red: 0.62, green: 0.66, blue: 0.98),
     ]
+    static let devinChartShades = [
+        devinAccentDeep,
+        devinAccent,
+        Color(red: 0.99, green: 0.9, blue: 0.58),
+    ]
     static let iMessageBlue = Color(red: 0, green: 0.478, blue: 1)
     static let planMode = Color(red: 72.0 / 255.0, green: 150.0 / 255.0, blue: 140.0 / 255.0)
     static let acceptEdits = Color(red: 175.0 / 255.0, green: 135.0 / 255.0, blue: 255.0 / 255.0)

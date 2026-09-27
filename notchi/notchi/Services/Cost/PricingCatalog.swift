@@ -2,10 +2,11 @@ import Foundation
 
 nonisolated struct ProviderConfig: Sendable {
     let fallbackResource: String
-    let modelsDevKey: ModelsDevKey
+    let modelsDevKey: ModelsDevKey?
     let plausibilityAnchors: [String]
     let normalize: @Sendable (String) -> String
     let snapshotFileName: String
+    var pricesUnlistedVariantsByPrefix = false
 
     enum ModelsDevKey: Sendable { case anthropic, openai }
 
@@ -22,6 +23,14 @@ nonisolated struct ProviderConfig: Sendable {
         plausibilityAnchors: ["gpt-5"],
         normalize: CostPricing.normalizeOpenAIModel,
         snapshotFileName: "models-dev-openai.json")
+
+    static let devin = ProviderConfig(
+        fallbackResource: "devin-pricing-fallback",
+        modelsDevKey: nil,
+        plausibilityAnchors: ["swe-1"],
+        normalize: { $0 },
+        snapshotFileName: "devin-pricing.json",
+        pricesUnlistedVariantsByPrefix: true)
 }
 
 nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Sendable {
@@ -161,10 +170,21 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
             .appendingPathComponent("CostUsage/\(config.snapshotFileName)")
     }
 
+    var canRefreshFromNetwork: Bool {
+        config.modelsDevKey != nil
+    }
+
     func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
         let key = config.normalize(model)
         lock.lock(); defer { lock.unlock() }
-        return table[key]
+        if let exact = table[key] {
+            return exact
+        }
+        guard config.pricesUnlistedVariantsByPrefix else { return nil }
+        return table
+            .filter { key.hasPrefix($0.key + "-") }
+            .max { $0.key.count < $1.key.count }?
+            .value
     }
 
     static func fetchModelsDev() async -> Data? {
@@ -174,7 +194,7 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
 
     // @concurrent keeps the multi-megabyte decode off the caller's actor, which is usually MainActor.
     @concurrent func refreshFromNetwork() async {
-        guard let data = await fetchCatalog() else { return }
+        guard config.modelsDevKey != nil, let data = await fetchCatalog() else { return }
         processNetworkData(data)
     }
 
@@ -184,6 +204,7 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         switch config.modelsDevKey {
         case .anthropic: provider = decoded.anthropic
         case .openai: provider = decoded.openai
+        case nil: provider = nil
         }
         guard let provider else { return }
 

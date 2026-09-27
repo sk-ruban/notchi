@@ -4,6 +4,21 @@ import os
 
 final class CostHistoryStoreTests: XCTestCase {
     @MainActor
+    func testStoreWhosePricingCannotRefreshScansOnceAtLaunch() async {
+        let scanCount = OSAllocatedUnfairLock(initialState: 0)
+        let catalog = PricingCatalog(config: .devin, fallbackBundle: .main, snapshotURL: nil, fetchCatalog: { nil })
+        let store = CostHistoryStore(windowDays: 30, calendar: .current, provider: .devin,
+                                     pricingCatalog: catalog) { _ in
+            scanCount.withLock { $0 += 1 }
+            return [:]
+        }
+
+        await store.refresh()
+
+        XCTAssertEqual(scanCount.withLock { $0 }, 1)
+    }
+
+    @MainActor
     func testStorePublishesReportFromInjectedScan() async {
         var buckets: DayModelBuckets = [:]
         buckets[DailyCostReport.dayKey(Date(), calendar: .current)] =
@@ -428,6 +443,27 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(report.entries[2].topModel, "gpt-5.5")
         XCTAssertEqual(report.topModel, "gpt-5.5")
         XCTAssertEqual(report.windowCostUSD, 12.0, accuracy: 1e-9)
+    }
+
+    func testCombinedReportGivesEveryProviderItsOwnSegment() throws {
+        let dayKey = "2026-06-24"
+        let claude: DayModelBuckets = [dayKey: ["claude-fable-5": ModelTokenTotals(
+            input: 100, output: 50, costNanos: 3_000_000_000, requestCount: 1, pricedCount: 1)]]
+        let codex: DayModelBuckets = [dayKey: ["gpt-5.5": ModelTokenTotals(
+            input: 200, output: 80, costNanos: 2_000_000_000, requestCount: 1, pricedCount: 1)]]
+        let devin: DayModelBuckets = [dayKey: ["swe-1-7": ModelTokenTotals(
+            input: 300, output: 90, costNanos: 1_000_000_000, requestCount: 1, pricedCount: 1)]]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.combinedAcrossProviders(
+            [(.claude, claude), (.codex, codex), (.devin, devin)],
+            windowStart: day(dayKey), today: day(dayKey), calendar: cal)
+
+        let entry = try XCTUnwrap(report.entries.last)
+        XCTAssertEqual(entry.segments.map(\.models), [["claude"], ["codex"], ["devin"]])
+        XCTAssertEqual(try XCTUnwrap(entry.segments.last).costUSD, 1.0, accuracy: 1e-9)
+        XCTAssertEqual(report.windowCostUSD, 6.0, accuracy: 1e-9)
     }
 
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {

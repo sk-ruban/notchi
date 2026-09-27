@@ -73,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
             await DevinUsageService.shared.startPolling()
             await CostHistoryStore.shared.start()
             await CostHistoryStore.sharedCodex.start()
+            await CostHistoryStore.sharedDevin.start()
         }
     }
 

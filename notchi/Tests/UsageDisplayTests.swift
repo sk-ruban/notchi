@@ -141,6 +141,10 @@ final class UsageDisplayTests: XCTestCase {
 
     func testShortGptNamesKeepThePrefix() {
         XCTAssertEqual(CostStatFormatter.modelName("gpt-5.5"), "GPT-5.5")
+        XCTAssertEqual(CostStatFormatter.modelName("swe-1-7"), "SWE-1.7")
+        XCTAssertEqual(CostStatFormatter.modelName("swe-1-7-medium"), "SWE-1.7")
+        XCTAssertEqual(CostStatFormatter.modelName("swe-1-6-slow"), "SWE-1.6")
+        XCTAssertEqual(CostStatFormatter.modelName("swe-check"), "SWE Check")
         XCTAssertEqual(CostStatFormatter.modelName("gpt-5.4"), "GPT-5.4")
         XCTAssertEqual(CostStatFormatter.modelName("gpt-5"), "GPT-5")
     }

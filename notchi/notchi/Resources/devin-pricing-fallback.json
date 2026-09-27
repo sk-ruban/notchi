@@ -1,0 +1,1619 @@
+{
+  "version": 1,
+  "models": {
+    "MODEL_CHAT_GPT_4O_2024_08_06": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-06
+    },
+    "MODEL_CHAT_GPT_4_1_2025_04_14": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 8e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "MODEL_CHAT_O3": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 8e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "MODEL_CHAT_O3_HIGH": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 8e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "MODEL_CLAUDE_4_5_OPUS": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "MODEL_CLAUDE_4_5_OPUS_THINKING": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "MODEL_GOOGLE_GEMINI_2_5_PRO": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 4.5e-06,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_GOOGLE_GEMINI_3_0_FLASH_HIGH": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 3e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "MODEL_GOOGLE_GEMINI_3_0_FLASH_LOW": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 3e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "MODEL_GOOGLE_GEMINI_3_0_FLASH_MEDIUM": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 3e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "MODEL_GOOGLE_GEMINI_3_0_FLASH_MINIMAL": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 3e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "MODEL_GPT_5_2_HIGH": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "MODEL_GPT_5_2_HIGH_PRIORITY": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "MODEL_GPT_5_2_LOW": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "MODEL_GPT_5_2_LOW_PRIORITY": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "MODEL_GPT_5_2_MEDIUM": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "MODEL_GPT_5_2_MEDIUM_PRIORITY": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "MODEL_GPT_5_2_NONE": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "MODEL_GPT_5_2_NONE_PRIORITY": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "MODEL_GPT_5_2_XHIGH": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "MODEL_GPT_5_2_XHIGH_PRIORITY": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "MODEL_GPT_OSS_120B": {
+      "inputPerToken": 1.5e-07,
+      "outputPerToken": 6e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7e-08
+    },
+    "MODEL_PRIVATE_11": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "MODEL_PRIVATE_12": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_PRIVATE_13": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_PRIVATE_14": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_PRIVATE_15": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_PRIVATE_2": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "MODEL_PRIVATE_20": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "MODEL_PRIVATE_21": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "MODEL_PRIVATE_22": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "MODEL_PRIVATE_23": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "MODEL_PRIVATE_3": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "MODEL_PRIVATE_4": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-08
+    },
+    "MODEL_PRIVATE_6": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_PRIVATE_7": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_PRIVATE_8": {
+      "inputPerToken": 1.25e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-07
+    },
+    "MODEL_XAI_GROK_3": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 0.0
+    },
+    "MODEL_XAI_GROK_3_MINI_REASONING": {
+      "inputPerToken": 3e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 0.0
+    },
+    "adaptive": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 1e-07
+    },
+    "arena-fast": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 0.0
+    },
+    "arena-mixed": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "arena-smart": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "claude-5-fable-high": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-5-fable-low": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-5-fable-max": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-5-fable-medium": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-5-fable-xhigh": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-fable-5-1-high": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "claude-fable-5-1-low": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "claude-fable-5-1-max": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "claude-fable-5-1-medium": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "claude-fable-5-1-xhigh": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "claude-opus-4-6": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-6-1m": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-6-thinking": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-6-thinking-1m": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-7-high": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-7-low": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-7-max": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-7-medium": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-7-xhigh": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-8-high": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-8-high-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-4-8-low": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-8-low-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-4-8-max": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-8-max-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-4-8-medium": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-8-medium-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-4-8-xhigh": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-4-8-xhigh-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-5-5-high": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-opus-5-5-high-fast": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-opus-5-5-low": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-opus-5-5-low-fast": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-opus-5-5-max": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-opus-5-5-max-fast": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-opus-5-5-medium": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-opus-5-5-medium-fast": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-opus-5-5-xhigh": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-opus-5-5-xhigh-fast": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-opus-5-high": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-5-high-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-5-low": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-5-low-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-5-max": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-5-max-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-5-medium": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-5-medium-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-opus-5-xhigh": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "claude-opus-5-xhigh-fast": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "claude-sonnet-4-6": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "claude-sonnet-4-6-1m": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "claude-sonnet-4-6-thinking": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "claude-sonnet-4-6-thinking-1m": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3.75e-06,
+      "cacheReadPerToken": 3e-07
+    },
+    "claude-sonnet-5-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-sonnet-5-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-sonnet-5-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-sonnet-5-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-sonnet-5-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "deepseek-v4-flash-high": {
+      "inputPerToken": 1.4e-07,
+      "outputPerToken": 2.8e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.8e-08
+    },
+    "deepseek-v4-flash-low": {
+      "inputPerToken": 1.4e-07,
+      "outputPerToken": 2.8e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.8e-08
+    },
+    "deepseek-v4-flash-max": {
+      "inputPerToken": 1.4e-07,
+      "outputPerToken": 2.8e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.8e-08
+    },
+    "deepseek-v4-pro-high": {
+      "inputPerToken": 1.32e-06,
+      "outputPerToken": 3.96e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 4.4e-08
+    },
+    "deepseek-v4-pro-low": {
+      "inputPerToken": 1.32e-06,
+      "outputPerToken": 3.96e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 4.4e-08
+    },
+    "deepseek-v4-pro-max": {
+      "inputPerToken": 1.32e-06,
+      "outputPerToken": 3.96e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 4.4e-08
+    },
+    "gemini-3-1-pro-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 4.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gemini-3-1-pro-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 4.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gemini-3-5-flash-high": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 9e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-5-flash-low": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 9e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-5-flash-medium": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 9e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-5-flash-minimal": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 9e-06,
+      "cacheCreationPerToken": 1e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-6-flash-high": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-6-flash-low": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-6-flash-medium": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-6-flash-minimal": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-7-flash-high": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-7-flash-low": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-7-flash-medium": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-8-flash-high": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-8-flash-low": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-3-8-flash-medium": {
+      "inputPerToken": 1.5e-06,
+      "outputPerToken": 7.5e-06,
+      "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "glm-5-2": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-2-1m": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-2-max": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-2-max-1m": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-2-none": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-2-none-1m": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-3-flash-high": {
+      "inputPerToken": 1.5e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.9e-08
+    },
+    "glm-5-3-flash-low": {
+      "inputPerToken": 1.5e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.9e-08
+    },
+    "glm-5-3-flash-max": {
+      "inputPerToken": 1.5e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.9e-08
+    },
+    "glm-5-3-high": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-3-low": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "glm-5-3-max": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "gpt-5-3-codex-high": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "gpt-5-3-codex-high-priority": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "gpt-5-3-codex-low": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "gpt-5-3-codex-low-priority": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "gpt-5-3-codex-medium": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "gpt-5-3-codex-medium-priority": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "gpt-5-3-codex-spark-medium": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "gpt-5-3-codex-xhigh": {
+      "inputPerToken": 1.75e-06,
+      "outputPerToken": 1.4e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.75e-07
+    },
+    "gpt-5-3-codex-xhigh-priority": {
+      "inputPerToken": 3.5e-06,
+      "outputPerToken": 2.8e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3.5e-07
+    },
+    "gpt-5-4-high": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "gpt-5-4-high-priority": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-4-low": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "gpt-5-4-low-priority": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-4-medium": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "gpt-5-4-medium-priority": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-4-mini-high": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 4.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "gpt-5-4-mini-low": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 4.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "gpt-5-4-mini-medium": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 4.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "gpt-5-4-mini-xhigh": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 4.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "gpt-5-4-none": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "gpt-5-4-none-priority": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-4-xhigh": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.5e-07
+    },
+    "gpt-5-4-xhigh-priority": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-high": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-high-priority": {
+      "inputPerToken": 1.25e-05,
+      "outputPerToken": 7.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-06
+    },
+    "gpt-5-5-low": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-low-priority": {
+      "inputPerToken": 1.25e-05,
+      "outputPerToken": 7.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-06
+    },
+    "gpt-5-5-medium": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-medium-priority": {
+      "inputPerToken": 1.25e-05,
+      "outputPerToken": 7.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-06
+    },
+    "gpt-5-5-none": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-none-priority": {
+      "inputPerToken": 1.25e-05,
+      "outputPerToken": 7.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-06
+    },
+    "gpt-5-5-review": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-xhigh": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 3e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "gpt-5-5-xhigh-priority": {
+      "inputPerToken": 1.25e-05,
+      "outputPerToken": 7.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.25e-06
+    },
+    "gpt-5-6-luna-high": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.2e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-5-6-luna-high-priority": {
+      "inputPerToken": 4e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 4e-08
+    },
+    "gpt-5-6-luna-low": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.2e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-5-6-luna-low-priority": {
+      "inputPerToken": 4e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 4e-08
+    },
+    "gpt-5-6-luna-max": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.2e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-5-6-luna-max-priority": {
+      "inputPerToken": 4e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 4e-08
+    },
+    "gpt-5-6-luna-medium": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.2e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-5-6-luna-medium-priority": {
+      "inputPerToken": 4e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 4e-08
+    },
+    "gpt-5-6-luna-none": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.2e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-5-6-luna-none-priority": {
+      "inputPerToken": 4e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 4e-08
+    },
+    "gpt-5-6-luna-xhigh": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1.2e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-5-6-luna-xhigh-priority": {
+      "inputPerToken": 4e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 5e-07,
+      "cacheReadPerToken": 4e-08
+    },
+    "gpt-5-6-sol-high": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-sol-high-priority": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 8e-07
+    },
+    "gpt-5-6-sol-low": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-sol-low-priority": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 8e-07
+    },
+    "gpt-5-6-sol-max": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-sol-max-priority": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 8e-07
+    },
+    "gpt-5-6-sol-medium": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-sol-medium-priority": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 8e-07
+    },
+    "gpt-5-6-sol-none": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-sol-none-priority": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 8e-07
+    },
+    "gpt-5-6-sol-xhigh": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-sol-xhigh-priority": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 8e-07
+    },
+    "gpt-5-6-terra-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-5-6-terra-high-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2.4e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-terra-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-5-6-terra-low-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2.4e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-terra-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-5-6-terra-max-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2.4e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-terra-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-5-6-terra-medium-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2.4e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-terra-none": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-5-6-terra-none-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2.4e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-5-6-terra-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1.2e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-5-6-terra-xhigh-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2.4e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-6-astra-high": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-low": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-max": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-medium": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-xhigh": {
+      "inputPerToken": 1e-05,
+      "outputPerToken": 5e-05,
+      "cacheCreationPerToken": 1.25e-05,
+      "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-luna-high": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "gpt-6-luna-high-priority": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-6-luna-low": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "gpt-6-luna-low-priority": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-6-luna-max": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "gpt-6-luna-max-priority": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-6-luna-medium": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "gpt-6-luna-medium-priority": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-6-luna-none": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "gpt-6-luna-none-priority": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-6-luna-xhigh": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "gpt-6-luna-xhigh-priority": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 1e-06,
+      "cacheCreationPerToken": 2.5e-07,
+      "cacheReadPerToken": 2e-08
+    },
+    "gpt-6-sol-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-sol-high-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-6-sol-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-sol-low-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-6-sol-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-sol-max-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-6-sol-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-sol-medium-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-6-sol-none": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-sol-none-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "gpt-6-sol-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-sol-xhigh-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 4e-07
+    },
+    "grok-4-5-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "grok-4-5-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "grok-4-5-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "grok-4-6-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "grok-4-6-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "grok-4-6-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "grok-4-6-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "inkling-high": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "inkling-low": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "inkling-max": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "inkling-medium": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "inkling-none": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "inkling-xhigh": {
+      "inputPerToken": 1.4e-06,
+      "outputPerToken": 4.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2.6e-07
+    },
+    "kimi-k2-6": {
+      "inputPerToken": 9.5e-07,
+      "outputPerToken": 4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.6e-07
+    },
+    "kimi-k2-7": {
+      "inputPerToken": 9.5e-07,
+      "outputPerToken": 4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.9e-07
+    },
+    "kimi-k3-high": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "kimi-k3-low": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "kimi-k3-max": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 3e-07
+    },
+    "nemotron-3-ultra-high": {
+      "inputPerToken": 6e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.2e-07
+    },
+    "nemotron-3-ultra-medium": {
+      "inputPerToken": 6e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.2e-07
+    },
+    "nemotron-3-ultra-none": {
+      "inputPerToken": 6e-07,
+      "outputPerToken": 2.4e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1.2e-07
+    },
+    "opus-4-7-review": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 6.25e-06,
+      "cacheReadPerToken": 5e-07
+    },
+    "penguin-high": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "penguin-max": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "penguin-medium": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-1-6": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-1-6-fast": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-1-7": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-1-7-lightning": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.25e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1e-06
+    },
+    "swe-1-7-lightning-medium": {
+      "inputPerToken": 2.5e-06,
+      "outputPerToken": 1.25e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 1e-06
+    },
+    "swe-1-7-medium": {
+      "inputPerToken": 5e-07,
+      "outputPerToken": 2.5e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-high": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 3.75e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "swe-2-max": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 3.75e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "swe-2-medium": {
+      "inputPerToken": 7.5e-07,
+      "outputPerToken": 3.75e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7.5e-08
+    },
+    "swe-check": {
+      "inputPerToken": 0.0,
+      "outputPerToken": 0.0,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 0.0
+    }
+  }
+}
