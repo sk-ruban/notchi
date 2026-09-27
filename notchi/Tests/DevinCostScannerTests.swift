@@ -144,6 +144,44 @@ final class DevinCostScannerTests: XCTestCase {
         XCTAssertTrue(cache.buckets.isEmpty)
     }
 
+    func testUnreadableDatabaseKeepsPreviousTotalsAndRetriesLater() throws {
+        let database = try makeDatabase()
+        let scanner = makeScanner(database)
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 100, output: 10, cacheRead: 0)
+        let firstScan = scanner.scan(cache: Self.emptyCache, now: Self.now)
+        try Data("not a database".utf8).write(to: database)
+
+        let failedScan = scanner.scan(cache: firstScan, now: Self.now)
+
+        XCTAssertEqual(failedScan.buckets, firstScan.buckets)
+        XCTAssertEqual(failedScan.files[database.path], firstScan.files[database.path])
+    }
+
+    func testDatabaseWithNoRepliesClearsTotals() throws {
+        let database = try makeDatabase()
+        let scanner = makeScanner(database)
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 100, output: 10, cacheRead: 0)
+        let firstScan = scanner.scan(cache: Self.emptyCache, now: Self.now)
+        try runSQLite(database, "DELETE FROM message_nodes;")
+
+        let rescanned = scanner.scan(cache: firstScan, now: Self.now)
+
+        XCTAssertTrue(rescanned.buckets.isEmpty)
+    }
+
+    func testRequestTotalsComeFromASingleCopy() throws {
+        let database = try makeDatabase()
+        try insertReply(database, requestId: "request-1", model: "swe-1-7", input: 100, output: 10, cacheRead: 0)
+        try insertReply(database, requestId: "request-1", model: "swe-1-7-medium", input: 50, output: 99, cacheRead: 0)
+
+        let cache = makeScanner(database).scan(cache: Self.emptyCache, now: Self.now)
+
+        let day = try XCTUnwrap(cache.buckets[Self.todayKey])
+        XCTAssertEqual(day.keys.sorted(), ["swe-1-7"])
+        XCTAssertEqual(day["swe-1-7"]?.input, 100)
+        XCTAssertEqual(day["swe-1-7"]?.output, 10)
+    }
+
     func testMissingDatabaseLeavesCacheEmpty() {
         let missing = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

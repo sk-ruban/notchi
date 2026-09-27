@@ -173,7 +173,7 @@ struct DevinHookInstaller {
             return entries.contains { entry in
                 let entryHooks = entry["hooks"] as? [[String: Any]] ?? []
                 return entryHooks.contains { hook in
-                    (hook["command"] as? String)?.contains(hookScriptName) == true
+                    scriptName(of: hook["command"] as? String ?? "") == hookScriptName
                 }
             }
         }
@@ -211,7 +211,12 @@ struct DevinHookInstaller {
     }
 
     nonisolated private static func isManagedCommand(_ command: String) -> Bool {
-        command.contains(hookScriptName) || command.contains(legacyClaudeHookScriptName)
+        [hookScriptName, legacyClaudeHookScriptName].contains(scriptName(of: command))
+    }
+
+    nonisolated private static func scriptName(of command: String) -> String {
+        let path = command.trimmingCharacters(in: CharacterSet(charactersIn: "\"'").union(.whitespaces))
+        return (path as NSString).lastPathComponent
     }
 
     nonisolated private static func serialize(_ json: [String: Any]) -> Data? {

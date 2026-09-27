@@ -70,6 +70,36 @@ final class DevinHookInstallerTests: XCTestCase {
         XCTAssertEqual(try Self.commands(in: hooks, event: "UserPromptSubmit"), [Self.foreignCommand, Self.command])
     }
 
+    func testUpsertConfigKeepsHooksWhoseFileNameOnlyContainsANotchiScriptName() throws {
+        let wrappers = ["/usr/local/bin/my-notchi-hook.sh", "/opt/hooks/wrap-notchi-devin-hook.sh"]
+        let existing = try JSONSerialization.data(withJSONObject: [
+            "hooks": ["Stop": [["hooks": wrappers.map { ["type": "command", "command": $0] }]]],
+        ])
+
+        let updated = DevinHookInstaller.upsertConfig(from: existing, command: Self.command)
+        let removed = DevinHookInstaller.removeManagedHooks(from: updated)
+
+        XCTAssertEqual(try Self.commands(in: Self.hooks(in: updated), event: "Stop"), wrappers + [Self.command])
+        XCTAssertEqual(try Self.commands(in: Self.hooks(in: removed), event: "Stop"), wrappers)
+    }
+
+    func testUpsertConfigReplacesQuotedLegacyClaudeCommand() throws {
+        let quotedLegacy = #""${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/notchi-hook.sh""#
+        let existing = try JSONSerialization.data(withJSONObject: [
+            "hooks": ["Stop": [["hooks": [["type": "command", "command": quotedLegacy]]]]],
+        ])
+
+        let updated = DevinHookInstaller.upsertConfig(from: existing, command: Self.command)
+
+        XCTAssertEqual(try Self.commands(in: Self.hooks(in: updated), event: "Stop"), [Self.command])
+    }
+
+    func testIsHookInstalledRecognisesAScriptPathContainingSpaces() {
+        let data = DevinHookInstaller.upsertConfig(from: nil, command: "/Users/Jo Doe/.config/devin/hooks/notchi-devin-hook.sh")
+
+        XCTAssertTrue(DevinHookInstaller.isHookInstalled(in: data))
+    }
+
     func testUpsertConfigIsIdempotent() throws {
         let first = try XCTUnwrap(DevinHookInstaller.upsertConfig(from: nil, command: Self.command))
         let second = try XCTUnwrap(DevinHookInstaller.upsertConfig(from: first, command: Self.command))
