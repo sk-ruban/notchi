@@ -4,7 +4,7 @@ import XCTest
 
 final class HookScriptImportIsolationTests: XCTestCase {
     private static let hookTimeout: TimeInterval = 5
-    private static let bundledHookNames = ["notchi-hook", "notchi-codex-hook"]
+    private static let bundledHookNames = ["notchi-hook", "notchi-codex-hook", "notchi-devin-hook"]
 
     private static let agentLikeEnvironment = [
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
@@ -45,6 +45,86 @@ final class HookScriptImportIsolationTests: XCTestCase {
 
     func testCodexHookDeliversEventFromDirectoryShadowingStdlib() async throws {
         try await assertHookDeliversEvent(scriptName: "notchi-codex-hook", sessionId: "shadowed-codex")
+    }
+
+    func testDevinHookDeliversEventFromDirectoryShadowingStdlib() async throws {
+        try await assertHookDeliversEvent(scriptName: "notchi-devin-hook", sessionId: "shadowed-devin")
+    }
+
+    func testDevinHookTagsEventAsDevinWithProjectDirectoryAndReply() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let projectDirectory = "/tmp/devin-project"
+        let reply = "The directory contains:\n- hooks.log"
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: recorder)
+        let script = try stageScript(named: "notchi-devin-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        _ = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: #"{"hook_event_name":"Stop","session_id":"tagged-devin","last_assistant_message":"The directory contains:\n- hooks.log"}"#,
+            extraEnvironment: ["DEVIN_PROJECT_DIR": projectDirectory]
+        )
+
+        let delivered = await waitUntil(timeout: 2) {
+            await recorder.snapshot().contains { $0.sessionId == "tagged-devin" }
+        }
+        XCTAssertTrue(delivered, "Devin hook never delivered its event")
+        let snapshot = await recorder.snapshot()
+        let envelope = try XCTUnwrap(snapshot.first { $0.sessionId == "tagged-devin" })
+        XCTAssertEqual(envelope.provider, .devin)
+        XCTAssertEqual(envelope.cwd, projectDirectory)
+        XCTAssertEqual(envelope.status, "waiting_for_input")
+        XCTAssertEqual(envelope.lastAssistantMessage, reply)
+    }
+
+    func testDevinHookKeepsStopEventWhenReplyIsNotPlainText() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: recorder)
+        let script = try stageScript(named: "notchi-devin-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        _ = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: #"{"hook_event_name":"Stop","session_id":"structured-devin","last_assistant_message":[{"type":"text","text":"hi"}]}"#,
+            extraEnvironment: ["DEVIN_PROJECT_DIR": "/tmp/devin-project"]
+        )
+
+        let delivered = await waitUntil(timeout: 2) {
+            await recorder.snapshot().contains { $0.sessionId == "structured-devin" }
+        }
+        XCTAssertTrue(delivered, "Devin hook dropped a Stop event with a structured reply")
+        let snapshot = await recorder.snapshot()
+        XCTAssertNil(snapshot.first { $0.sessionId == "structured-devin" }?.lastAssistantMessage)
+    }
+
+    func testClaudeHookSkipsEventsFiredByDevin() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: recorder)
+        let script = try stageScript(named: "notchi-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        _ = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: #"{"hook_event_name":"Stop","session_id":"devin-via-claude-hook"}"#,
+            extraEnvironment: ["DEVIN_PROJECT_DIR": "/tmp/devin-project"]
+        )
+
+        let delivered = await waitUntil(timeout: 1) {
+            await !recorder.snapshot().isEmpty
+        }
+        XCTAssertFalse(delivered, "Claude hook forwarded an event fired by Devin")
     }
 
     func testClaudePermissionResponseReachesStdoutFromDirectoryShadowingStdlib() async throws {
@@ -233,13 +313,14 @@ final class HookScriptImportIsolationTests: XCTestCase {
     private func runHook(
         script: URL,
         workingDirectory: URL,
-        payload: String
+        payload: String,
+        extraEnvironment: [String: String] = [:]
     ) throws -> (standardOutput: String, standardError: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [script.path]
         process.currentDirectoryURL = workingDirectory
-        process.environment = Self.agentLikeEnvironment
+        process.environment = Self.agentLikeEnvironment.merging(extraEnvironment) { _, new in new }
 
         let input = Pipe()
         let output = Pipe()

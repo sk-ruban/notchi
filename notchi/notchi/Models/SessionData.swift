@@ -53,6 +53,7 @@ final class SessionData: Identifiable {
     private(set) var pendingQuestionResponseContext: PendingQuestionResponseContext?
     private(set) var currentSpinnerVerb: String
     private(set) var claudeProcessId: Int?
+    private(set) var devinProcessId: Int?
     private(set) var codexProcessId: Int?
     private(set) var codexOrigin: CodexOrigin?
     private(set) var hostBundleIdentifier: String?
@@ -110,7 +111,14 @@ final class SessionData: Identifiable {
     }
 
     var hostProcessId: Int? {
-        provider == .codex ? codexProcessId : claudeProcessId
+        switch provider {
+        case .claude:
+            claudeProcessId
+        case .codex:
+            codexProcessId
+        case .devin:
+            devinProcessId
+        }
     }
 
     // Sprite positioning constants (normalized 0..1 range for X, points for Y)
@@ -321,6 +329,14 @@ final class SessionData: Identifiable {
         if let origin {
             codexOrigin = origin
         }
+    }
+
+    func updateDevinRuntime(processId: Int?) {
+        guard provider == .devin,
+              let processId,
+              Self.isValidProcessId(processId) else { return }
+
+        devinProcessId = processId
     }
 
     private static func isValidProcessId(_ processId: Int) -> Bool {

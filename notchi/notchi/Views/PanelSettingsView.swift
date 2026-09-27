@@ -54,8 +54,10 @@ struct PanelSettingsView: View {
     private let sessionStore: SessionStore
     @State private var claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
     @State private var codexHooksStatus = IntegrationCoordinator.shared.installStatus(for: .codex)
+    @State private var devinHooksStatus = IntegrationCoordinator.shared.installStatus(for: .devin)
     @State private var claudeHooksEnabled = AppSettings.areHooksEnabled(for: .claude)
     @State private var codexHooksEnabled = AppSettings.areHooksEnabled(for: .codex)
+    @State private var devinHooksEnabled = AppSettings.areHooksEnabled(for: .devin)
     @State private var areHooksExpanded = false
     @State private var codexSetup: CodexHookSetup?
     @State private var isCheckingCodex = false
@@ -194,6 +196,7 @@ struct PanelSettingsView: View {
                     recheck: refreshHookStatuses
                 )
             }
+            hookProviderRow(for: .devin, status: devinHooksStatus)
         }
         .padding(.vertical, SettingsLayout.pickerInset)
         .background(TerminalColors.subtleBackground)
@@ -269,11 +272,18 @@ struct PanelSettingsView: View {
     }
 
     private var reportedAgent: String {
-        switch (claudeHooksStatus != .providerUnavailable, codexHooksStatus != .providerUnavailable) {
-        case (true, true): "Both"
-        case (true, false): "Claude Code"
-        case (false, true): "Codex"
-        case (false, false): "Not sure"
+        let agents = [
+            (claudeHooksStatus, "Claude Code"),
+            (codexHooksStatus, "Codex"),
+            (devinHooksStatus, "Devin"),
+        ]
+        .filter { $0.0 != .providerUnavailable }
+        .map(\.1)
+
+        switch agents.count {
+        case 0: return "Not sure"
+        case 1: return agents[0]
+        default: return "Multiple"
         }
     }
 
@@ -390,7 +400,7 @@ struct PanelSettingsView: View {
     }
 
     private func availableHookStates() -> [AgentHookInstallStatus] {
-        [claudeHooksStatus, codexHooksStatus].filter { status in
+        [claudeHooksStatus, codexHooksStatus, devinHooksStatus].filter { status in
             status != .providerUnavailable
         }
     }
@@ -475,6 +485,8 @@ struct PanelSettingsView: View {
             claudeHooksEnabled
         case .codex:
             codexHooksEnabled
+        case .devin:
+            devinHooksEnabled
         }
     }
 
@@ -494,14 +506,19 @@ struct PanelSettingsView: View {
             codexHooksStatus = status
             codexSetup = nil
             codexCheckRevision += 1
+        case .devin:
+            devinHooksEnabled = enabled
+            devinHooksStatus = status
         }
     }
 
     private func refreshHookStatuses() {
         claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
         codexHooksStatus = IntegrationCoordinator.shared.installStatus(for: .codex)
+        devinHooksStatus = IntegrationCoordinator.shared.installStatus(for: .devin)
         claudeHooksEnabled = AppSettings.areHooksEnabled(for: .claude)
         codexHooksEnabled = AppSettings.areHooksEnabled(for: .codex)
+        devinHooksEnabled = AppSettings.areHooksEnabled(for: .devin)
         codexCheckRevision += 1
     }
 

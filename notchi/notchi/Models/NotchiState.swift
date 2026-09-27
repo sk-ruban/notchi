@@ -114,6 +114,7 @@ enum NotchiEmotion: String, CaseIterable {
 enum NotchiSpriteFamily: String {
     case claude
     case codex
+    case devin
 }
 
 struct SpriteSheetPresentation: Equatable {
@@ -128,6 +129,8 @@ extension AgentProvider {
             .claude
         case .codex:
             .codex
+        case .devin:
+            .devin
         }
     }
 }

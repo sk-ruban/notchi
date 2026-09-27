@@ -73,6 +73,51 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertFalse(session.pendingQuestions.isEmpty)
     }
 
+    func testDevinStopRecordsHookProvidedReply() {
+        let sessionId = "devin-reply-\(UUID().uuidString)"
+        let reply = "The directory contains:\n- `hooks.log`"
+
+        NotchiStateMachine.shared.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .devin,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "run ls"
+        ))
+        NotchiStateMachine.shared.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .devin,
+            event: .stop,
+            status: "waiting_for_input",
+            lastAssistantMessage: reply
+        ))
+
+        let session = SessionStore.shared.session(for: ProviderSessionKey(provider: .devin, rawSessionId: sessionId))
+        XCTAssertEqual(session?.recentAssistantMessages.map(\.text), [reply])
+    }
+
+    func testDevinStopWithBlankReplyRecordsNoAssistantMessage() {
+        let sessionId = "devin-blank-reply-\(UUID().uuidString)"
+
+        NotchiStateMachine.shared.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .devin,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "run ls"
+        ))
+        NotchiStateMachine.shared.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .devin,
+            event: .stop,
+            status: "waiting_for_input",
+            lastAssistantMessage: "  \n "
+        ))
+
+        let session = SessionStore.shared.session(for: ProviderSessionKey(provider: .devin, rawSessionId: sessionId))
+        XCTAssertEqual(session?.recentAssistantMessages.count, 0)
+    }
+
     func testSessionStartForwardsToClaudeUsageHandler() {
         let stateMachine = NotchiStateMachine.shared
         var receivedTriggers: [ClaudeUsageResumeTrigger] = []
@@ -632,7 +677,8 @@ final class NotchiStateMachineTests: XCTestCase {
         userPrompt: String? = nil,
         interactive: Bool = true,
         codexProcessId: Int? = nil,
-        codexOrigin: CodexOrigin? = nil
+        codexOrigin: CodexOrigin? = nil,
+        lastAssistantMessage: String? = nil
     ) -> HookEvent {
         HookEvent(
             provider: provider,
@@ -648,7 +694,8 @@ final class NotchiStateMachineTests: XCTestCase {
             permissionMode: nil,
             interactive: interactive,
             codexProcessId: codexProcessId,
-            codexOrigin: codexOrigin
+            codexOrigin: codexOrigin,
+            lastAssistantMessage: lastAssistantMessage
         )
     }
 }

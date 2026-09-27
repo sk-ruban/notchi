@@ -96,6 +96,8 @@ struct UsageDetailView: View {
                 UsageMetrics.periodDisplay(title: String(localized: "Weekly"), usage: codexUsage.currentWeeklyUsage, isStale: stale),
                 UsageMetrics.periodDisplay(title: String(localized: "Reviews"), usage: codexUsage.currentReviewsUsage, isStale: stale),
             ].compactMap { $0 }
+        case .devin:
+            return []
         }
     }
 

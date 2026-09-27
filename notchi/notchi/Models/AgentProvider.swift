@@ -10,6 +10,7 @@ nonisolated struct ProviderCapabilities: Sendable {
 nonisolated enum AgentProvider: String, Codable, CaseIterable, Hashable, Sendable {
     case claude
     case codex
+    case devin
 
     var displayName: String {
         switch self {
@@ -17,6 +18,8 @@ nonisolated enum AgentProvider: String, Codable, CaseIterable, Hashable, Sendabl
             "Claude"
         case .codex:
             "Codex"
+        case .devin:
+            "Devin"
         }
     }
 
@@ -32,6 +35,13 @@ nonisolated enum AgentProvider: String, Codable, CaseIterable, Hashable, Sendabl
         case .codex:
             ProviderCapabilities(
                 supportsPermissionPrompts: true,
+                supportsUsageResumeTriggers: false,
+                supportsPromptEmotionAnalysis: true,
+                supportsDerivedTranscriptFallback: false
+            )
+        case .devin:
+            ProviderCapabilities(
+                supportsPermissionPrompts: false,
                 supportsUsageResumeTriggers: false,
                 supportsPromptEmotionAnalysis: true,
                 supportsDerivedTranscriptFallback: false

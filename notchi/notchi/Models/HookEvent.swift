@@ -27,6 +27,25 @@ enum NormalizedAgentEvent: String, CaseIterable, Codable, Sendable {
             nil
         }
     }
+
+    nonisolated static func devinEvent(named rawValue: String) -> Self? {
+        switch rawValue {
+        case "SessionStart":
+            .sessionStarted
+        case "UserPromptSubmit":
+            .userPromptSubmitted
+        case "PreToolUse":
+            .preToolUse
+        case "PostToolUse":
+            .postToolUse
+        case "Stop":
+            .stop
+        case "SessionEnd":
+            .sessionEnded
+        default:
+            nil
+        }
+    }
 }
 
 enum CodexOrigin: String, Codable, Sendable {
@@ -51,7 +70,9 @@ struct AgentHookEnvelope: Decodable, Sendable {
     let claudeProcessId: Int?
     let codexProcessId: Int?
     let codexOrigin: CodexOrigin?
+    let devinProcessId: Int?
     let hasAttachments: Bool?
+    let lastAssistantMessage: String?
 
     enum CodingKeys: String, CodingKey {
         case provider
@@ -67,7 +88,9 @@ struct AgentHookEnvelope: Decodable, Sendable {
         case claudeProcessId = "claude_process_id"
         case codexProcessId = "codex_process_id"
         case codexOrigin = "codex_origin"
+        case devinProcessId = "devin_process_id"
         case hasAttachments = "has_attachments"
+        case lastAssistantMessage = "last_assistant_message"
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -89,7 +112,9 @@ struct AgentHookEnvelope: Decodable, Sendable {
         claudeProcessId = try container.decodeIfPresent(Int.self, forKey: .claudeProcessId)
         codexProcessId = try container.decodeIfPresent(Int.self, forKey: .codexProcessId)
         codexOrigin = try container.decodeIfPresent(CodexOrigin.self, forKey: .codexOrigin)
+        devinProcessId = try container.decodeIfPresent(Int.self, forKey: .devinProcessId)
         hasAttachments = try container.decodeIfPresent(Bool.self, forKey: .hasAttachments)
+        lastAssistantMessage = try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage)
     }
 }
 
@@ -113,6 +138,8 @@ struct HookEvent: Sendable {
     let claudeProcessId: Int?
     let codexProcessId: Int?
     let codexOrigin: CodexOrigin?
+    let devinProcessId: Int?
+    let lastAssistantMessage: String?
     let interactionRequestId: String?
 
     nonisolated var sessionId: String {
@@ -143,6 +170,8 @@ struct HookEvent: Sendable {
         claudeProcessId: Int? = nil,
         codexProcessId: Int? = nil,
         codexOrigin: CodexOrigin? = nil,
+        devinProcessId: Int? = nil,
+        lastAssistantMessage: String? = nil,
         interactionRequestId: String? = nil
     ) {
         self.provider = provider
@@ -164,6 +193,8 @@ struct HookEvent: Sendable {
         self.claudeProcessId = claudeProcessId
         self.codexProcessId = codexProcessId
         self.codexOrigin = codexOrigin
+        self.devinProcessId = devinProcessId
+        self.lastAssistantMessage = lastAssistantMessage
         self.interactionRequestId = interactionRequestId
     }
 }

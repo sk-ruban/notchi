@@ -167,6 +167,9 @@ actor ConversationParser {
                     seenEvents.insert(event.id)
                     events.append(event)
                 }
+
+            case .devin:
+                continue
             }
         }
 

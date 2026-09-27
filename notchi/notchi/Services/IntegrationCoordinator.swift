@@ -25,7 +25,7 @@ nonisolated final class IntegrationCoordinator: @unchecked Sendable {
 
     init(
         eventSource: any AgentHookEventSource = SocketServer.shared,
-        adapters: [any AgentProviderAdapter] = [ClaudeProviderAdapter(), CodexProviderAdapter()],
+        adapters: [any AgentProviderAdapter] = [ClaudeProviderAdapter(), CodexProviderAdapter(), DevinProviderAdapter()],
         hooksEnabledPreference: @escaping @Sendable (AgentProvider) -> Bool = { AppSettings.areHooksEnabled(for: $0) },
         setHooksEnabledPreference: @escaping @Sendable (Bool, AgentProvider) -> Void = { AppSettings.setHooksEnabled($0, for: $1) }
     ) {

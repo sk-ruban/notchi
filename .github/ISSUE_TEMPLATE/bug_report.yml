@@ -36,7 +36,9 @@ body:
       options:
         - Claude Code
         - Codex
+        - Devin
         - Both
+        - Multiple
         - Not sure
     validations:
       required: false

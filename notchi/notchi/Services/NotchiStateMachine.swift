@@ -164,6 +164,12 @@ final class NotchiStateMachine {
             stopFileWatcher(sessionKey: event.sessionKey)
             if let transcriptPath {
                 scheduleFileSync(sessionKey: event.sessionKey, transcriptPath: transcriptPath)
+            } else if let reply = event.lastAssistantMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !reply.isEmpty {
+                sessionStore.recordAssistantMessages(
+                    [AssistantMessage(id: UUID().uuidString, text: reply, timestamp: Date())],
+                    for: event.sessionKey
+                )
             }
 
         case .sessionEnded:

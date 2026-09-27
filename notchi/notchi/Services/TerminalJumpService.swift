@@ -59,16 +59,6 @@ struct TerminalJumpService {
         return codexDesktopThreadURL(threadId: session.rawSessionId)
     }
 
-    static func claudeCodeProcessId(for session: SessionData) -> pid_t? {
-        guard session.provider == .claude,
-              let processId = session.claudeProcessId,
-              processId > 0 else {
-            return nil
-        }
-
-        return pid_t(processId)
-    }
-
     nonisolated static func codexDesktopThreadURL(threadId: String) -> URL? {
         let trimmedThreadId = threadId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedThreadId.isEmpty,
@@ -110,17 +100,7 @@ struct TerminalJumpService {
     }
 
     private static func hostBackedProcessId(for session: SessionData) -> pid_t? {
-        codexProcessId(for: session) ?? claudeCodeProcessId(for: session)
-    }
-
-    private static func codexProcessId(for session: SessionData) -> pid_t? {
-        guard session.provider == .codex,
-              let processId = session.codexProcessId,
-              processId > 0 else {
-            return nil
-        }
-
-        return pid_t(processId)
+        session.hostProcessId.flatMap { $0 > 0 ? pid_t(exactly: $0) : nil }
     }
 
     private nonisolated static let threadIDAllowedCharacters: CharacterSet = {

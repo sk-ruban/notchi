@@ -76,6 +76,25 @@ final class TerminalJumpServiceTests: XCTestCase {
         XCTAssertEqual(activatedProcessIds, [10])
     }
 
+    func testDevinSessionActivatesHostingApp() {
+        let session = SessionData(sessionId: "opposite-beechnut", provider: .devin, cwd: "/tmp/project")
+        session.updateDevinRuntime(processId: 30)
+        var activatedProcessIds: [pid_t] = []
+        let service = makeService(
+            processSnapshot: { self.makeSnapshot(parentProcessId: Self.terminalAncestry[$0]) },
+            bundleIdentifierForProcess: { Self.devinDesktopBundles[$0] },
+            activateProcess: { processId in
+                activatedProcessIds.append(processId)
+                return true
+            }
+        )
+
+        let didJump = service.jump(to: session)
+
+        XCTAssertTrue(didJump)
+        XCTAssertEqual(activatedProcessIds, [10])
+    }
+
     func testCodexCLISessionDoesNotActivateNonTerminalAncestor() {
         let session = SessionData(sessionId: "thread-123", provider: .codex, cwd: "/tmp/project")
         session.updateCodexRuntime(processId: 30, origin: .cli)
@@ -469,4 +488,5 @@ final class TerminalJumpServiceTests: XCTestCase {
     private static let terminalAncestry: [pid_t: pid_t] = [30: 20, 20: 10, 10: 1]
     private static let terminalBundles: [pid_t: String] = [10: "com.apple.Terminal"]
     private static let t3CodeBundles: [pid_t: String] = [10: "com.t3tools.t3code"]
+    private static let devinDesktopBundles: [pid_t: String] = [10: "com.exafunction.windsurf"]
 }

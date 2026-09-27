@@ -502,6 +502,94 @@ final class AgentProviderAdapterTests: XCTestCase {
         wait(for: [uninstallExpectation], timeout: 1)
     }
 
+    func testDevinAdapterNormalizesPromptEnvelopeIntoHookEvent() throws {
+        let envelope = try devinEnvelope([
+            "event": "UserPromptSubmit",
+            "status": "processing",
+            "user_prompt": "hey my friend!",
+            "devin_process_id": 4321,
+        ])
+
+        let event = DevinProviderAdapter().normalize(envelope)
+
+        XCTAssertEqual(event?.provider, .devin)
+        XCTAssertEqual(event?.event, .userPromptSubmitted)
+        XCTAssertEqual(event?.sessionId, "devin:opposite-beechnut")
+        XCTAssertEqual(event?.cwd, "/Users/me/devin-project")
+        XCTAssertEqual(event?.userPrompt, "hey my friend!")
+        XCTAssertEqual(event?.devinProcessId, 4321)
+        XCTAssertNil(event?.transcriptPath)
+    }
+
+    func testDevinAdapterMapsDevinToolNamesToNotchiToolNames() throws {
+        let expectedToolNames = [
+            "exec": "Bash",
+            "read": "Read",
+            "write": "Write",
+            "edit": "Edit",
+            "apply_patch": "Edit",
+            "grep": "Grep",
+            "glob": "Glob",
+            "run_subagent": "Task",
+            "webfetch": "WebFetch",
+            "todo_write": "TodoWrite",
+            "mcp__github__create_issue": "mcp__github__create_issue",
+        ]
+
+        for (devinTool, notchiTool) in expectedToolNames {
+            let envelope = try devinEnvelope([
+                "event": "PreToolUse",
+                "status": "running_tool",
+                "tool": devinTool,
+            ])
+
+            XCTAssertEqual(DevinProviderAdapter().normalize(envelope)?.tool, notchiTool, devinTool)
+        }
+    }
+
+    func testDevinAdapterCarriesLastAssistantMessageOnStop() throws {
+        let reply = "The directory contains:\n- `hooks.log`"
+        let envelope = try devinEnvelope([
+            "event": "Stop",
+            "status": "waiting_for_input",
+            "last_assistant_message": reply,
+        ])
+
+        let event = DevinProviderAdapter().normalize(envelope)
+
+        XCTAssertEqual(event?.event, .stop)
+        XCTAssertEqual(event?.lastAssistantMessage, reply)
+    }
+
+    func testDevinAdapterDropsEventsNotchiDoesNotRegisterForDevin() throws {
+        for unregisteredEvent in ["PermissionRequest", "PostCompaction", "Notification"] {
+            let envelope = try devinEnvelope(["event": unregisteredEvent, "status": "unknown"])
+
+            XCTAssertNil(DevinProviderAdapter().normalize(envelope), unregisteredEvent)
+        }
+    }
+
+    func testDevinSessionsDoNotDeriveAClaudeTranscriptPath() {
+        let path = ConversationParser.resolvedTranscriptPath(
+            for: .devin,
+            sessionId: "opposite-beechnut",
+            cwd: "/Users/me/devin-project",
+            transcriptPath: nil
+        )
+
+        XCTAssertNil(path)
+    }
+
+    private func devinEnvelope(_ fields: [String: Any]) throws -> AgentHookEnvelope {
+        let base: [String: Any] = [
+            "provider": "devin",
+            "session_id": "opposite-beechnut",
+            "cwd": "/Users/me/devin-project",
+        ]
+        let data = try JSONSerialization.data(withJSONObject: base.merging(fields) { _, new in new })
+        return try JSONDecoder().decode(AgentHookEnvelope.self, from: data)
+    }
+
     private func codexEnvelope(prompt: String) throws -> AgentHookEnvelope {
         let data = try JSONSerialization.data(withJSONObject: [
             "provider": "codex",

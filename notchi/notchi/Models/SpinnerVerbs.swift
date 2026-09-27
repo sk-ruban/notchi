@@ -9,6 +9,8 @@ enum SpinnerVerbs {
             "Clauding"
         case .codex:
             "Codexing"
+        case .devin:
+            "Devining"
         }
     }
 

@@ -176,6 +176,7 @@ final class SessionStore {
         let previousHostProcessId = session.hostProcessId
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
+        session.updateDevinRuntime(processId: event.devinProcessId)
         if let hostProcessId = session.hostProcessId,
            hostProcessId != previousHostProcessId,
            let processId = pid_t(exactly: hostProcessId) {
