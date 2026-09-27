@@ -1,4 +1,5 @@
 import XCTest
+import os
 @testable import notchi
 
 final class CostHistoryStoreTests: XCTestCase {
@@ -35,24 +36,30 @@ final class CostHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.report?.provider, .claude)
     }
 
-    /// Writes one assistant usage line timestamped now and returns a store scanning it.
-    @MainActor
-    private func storeScanningSession(model: String, inputTokens: Int, outputTokens: Int,
-                                      catalog: PricingCatalog) throws -> CostHistoryStore {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let projectDir = dir.appendingPathComponent("projects/p", isDirectory: true)
+    /// Writes one assistant usage line timestamped now under `root/projects`.
+    private func writeSession(root: URL, model: String, inputTokens: Int, outputTokens: Int,
+                              requestId: String = "r1") throws {
+        let projectDir = root.appendingPathComponent("projects/p", isDirectory: true)
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
         let line = """
-        {"type":"assistant","timestamp":"\(ISO8601DateFormatter().string(from: Date()))","requestId":"r1",\
-        "message":{"id":"m1","model":"\(model)",\
+        {"type":"assistant","timestamp":"\(ISO8601DateFormatter().string(from: Date()))","requestId":"\(requestId)",\
+        "message":{"id":"m-\(requestId)","model":"\(model)",\
         "usage":{"input_tokens":\(inputTokens),"output_tokens":\(outputTokens),\
         "cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
 
         """
-        try line.data(using: .utf8)!.write(to: projectDir.appendingPathComponent("s.jsonl"))
+        try line.data(using: .utf8)!.write(to: projectDir.appendingPathComponent("\(requestId).jsonl"))
+    }
+
+    @MainActor
+    private func storeScanningSession(model: String, inputTokens: Int, outputTokens: Int,
+                                      catalog: PricingCatalog,
+                                      root: URL = FileManager.default.temporaryDirectory
+                                          .appendingPathComponent(UUID().uuidString)) throws -> CostHistoryStore {
+        try writeSession(root: root, model: model, inputTokens: inputTokens, outputTokens: outputTokens)
         return CostHistoryStore(windowDays: 30, calendar: .current, pricing: catalog,
-                                projectsRoots: [dir.appendingPathComponent("projects")],
-                                cacheURL: dir.appendingPathComponent("cache.json"))
+                                projectsRoots: [root.appendingPathComponent("projects")],
+                                cacheURL: root.appendingPathComponent("cache.json"))
     }
 
     private actor FetchCounter {
@@ -142,6 +149,110 @@ final class CostHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.report?.todayTokens, inputTokens + outputTokens)
         fetchReleaseContinuation.finish()
         await refresh.value
+    }
+
+    @MainActor
+    func testTimerRefreshesDuringAScanDoNotMakeItRepeat() async throws {
+        let launchScanPlusPostFetchRescan = 2
+        let scanCount = OSAllocatedUnfairLock(initialState: 0)
+        let counter = FetchCounter()
+        let (launchScanStarted, launchScanStartedContinuation) = AsyncStream<Void>.makeStream()
+        let (launchScanRelease, launchScanReleaseContinuation) = AsyncStream<Void>.makeStream()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            await counter.increment()
+            return nil
+        })
+        let store = CostHistoryStore(windowDays: 30, calendar: .current, provider: .claude,
+                                     pricingCatalog: catalog) { _ in
+            let scan = scanCount.withLock { $0 += 1; return $0 }
+            if scan == 1 {
+                launchScanStartedContinuation.yield()
+                for await _ in launchScanRelease {}
+            }
+            return [:]
+        }
+
+        let launchRefresh = Task { await store.refresh() }
+        for await _ in launchScanStarted { break }
+        await store.refresh()
+        await store.refresh()
+        launchScanReleaseContinuation.finish()
+        await launchRefresh.value
+
+        XCTAssertEqual(scanCount.withLock { $0 }, launchScanPlusPostFetchRescan)
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 1)
+    }
+
+    @MainActor
+    func testFetchFinishingDuringTimerScanStillRepricesReport() async throws {
+        let pricedCostNanos = 7_000_000
+        let unpriced = ModelTokenTotals(input: 10, output: 5, requestCount: 1, pricedCount: 0)
+        let priced = ModelTokenTotals(input: 10, output: 5, costNanos: pricedCostNanos,
+                                      requestCount: 1, pricedCount: 1)
+        let dayKey = DailyCostReport.dayKey(Date(), calendar: .current)
+        let catalogFetched = OSAllocatedUnfairLock(initialState: false)
+        let scanCount = OSAllocatedUnfairLock(initialState: 0)
+        let (fetchStarted, fetchStartedContinuation) = AsyncStream<Void>.makeStream()
+        let (fetchRelease, fetchReleaseContinuation) = AsyncStream<Void>.makeStream()
+        let (timerScanStarted, timerScanStartedContinuation) = AsyncStream<Void>.makeStream()
+        let (timerScanRelease, timerScanReleaseContinuation) = AsyncStream<Void>.makeStream()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            fetchStartedContinuation.yield()
+            for await _ in fetchRelease {}
+            catalogFetched.withLock { $0 = true }
+            return nil
+        })
+        let store = CostHistoryStore(windowDays: 30, calendar: .current, provider: .claude,
+                                     pricingCatalog: catalog) { _ in
+            // A scan prices the model only if it started after the catalog fetch landed.
+            let sawFetchedCatalog = catalogFetched.withLock { $0 }
+            let scan = scanCount.withLock { $0 += 1; return $0 }
+            if scan == 2 {
+                timerScanStartedContinuation.yield()
+                for await _ in timerScanRelease {}
+            }
+            return [dayKey: ["claude-new": sawFetchedCatalog ? priced : unpriced]]
+        }
+
+        let launchRefresh = Task { await store.refresh() }
+        for await _ in fetchStarted { break }
+        let timerRefresh = Task { await store.refresh() }
+        for await _ in timerScanStarted { break }
+        fetchReleaseContinuation.finish()
+        await launchRefresh.value
+        timerScanReleaseContinuation.finish()
+        await timerRefresh.value
+
+        XCTAssertEqual(store.report?.todayCostUSD ?? 0, Double(pricedCostNanos) / 1_000_000_000, accuracy: 1e-12)
+    }
+
+    @MainActor
+    func testRefreshScansNewUsageWhileCatalogFetchIsPending() async throws {
+        let firstTokens = (input: 10, output: 5)
+        let laterTokens = (input: 100, output: 50)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let (fetchStarted, fetchStartedContinuation) = AsyncStream<Void>.makeStream()
+        let (fetchRelease, fetchReleaseContinuation) = AsyncStream<Void>.makeStream()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            fetchStartedContinuation.yield()
+            for await _ in fetchRelease {}
+            return nil
+        })
+        let store = try storeScanningSession(model: "model-models-dev-never-lists",
+                                             inputTokens: firstTokens.input, outputTokens: firstTokens.output,
+                                             catalog: catalog, root: root)
+
+        let pendingFetch = Task { await store.refresh() }
+        for await _ in fetchStarted { break }
+        try writeSession(root: root, model: "model-models-dev-never-lists",
+                         inputTokens: laterTokens.input, outputTokens: laterTokens.output, requestId: "r2")
+        await store.refresh()
+
+        XCTAssertEqual(store.report?.todayTokens,
+                       firstTokens.input + firstTokens.output + laterTokens.input + laterTokens.output)
+        fetchReleaseContinuation.finish()
+        await pendingFetch.value
     }
 }
 

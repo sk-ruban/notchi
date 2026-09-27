@@ -18,6 +18,7 @@ final class CostHistoryStore {
     private let pricingRetryInterval: TimeInterval = 60 * 60
     private let pricingCatalog: PricingCatalog?
     private var lastPricingRefresh: Date?
+    private var needsRescan = false
 
     init(windowDays: Int = 30, calendar: Calendar = .current, provider: CostProvider = .claude,
          scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
@@ -61,8 +62,8 @@ final class CostHistoryStore {
         }
     }
 
-    private init(windowDays: Int, calendar: Calendar, provider: CostProvider, pricingCatalog: PricingCatalog,
-                 scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
+    init(windowDays: Int, calendar: Calendar, provider: CostProvider, pricingCatalog: PricingCatalog,
+         scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
         self.windowDays = windowDays
         self.calendar = calendar
         self.provider = provider
@@ -79,17 +80,33 @@ final class CostHistoryStore {
     }
 
     func refresh() async {
-        if isScanning { return }
-        isScanning = true
-        defer { isScanning = false }
         let now = Date()
-        let buckets = await scanProvider(now)
-        // Publish before fetching so a slow models.dev never holds back fresh usage.
-        publish(buckets, now: now)
-        guard let catalog = pricingCatalog, shouldRefreshPricing(after: buckets, now: now) else { return }
+        guard let buckets = await scanAndPublish(),
+              let catalog = pricingCatalog, shouldRefreshPricing(after: buckets, now: now) else { return }
+        // The fetch runs outside isScanning so a slow models.dev never blocks timer scans.
         lastPricingRefresh = now
         await catalog.refreshFromNetwork()
-        publish(await scanProvider(now), now: now)
+        await scanAndPublish(rescanIfBusy: true)
+    }
+
+    /// Overlapping timer ticks are dropped. The post-fetch call instead makes a running scan
+    /// go once more, so a scan that began before new pricing arrived is never the last one published.
+    @discardableResult
+    private func scanAndPublish(rescanIfBusy: Bool = false) async -> DayModelBuckets? {
+        if isScanning {
+            if rescanIfBusy { needsRescan = true }
+            return nil
+        }
+        isScanning = true
+        defer { isScanning = false }
+        var buckets: DayModelBuckets
+        repeat {
+            needsRescan = false
+            let now = Date()
+            buckets = await scanProvider(now)
+            publish(buckets, now: now)
+        } while needsRescan
+        return buckets
     }
 
     private func publish(_ buckets: DayModelBuckets, now: Date) {
