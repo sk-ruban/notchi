@@ -6,6 +6,8 @@ final class DevinUsageReaderTests: XCTestCase {
     private static let dailyResetUnix: UInt64 = 1_790_496_000
     private static let weeklyResetUnix: UInt64 = 1_790_928_000
     private static let now = Date(timeIntervalSince1970: 1_790_490_000)
+    private static let secondsPerDay: UInt64 = 86_400
+    private static let secondsPerWeek: UInt64 = 604_800
 
     func testDecodesDailyAndWeeklyUsageFromPlanStatus() throws {
         let proto = Self.userStatus(planStatus: Self.planStatus(
@@ -66,7 +68,7 @@ final class DevinUsageReaderTests: XCTestCase {
         XCTAssertEqual(usage.weekly?.usagePercentage, 40)
     }
 
-    func testExpiredQuotaWindowsAreOmitted() throws {
+    func testPassedDailyResetRollsOverToZeroUsageUntilTheNextDay() throws {
         let proto = Self.userStatus(planStatus: Self.planStatus(
             dailyRemaining: 10,
             weeklyRemaining: 60,
@@ -77,8 +79,33 @@ final class DevinUsageReaderTests: XCTestCase {
 
         let usage = try XCTUnwrap(DevinUsageReader.usage(fromUserStatusProto: proto, now: afterDailyReset))
 
-        XCTAssertNil(usage.daily)
+        XCTAssertEqual(usage.daily?.usagePercentage, 0)
+        XCTAssertEqual(usage.daily?.resetDate, Date(timeIntervalSince1970: TimeInterval(Self.dailyResetUnix + Self.secondsPerDay)))
         XCTAssertEqual(usage.weekly?.usagePercentage, 40)
+    }
+
+    func testRolloverSkipsEveryWindowThatHasAlreadyPassed() throws {
+        let proto = Self.userStatus(planStatus: Self.planStatus(
+            dailyRemaining: 10,
+            weeklyRemaining: 60,
+            dailyReset: Self.dailyResetUnix,
+            weeklyReset: Self.weeklyResetUnix
+        ))
+        let tenDaysAfterWeeklyReset = Self.weeklyResetUnix + 10 * Self.secondsPerDay
+        let dailyWindowsPassed = (tenDaysAfterWeeklyReset - Self.dailyResetUnix) / Self.secondsPerDay + 1
+
+        let usage = try XCTUnwrap(DevinUsageReader.usage(
+            fromUserStatusProto: proto,
+            now: Date(timeIntervalSince1970: TimeInterval(tenDaysAfterWeeklyReset))
+        ))
+
+        XCTAssertEqual(usage.weekly?.usagePercentage, 0)
+        XCTAssertEqual(usage.weekly?.resetDate, Date(timeIntervalSince1970: TimeInterval(Self.weeklyResetUnix + 2 * Self.secondsPerWeek)))
+        XCTAssertEqual(usage.daily?.usagePercentage, 0)
+        XCTAssertEqual(
+            usage.daily?.resetDate,
+            Date(timeIntervalSince1970: TimeInterval(Self.dailyResetUnix + dailyWindowsPassed * Self.secondsPerDay))
+        )
     }
 
     func testSkipsUnknownFieldsOfEveryWireType() throws {

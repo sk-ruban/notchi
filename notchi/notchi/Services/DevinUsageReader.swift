@@ -23,6 +23,11 @@ nonisolated enum DevinUsageReader {
         static let weeklyResetUnix: UInt64 = 18
     }
 
+    private enum QuotaWindow {
+        static let daily: TimeInterval = 86_400
+        static let weekly: TimeInterval = 604_800
+    }
+
     private enum PlanInfoField {
         static let hideDailyQuota: UInt64 = 36
         static let hideWeeklyQuota: UInt64 = 37
@@ -58,20 +63,30 @@ nonisolated enum DevinUsageReader {
             daily: hidesDaily ? nil : quota(
                 remainingPercent: planStatus.varint(PlanStatusField.dailyRemainingPercent),
                 resetUnix: planStatus.varint(PlanStatusField.dailyResetUnix),
+                window: QuotaWindow.daily,
                 now: now
             ),
             weekly: hidesWeekly ? nil : quota(
                 remainingPercent: planStatus.varint(PlanStatusField.weeklyRemainingPercent),
                 resetUnix: planStatus.varint(PlanStatusField.weeklyResetUnix),
+                window: QuotaWindow.weekly,
                 now: now
             )
         )
     }
 
-    private static func quota(remainingPercent: UInt64?, resetUnix: UInt64?, now: Date) -> QuotaPeriod? {
+    private static func quota(
+        remainingPercent: UInt64?,
+        resetUnix: UInt64?,
+        window: TimeInterval,
+        now: Date
+    ) -> QuotaPeriod? {
         guard let resetUnix else { return nil }
         let resetDate = Date(timeIntervalSince1970: TimeInterval(resetUnix))
-        guard resetDate > now else { return nil }
+        guard resetDate > now else {
+            let windowsPassed = (now.timeIntervalSince(resetDate) / window).rounded(.down) + 1
+            return QuotaPeriod(utilization: 0, resetDate: resetDate.addingTimeInterval(windowsPassed * window))
+        }
 
         let remaining = Double(min(remainingPercent ?? 0, 100))
         return QuotaPeriod(utilization: 100 - remaining, resetDate: resetDate)
