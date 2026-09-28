@@ -28,10 +28,77 @@ final class SocketServerTests: XCTestCase {
                 !FileManager.default.fileExists(atPath: entry.path)
             }
             unlink(entry.path)
+            try? FileManager.default.removeItem(atPath: (entry.path as NSString).deletingLastPathComponent)
         }
         activeServers.removeAll()
 
         try await super.tearDown()
+    }
+
+    func testServerCreatesAnOwnerOnlySocketDirectory() async throws {
+        let recorder = EventRecorder()
+        let (_, path) = try await makeServer(clientReadTimeout: 0.5, recorder: recorder)
+
+        XCTAssertEqual(try permissions(atPath: (path as NSString).deletingLastPathComponent), Self.ownerOnlyDirectory)
+    }
+
+    func testServerTightensASocketDirectoryOthersCanWrite() async throws {
+        let recorder = EventRecorder()
+        let path = uniqueSocketPath()
+        let directory = (path as NSString).deletingLastPathComponent
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o777]
+        )
+        XCTAssertEqual(try permissions(atPath: directory), 0o777)
+
+        _ = try await makeServer(at: path, clientReadTimeout: 0.5, recorder: recorder)
+
+        XCTAssertEqual(try permissions(atPath: directory), Self.ownerOnlyDirectory)
+    }
+
+    func testServerTightensASocketDirectoryOthersCanRead() async throws {
+        let recorder = EventRecorder()
+        let path = uniqueSocketPath()
+        let directory = (path as NSString).deletingLastPathComponent
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o755]
+        )
+
+        _ = try await makeServer(at: path, clientReadTimeout: 0.5, recorder: recorder)
+
+        XCTAssertEqual(try permissions(atPath: directory), Self.ownerOnlyDirectory)
+    }
+
+    func testSocketPathLivesInApplicationSupportWhenItFits() {
+        XCTAssertEqual(
+            SocketServer.resolvedSocketPath(home: "/Users/ruban"),
+            "/Users/ruban/Library/Application Support/Notchi/notchi.sock"
+        )
+    }
+
+    func testSocketPathFallsBackToAStablePathInTheHomeDirectoryForLongHomes() {
+        let longHome = "/Users/" + String(repeating: "h", count: 60)
+
+        XCTAssertEqual(SocketServer.resolvedSocketPath(home: longHome), longHome + "/.notchi/notchi.sock")
+    }
+
+    func testServerRefusesASocketPathTooLongForTheSocketAddress() async throws {
+        let directory = "/tmp/notchi-tests-\(UUID().uuidString.prefix(8))"
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        let path = directory + "/" + String(repeating: "x", count: 200) + ".sock"
+        let server = SocketServer(socketPath: path, clientReadTimeout: 0.5)
+        activeServers.append((server, path))
+
+        server.start { _ in nil }
+        let boundAnything = await waitUntil(timeout: 0.5) {
+            !((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []).isEmpty
+        }
+
+        XCTAssertFalse(boundAnything)
     }
 
     func testStalledClientDoesNotBlockLaterConnections() async throws {
@@ -313,8 +380,15 @@ final class SocketServerTests: XCTestCase {
         return client
     }
 
+    private static let ownerOnlyDirectory = 0o700
+
     private func uniqueSocketPath() -> String {
-        "/tmp/notchi-tests-\(UUID().uuidString).sock"
+        "/tmp/notchi-tests-\(UUID().uuidString.prefix(8))/notchi.sock"
+    }
+
+    private func permissions(atPath path: String) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: path)
+        return try XCTUnwrap(attributes[.posixPermissions] as? NSNumber).intValue
     }
 
     private func makeEventPayload(

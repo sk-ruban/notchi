@@ -82,7 +82,7 @@ nonisolated enum CodexHookStatusService {
     }
 
     static func shellQuote(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        HookFile.shellQuote(value)
     }
 
     static func launcherContents(executable: URL, home: URL) -> String {

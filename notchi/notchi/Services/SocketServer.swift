@@ -14,8 +14,22 @@ nonisolated protocol AgentHookEventSource: AnyObject, Sendable {
 // than the main actor, so it should not inherit the project's default UI
 // isolation.
 nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable {
-    static let socketPath = "/tmp/notchi.sock"
+    static let socketPath = resolvedSocketPath(home: FileManager.default.homeDirectoryForCurrentUser.path)
     static let shared = SocketServer(socketPath: socketPath, clientReadTimeout: 0.5)
+    private static let socketDirectoryPermissions: mode_t = 0o700
+    private static let groupAndOtherPermissions: mode_t = 0o077
+    private static let maxSocketPathLength = MemoryLayout.size(ofValue: sockaddr_un().sun_path) - 1
+
+    static func resolvedSocketPath(home: String) -> String {
+        let preferred = (home as NSString).appendingPathComponent("Library/Application Support/Notchi/notchi.sock")
+        return fitsInSocketAddress(preferred)
+            ? preferred
+            : (home as NSString).appendingPathComponent(".notchi/notchi.sock")
+    }
+
+    private static func fitsInSocketAddress(_ path: String) -> Bool {
+        path.utf8.count <= maxSocketPathLength
+    }
     private static let startRetryDelay: DispatchTimeInterval = .milliseconds(250)
     private static let maxStartRetryAttempts = 8
 
@@ -47,6 +61,13 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
         retryAttemptsRemaining: Int
     ) {
         guard serverSocket < 0 else { return }
+
+        guard Self.fitsInSocketAddress(socketPath) else {
+            logger.error("Socket path is \(self.socketPath.utf8.count) bytes, longer than a Unix socket address allows")
+            return
+        }
+
+        guard prepareSocketDirectory() else { return }
 
         switch prepareSocketPathForBinding() {
         case .ready:
@@ -130,6 +151,35 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
         serverQueue.async { [weak self] in
             self?.stopServer()
         }
+    }
+
+    private func prepareSocketDirectory() -> Bool {
+        let directory = (socketPath as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(
+                atPath: directory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: Self.socketDirectoryPermissions]
+            )
+        } catch {
+            logger.error("Failed to create socket directory: \(error.localizedDescription)")
+            return false
+        }
+
+        var info = stat()
+        guard lstat(directory, &info) == 0 else {
+            logger.error("Failed to inspect socket directory: \(errno)")
+            return false
+        }
+        guard info.st_mode & S_IFMT == S_IFDIR, info.st_uid == getuid() else {
+            logger.error("Refusing a socket directory that is not a directory owned by this user")
+            return false
+        }
+        if info.st_mode & Self.groupAndOtherPermissions != 0, chmod(directory, Self.socketDirectoryPermissions) != 0 {
+            logger.error("Failed to restrict socket directory permissions: \(errno)")
+            return false
+        }
+        return true
     }
 
     private func prepareSocketPathForBinding() -> SocketPathPreparation {
