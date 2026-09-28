@@ -75,15 +75,15 @@ final class SocketServerTests: XCTestCase {
 
     func testSocketPathLivesInApplicationSupportWhenItFits() {
         XCTAssertEqual(
-            SocketServer.resolvedSocketPath(home: "/Users/ruban", userID: 501),
+            SocketServer.resolvedSocketPath(home: "/Users/ruban"),
             "/Users/ruban/Library/Application Support/Notchi/notchi.sock"
         )
     }
 
-    func testSocketPathFallsBackToAShortPerUserPathForLongHomeDirectories() {
+    func testSocketPathFallsBackToAStablePathInTheHomeDirectoryForLongHomes() {
         let longHome = "/Users/" + String(repeating: "h", count: 60)
 
-        XCTAssertEqual(SocketServer.resolvedSocketPath(home: longHome, userID: 501), "/tmp/notchi-501/notchi.sock")
+        XCTAssertEqual(SocketServer.resolvedSocketPath(home: longHome), longHome + "/.notchi/notchi.sock")
     }
 
     func testServerRefusesASocketPathTooLongForTheSocketAddress() async throws {

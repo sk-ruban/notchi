@@ -14,15 +14,17 @@ nonisolated protocol AgentHookEventSource: AnyObject, Sendable {
 // than the main actor, so it should not inherit the project's default UI
 // isolation.
 nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable {
-    static let socketPath = resolvedSocketPath(home: FileManager.default.homeDirectoryForCurrentUser.path, userID: getuid())
+    static let socketPath = resolvedSocketPath(home: FileManager.default.homeDirectoryForCurrentUser.path)
     static let shared = SocketServer(socketPath: socketPath, clientReadTimeout: 0.5)
     private static let socketDirectoryPermissions: mode_t = 0o700
     private static let groupAndOtherPermissions: mode_t = 0o077
     private static let maxSocketPathLength = MemoryLayout.size(ofValue: sockaddr_un().sun_path) - 1
 
-    static func resolvedSocketPath(home: String, userID: uid_t) -> String {
+    static func resolvedSocketPath(home: String) -> String {
         let preferred = (home as NSString).appendingPathComponent("Library/Application Support/Notchi/notchi.sock")
-        return fitsInSocketAddress(preferred) ? preferred : "/tmp/notchi-\(userID)/notchi.sock"
+        return fitsInSocketAddress(preferred)
+            ? preferred
+            : (home as NSString).appendingPathComponent(".notchi/notchi.sock")
     }
 
     private static func fitsInSocketAddress(_ path: String) -> Bool {
