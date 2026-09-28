@@ -1,10 +1,11 @@
 #!/bin/bash
 # Notchi Hook - forwards Claude Code events to Notchi app via Unix socket
 
-SOCKET_PATH="/tmp/notchi.sock"
+SOCKET_PATH="$HOME/Library/Application Support/Notchi/notchi.sock"
 
 # Exit silently if socket doesn't exist (app not running)
-[ -S "$SOCKET_PATH" ] || exit 0
+[ -S "$SOCKET_PATH" ] && [ -O "$SOCKET_PATH" ] || exit 0
+export NOTCHI_SOCKET_PATH="$SOCKET_PATH"
 
 # Detect non-interactive (claude -p / --print) sessions
 IS_INTERACTIVE=true
@@ -146,7 +147,7 @@ def should_wait_for_response():
 
 try:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect('$SOCKET_PATH')
+    sock.connect(os.environ['NOTCHI_SOCKET_PATH'])
     sock.sendall(json.dumps(output).encode())
     if should_wait_for_response():
         sock.shutdown(socket.SHUT_WR)

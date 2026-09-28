@@ -4,6 +4,7 @@ import XCTest
 
 final class HookScriptImportIsolationTests: XCTestCase {
     private static let hookTimeout: TimeInterval = 5
+    private static let defaultSocketAssignment = #"SOCKET_PATH="$HOME/Library/Application Support/Notchi/notchi.sock""#
     private static let bundledHookNames = ["notchi-hook", "notchi-codex-hook", "notchi-devin-hook"]
 
     private static let agentLikeEnvironment = [
@@ -29,6 +30,7 @@ final class HookScriptImportIsolationTests: XCTestCase {
                 !FileManager.default.fileExists(atPath: entry.path)
             }
             unlink(entry.path)
+            try? FileManager.default.removeItem(atPath: (entry.path as NSString).deletingLastPathComponent)
         }
         startedServers.removeAll()
 
@@ -162,6 +164,56 @@ final class HookScriptImportIsolationTests: XCTestCase {
         }
     }
 
+    func testBundledHooksComputeTheSocketPathTheServerListensOn() throws {
+        for name in Self.bundledHookNames {
+            let script = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
+            XCTAssertTrue(script.contains(Self.defaultSocketAssignment), "\(name).sh no longer declares the default socket path")
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", Self.defaultSocketAssignment + #"; printf %s "$SOCKET_PATH""#]
+            process.environment = Self.agentLikeEnvironment
+            let output = Pipe()
+            process.standardOutput = output
+            try process.run()
+            process.waitUntilExit()
+
+            let computedPath = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            XCTAssertEqual(computedPath, SocketServer.socketPath, name)
+        }
+    }
+
+    func testBundledHooksOnlySendToASocketOwnedByTheCurrentUser() throws {
+        for name in Self.bundledHookNames {
+            let script = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
+            XCTAssertTrue(
+                script.contains(#"[ -S "$SOCKET_PATH" ] && [ -O "$SOCKET_PATH" ] || exit 0"#),
+                "\(name).sh must skip sockets it does not own"
+            )
+        }
+    }
+
+    func testHookDeliversEventWhenSocketPathContainsAnApostrophe() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath(prefix: "notchi-o'brien")
+        try await startServer(at: socketPath, recorder: recorder)
+        let script = try stageScript(named: "notchi-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        _ = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: #"{"hook_event_name":"Stop","session_id":"apostrophe-path"}"#
+        )
+
+        let delivered = await waitUntil(timeout: 2) {
+            await recorder.snapshot().contains { $0.sessionId == "apostrophe-path" }
+        }
+        XCTAssertTrue(delivered, "Hook could not reach a socket whose path contains an apostrophe")
+    }
+
     func testBundledHooksEndWithExplicitExitZero() throws {
         for name in Self.bundledHookNames {
             let script = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
@@ -246,8 +298,8 @@ final class HookScriptImportIsolationTests: XCTestCase {
             .appendingPathComponent("notchi/Resources/\(name).sh")
     }
 
-    private func uniqueSocketPath() -> String {
-        "/tmp/notchi-isolation-\(UUID().uuidString.prefix(8)).sock"
+    private func uniqueSocketPath(prefix: String = "notchi-isolation") -> String {
+        "/tmp/\(prefix)-\(UUID().uuidString.prefix(8))/notchi.sock"
     }
 
     private func startServer(
@@ -273,7 +325,7 @@ final class HookScriptImportIsolationTests: XCTestCase {
 
     private func stageScript(named name: String, socketPath: String) throws -> URL {
         let original = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
-        let defaultAssignment = "SOCKET_PATH=\"/tmp/notchi.sock\""
+        let defaultAssignment = Self.defaultSocketAssignment
         XCTAssertTrue(original.contains(defaultAssignment), "\(name).sh no longer declares the default socket path")
 
         let staged = original.replacingOccurrences(

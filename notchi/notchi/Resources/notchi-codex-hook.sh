@@ -1,9 +1,10 @@
 #!/bin/bash
 # Notchi Codex Hook - forwards Codex hook events to Notchi via Unix socket
 
-SOCKET_PATH="/tmp/notchi.sock"
+SOCKET_PATH="$HOME/Library/Application Support/Notchi/notchi.sock"
 
-[ -S "$SOCKET_PATH" ] || exit 0
+[ -S "$SOCKET_PATH" ] && [ -O "$SOCKET_PATH" ] || exit 0
+export NOTCHI_SOCKET_PATH="$SOCKET_PATH"
 
 /usr/bin/python3 -I -c "
 import json
@@ -167,7 +168,7 @@ if hook_event == 'UserPromptSubmit':
 
 try:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect('$SOCKET_PATH')
+    sock.connect(os.environ['NOTCHI_SOCKET_PATH'])
     sock.sendall(json.dumps(output).encode())
     sock.close()
 except Exception:
