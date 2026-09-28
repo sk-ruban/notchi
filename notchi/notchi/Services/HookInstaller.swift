@@ -33,7 +33,7 @@ struct HookInstaller {
         if let bundled = Bundle.main.url(forResource: "notchi-hook", withExtension: "sh") {
             do {
                 let bundledData = try Data(contentsOf: bundled)
-                try HookFile.writeScriptIfNeeded(bundledData, to: hookScript)
+                try HookFile.writeScriptIfNeeded(HookFile.installableScript(from: bundledData), to: hookScript)
             } catch {
                 logger.error("Failed to install hook script: \(error.localizedDescription)")
                 return false

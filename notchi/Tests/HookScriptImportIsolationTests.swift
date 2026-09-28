@@ -4,7 +4,6 @@ import XCTest
 
 final class HookScriptImportIsolationTests: XCTestCase {
     private static let hookTimeout: TimeInterval = 5
-    private static let defaultSocketAssignment = #"SOCKET_PATH="$HOME/Library/Application Support/Notchi/notchi.sock""#
     private static let bundledHookNames = ["notchi-hook", "notchi-codex-hook", "notchi-devin-hook"]
 
     private static let agentLikeEnvironment = [
@@ -164,23 +163,31 @@ final class HookScriptImportIsolationTests: XCTestCase {
         }
     }
 
-    func testBundledHooksComputeTheSocketPathTheServerListensOn() throws {
+    func testInstalledHooksUseTheSocketPathTheServerListensOn() throws {
         for name in Self.bundledHookNames {
-            let script = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
-            XCTAssertTrue(script.contains(Self.defaultSocketAssignment), "\(name).sh no longer declares the default socket path")
+            let installed = HookFile.installableScript(from: try Data(contentsOf: bundledScriptURL(named: name)))
+            let assignment = try XCTUnwrap(
+                String(decoding: installed, as: UTF8.self)
+                    .split(separator: "\n")
+                    .first { $0.hasPrefix("SOCKET_PATH=") },
+                name
+            )
 
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = ["-c", Self.defaultSocketAssignment + #"; printf %s "$SOCKET_PATH""#]
-            process.environment = Self.agentLikeEnvironment
-            let output = Pipe()
-            process.standardOutput = output
-            try process.run()
-            process.waitUntilExit()
-
-            let computedPath = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            XCTAssertEqual(computedPath, SocketServer.socketPath, name)
+            XCTAssertEqual(try socketPath(evaluating: String(assignment), home: "/tmp/some-other-home"), SocketServer.socketPath, name)
         }
+    }
+
+    func testInstalledHookQuotesASocketPathWithShellCharacters() throws {
+        let awkwardPath = #"/tmp/it's "quoted" $HOME/notchi.sock"#
+        let installed = HookFile.installableScript(
+            from: try Data(contentsOf: bundledScriptURL(named: "notchi-hook")),
+            socketPath: awkwardPath
+        )
+        let assignment = try XCTUnwrap(
+            String(decoding: installed, as: UTF8.self).split(separator: "\n").first { $0.hasPrefix("SOCKET_PATH=") }
+        )
+
+        XCTAssertEqual(try socketPath(evaluating: String(assignment), home: NSHomeDirectory()), awkwardPath)
     }
 
     func testBundledHooksOnlySendToASocketOwnedByTheCurrentUser() throws {
@@ -298,6 +305,18 @@ final class HookScriptImportIsolationTests: XCTestCase {
             .appendingPathComponent("notchi/Resources/\(name).sh")
     }
 
+    private func socketPath(evaluating assignment: String, home: String) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", assignment + #"; printf %s "$SOCKET_PATH""#]
+        process.environment = ["PATH": "/usr/bin:/bin", "HOME": home]
+        let output = Pipe()
+        process.standardOutput = output
+        try process.run()
+        process.waitUntilExit()
+        return String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    }
+
     private func uniqueSocketPath(prefix: String = "notchi-isolation") -> String {
         "/tmp/\(prefix)-\(UUID().uuidString.prefix(8))/notchi.sock"
     }
@@ -324,16 +343,12 @@ final class HookScriptImportIsolationTests: XCTestCase {
     }
 
     private func stageScript(named name: String, socketPath: String) throws -> URL {
-        let original = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
-        let defaultAssignment = Self.defaultSocketAssignment
-        XCTAssertTrue(original.contains(defaultAssignment), "\(name).sh no longer declares the default socket path")
+        let bundled = try Data(contentsOf: bundledScriptURL(named: name))
+        let staged = HookFile.installableScript(from: bundled, socketPath: socketPath)
+        XCTAssertNotEqual(staged, bundled, "\(name).sh no longer declares the socket path installers replace")
 
-        let staged = original.replacingOccurrences(
-            of: defaultAssignment,
-            with: "SOCKET_PATH=\"\(socketPath)\""
-        )
         let url = try XCTUnwrap(stagingDirectory).appendingPathComponent("\(name).sh")
-        try staged.write(to: url, atomically: true, encoding: .utf8)
+        try staged.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url
     }

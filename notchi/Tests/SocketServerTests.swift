@@ -58,6 +58,34 @@ final class SocketServerTests: XCTestCase {
         XCTAssertEqual(try permissions(atPath: directory), Self.ownerOnlyDirectory)
     }
 
+    func testServerTightensASocketDirectoryOthersCanRead() async throws {
+        let recorder = EventRecorder()
+        let path = uniqueSocketPath()
+        let directory = (path as NSString).deletingLastPathComponent
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o755]
+        )
+
+        _ = try await makeServer(at: path, clientReadTimeout: 0.5, recorder: recorder)
+
+        XCTAssertEqual(try permissions(atPath: directory), Self.ownerOnlyDirectory)
+    }
+
+    func testSocketPathLivesInApplicationSupportWhenItFits() {
+        XCTAssertEqual(
+            SocketServer.resolvedSocketPath(home: "/Users/ruban", userID: 501),
+            "/Users/ruban/Library/Application Support/Notchi/notchi.sock"
+        )
+    }
+
+    func testSocketPathFallsBackToAShortPerUserPathForLongHomeDirectories() {
+        let longHome = "/Users/" + String(repeating: "h", count: 60)
+
+        XCTAssertEqual(SocketServer.resolvedSocketPath(home: longHome, userID: 501), "/tmp/notchi-501/notchi.sock")
+    }
+
     func testServerRefusesASocketPathTooLongForTheSocketAddress() async throws {
         let directory = "/tmp/notchi-tests-\(UUID().uuidString.prefix(8))"
         try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
