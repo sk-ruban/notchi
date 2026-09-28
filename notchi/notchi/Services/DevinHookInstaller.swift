@@ -58,7 +58,7 @@ struct DevinHookInstaller {
 
         do {
             let bundledData = try Data(contentsOf: bundled)
-            try HookFile.writeScriptIfNeeded(bundledData, to: hookScriptURL, fileManager: fileManager)
+            try HookFile.writeScriptIfNeeded(HookFile.installableScript(from: bundledData), to: hookScriptURL, fileManager: fileManager)
         } catch {
             devinHookLogger.error("Failed to install Devin hook script: \(error.localizedDescription)")
             return false
