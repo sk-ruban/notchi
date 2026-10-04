@@ -418,12 +418,22 @@ final class SessionStoreTests: XCTestCase {
             userPrompt: "[SYSTEM NOTIFICATION - NOT USER INPUT] something finished"
         ))
         XCTAssertEqual(session.lastUserPrompt, "fix the panel please")
+
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "<agent-message from=\"a8e08302535266089\">\n[Subagent hand-back] report\n</agent-message>"
+        ))
+        XCTAssertEqual(session.lastUserPrompt, "fix the panel please")
     }
 
     func testIsHarnessInjectedPromptMatchesMarkersOnlyAtTheStart() {
         XCTAssertTrue(SessionData.isHarnessInjectedPrompt("<task-notification>\nstuff"))
         XCTAssertTrue(SessionData.isHarnessInjectedPrompt("  <system-reminder>\nstuff"))
+        XCTAssertTrue(SessionData.isHarnessInjectedPrompt("<agent-message from=\"a8e08302535266089\">\nstuff"))
         XCTAssertFalse(SessionData.isHarnessInjectedPrompt("tell me about <task-notification> blocks"))
+        XCTAssertFalse(SessionData.isHarnessInjectedPrompt("why does it say <agent-message from=\"x\"> here?"))
         XCTAssertFalse(SessionData.isHarnessInjectedPrompt(nil))
         XCTAssertFalse(SessionData.isHarnessInjectedPrompt("normal prompt"))
     }

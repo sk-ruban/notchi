@@ -249,6 +249,7 @@ final class SessionData: Identifiable {
         "<task-notification>",
         "<system-reminder>",
         "[SYSTEM NOTIFICATION",
+        "<agent-message",
     ]
 
     nonisolated static func isHarnessInjectedPrompt(_ prompt: String?) -> Bool {
