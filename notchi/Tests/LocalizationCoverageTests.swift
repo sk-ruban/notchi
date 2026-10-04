@@ -1,4 +1,5 @@
 import XCTest
+@testable import notchi
 
 final class LocalizationCoverageTests: XCTestCase {
     // Keys copied verbatim from Localizable.xcstrings — note the ASCII "..." in "Working...".
@@ -27,17 +28,35 @@ final class LocalizationCoverageTests: XCTestCase {
         }
     }
 
-    func testTokenCountKeepsItsPlaceholderWhileHoveredDayTitleHasItsOwnKey() throws {
+    func testTokenCountKeepsItsPlaceholderInEveryLanguage() throws {
         for locale in targetLocales {
-            let path = try XCTUnwrap(Bundle.main.path(forResource: locale, ofType: "lproj"))
-            let bundle = try XCTUnwrap(Bundle(path: path))
-
-            let tokenCount = bundle.localizedString(forKey: "%@ toks", value: nil, table: nil)
-            let hoveredDayTitle = bundle.localizedString(forKey: "cost.dayTokensTitle", value: nil, table: nil)
+            let tokenCount = try localeBundle(locale).localizedString(forKey: "%@ toks", value: nil, table: nil)
 
             XCTAssertTrue(tokenCount.contains("%@"), "\(locale) dropped the token count from \"%@ toks\"")
-            XCTAssertNotEqual(hoveredDayTitle, "cost.dayTokensTitle", "\(locale) is missing the hovered-day token title")
         }
+    }
+
+    func testHoveredDayTokenTitleShowsTheDateInEnglishAndOmitsItInTranslations() throws {
+        let dayLabel = "Dec 28"
+        let expectedTitles = [
+            "en": "Dec 28 toks",
+            "ja": "トークン",
+            "ko": "토큰",
+            "vi": "Token",
+            "zh-Hans": "词元",
+            "zh-Hant": "Token",
+        ]
+
+        for (locale, expectedTitle) in expectedTitles {
+            let title = CostDashboardView.dayTokensTitle(dayLabel: dayLabel, bundle: try localeBundle(locale))
+
+            XCTAssertEqual(title, expectedTitle, locale)
+        }
+    }
+
+    private func localeBundle(_ locale: String) throws -> Bundle {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: locale, ofType: "lproj"), "Missing \(locale).lproj")
+        return try XCTUnwrap(Bundle(path: path))
     }
 
     func testIntInterpolationResolvesThroughStringLocalized() throws {
