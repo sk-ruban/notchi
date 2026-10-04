@@ -34,7 +34,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ API가 HTTP %lld를 반환했습니다"
+            "value" : "%@ API가 HTTP %lld 응답을 반환했습니다"
           }
         },
         "vi" : {
@@ -194,7 +194,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 詞元"
+            "value" : "%@ Token"
           }
         }
       }
@@ -222,13 +222,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 使用情况"
+            "value" : "%@ 用量"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 使用情況"
+            "value" : "%@ 用量"
           }
         }
       }
@@ -321,7 +321,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "30天詞元"
+            "value" : "30天 Token"
           }
         }
       }
@@ -629,7 +629,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "审批完成。开始一个新的 Codex 聊天并发送消息即可看到你的吉祥物。现有聊天可能需要重新打开。"
+            "value" : "已批准。开始一个新的 Codex 聊天并发送消息即可看到你的吉祥物。现有聊天可能需要重新打开。"
           }
         },
         "zh-Hant" : {
@@ -901,7 +901,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Màn hình tích hợp"
+            "value" : "Tích hợp"
           }
         },
         "zh-Hans" : {
@@ -935,19 +935,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Màn hình tích hợp hoặc màn hình chính"
+            "value" : "Màn hình tích hợp hoặc chính"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内置或主屏幕"
+            "value" : "内置或主显示器"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "內建或主螢幕"
+            "value" : "內建或主要顯示器"
           }
         }
       }
@@ -971,7 +971,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bỏ qua"
+            "value" : "Bỏ qua quyền"
           }
         },
         "zh-Hans" : {
@@ -1079,7 +1079,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在检查 Codex 审批…"
+            "value" : "正在检查 Codex 批准状态…"
           }
         },
         "zh-Hant" : {
@@ -1199,7 +1199,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claudeのマスコット"
+            "value" : "Claude のマスコット"
           }
         },
         "ko" : {
@@ -1267,7 +1267,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Codexのマスコット"
+            "value" : "Codex のマスコット"
           }
         },
         "ko" : {
@@ -1360,6 +1360,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 回報 Notchi 的鉤子已停用。請在 /hooks 中檢視。如果你的組織管理鉤子，可能需要管理員啟用。"
+          }
+        }
+      }
+    },
+    "Compacting" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圧縮中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "압축 중"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang nén"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "压缩中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "壓縮中"
           }
         }
       }
@@ -1470,36 +1504,36 @@
         }
       }
     },
-    "Connected — Notchi has received activity from Codex." : {
+    "Connected. Notchi has received activity from Codex." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "接続済み — Notchi は Codex からのアクティビティを受信しました。"
+            "value" : "接続済み。Notchi は Codex からのアクティビティを受信しました。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "연결됨 — Notchi가 Codex의 활동을 수신했습니다."
+            "value" : "연결됨. Notchi가 Codex의 활동을 수신했습니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đã kết nối — Notchi đã nhận được hoạt động từ Codex."
+            "value" : "Đã kết nối. Notchi đã nhận được hoạt động từ Codex."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已连接 — Notchi 已收到来自 Codex 的活动。"
+            "value" : "已连接。Notchi 已收到来自 Codex 的活动。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已連線 — Notchi 已收到來自 Codex 的活動。"
+            "value" : "已連線。Notchi 已收到來自 Codex 的活動。"
           }
         }
       }
@@ -1678,7 +1712,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "詞元"
+            "value" : "Token"
           }
         }
       }
@@ -1688,7 +1722,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "モデルを一覧表示できませんでした: %@"
+            "value" : "モデルを一覧表示できませんでした：%@"
           }
         },
         "ko" : {
@@ -1842,7 +1876,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法验证 Codex 审批。你的 Codex 版本可能不支持此检查。如果可用，请查看 /hooks，然后尝试新的聊天。"
+            "value" : "无法验证 Codex 批准状态。你的 Codex 版本可能不支持此检查。如果可用，请查看 /hooks，然后尝试新的聊天。"
           }
         },
         "zh-Hant" : {
@@ -1926,7 +1960,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "今日"
+            "value" : "日次"
           }
         },
         "ko" : {
@@ -2030,7 +2064,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Devinのマスコット"
+            "value" : "Devin のマスコット"
           }
         },
         "ko" : {
@@ -2907,7 +2941,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無効な感情分析レスポンス"
+            "value" : "無効な感情分析の応答"
           }
         },
         "ko" : {
@@ -3131,19 +3165,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Màn hình chính"
+            "value" : "Chính"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主屏幕"
+            "value" : "主显示器"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主螢幕"
+            "value" : "主要顯示器"
           }
         }
       }
@@ -5081,7 +5115,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GitブランチとPRを表示"
+            "value" : "Git ブランチと PR を表示"
           }
         },
         "ko" : {
@@ -5093,7 +5127,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hiện nhánh Git và PR"
+            "value" : "Hiển thị nhánh Git và PR"
           }
         },
         "zh-Hans" : {
@@ -5167,7 +5201,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hiện sprite khi nhàn rỗi"
+            "value" : "Hiển thị sprite khi nhàn rỗi"
           }
         },
         "zh-Hans" : {
@@ -5218,14 +5252,12 @@
         }
       }
     },
-    "Some models lack pricing — cost is partial" : {
-      "comment" : "A note displayed in the cost dashboard if some models in the user's account do not provide pricing information. This note indicates that the total cost displayed in the dashboard is an approximation.",
-      "isCommentAutoGenerated" : true,
+    "Some models lack pricing, so cost is partial" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一部のモデルは価格情報がないため、コストは部分的です"
+            "value" : "一部のモデルに価格情報がないため、コストは一部のみの集計です"
           }
         },
         "ko" : {
@@ -5237,7 +5269,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Một số mô hình chưa có thông tin giá — chi phí hiển thị chưa đầy đủ"
+            "value" : "Một số mô hình chưa có thông tin giá nên chi phí chưa đầy đủ"
           }
         },
         "zh-Hans" : {
@@ -5433,13 +5465,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GitHub でスター"
+            "value" : "GitHub でスターを付ける"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GitHub에서 스타"
+            "value" : "GitHub에서 스타 주기"
           }
         },
         "vi" : {
@@ -5627,7 +5659,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "點按以顯示 Claude 用量"
+            "value" : "按一下以顯示 Claude 用量"
           }
         }
       }
@@ -5695,13 +5727,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在测试 %@，使用 %@…"
+            "value" : "正在使用 %2$@ 测试 %1$@…"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在測試 %@，使用 %@…"
+            "value" : "正在使用 %2$@ 測試 %1$@…"
           }
         }
       }
@@ -5769,7 +5801,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "模型在作答前耗盡了輸出詞元"
+            "value" : "模型在作答前耗盡了輸出 Token"
           }
         }
       }
@@ -5859,7 +5891,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Token ngày"
+            "value" : "Tok hôm nay"
           }
         },
         "zh-Hans" : {
@@ -5871,7 +5903,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "今日詞元"
+            "value" : "今日 Token"
           }
         }
       }
@@ -6019,13 +6051,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "何か入力"
+            "value" : "自由入力"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "무언가 입력"
+            "value" : "직접 입력"
           }
         },
         "vi" : {
@@ -6209,13 +6241,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用情况"
+            "value" : "用量"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用情況"
+            "value" : "用量"
           }
         }
       }
@@ -6225,7 +6257,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用状況リング"
+            "value" : "使用量リング"
           }
         },
         "ko" : {
@@ -6243,13 +6275,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用情况圆环"
+            "value" : "用量圆环"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用情況圓環"
+            "value" : "用量圓環"
           }
         }
       }
@@ -6258,6 +6290,40 @@
       "comment" : "A label displaying the current version of the app.",
       "isCommentAutoGenerated" : true,
       "shouldTranslate" : false
+    },
+    "Waiting" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待機中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대기 중"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang chờ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待中"
+          }
+        }
+      }
     },
     "Waiting for activity" : {
       "localizations" : {
@@ -6410,7 +6476,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "今週"
+            "value" : "週次"
           }
         },
         "ko" : {

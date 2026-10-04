@@ -81,7 +81,7 @@ struct CostDashboardView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     chart(report)
                     if report.entries.contains(where: { $0.requestCount > 0 && $0.pricedFraction < 1 }) {
-                        Text("Some models lack pricing — cost is partial")
+                        Text("Some models lack pricing, so cost is partial")
                             .panelFont(size: 10)
                             .foregroundStyle(.orange)
                             .padding(.bottom, -9)
