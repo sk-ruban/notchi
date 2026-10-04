@@ -9,6 +9,7 @@ final class LocalizationCoverageTests: XCTestCase {
         "Expand on Hover",
         // Hand-edited into the catalog outside Xcode, so verify they survive the .lproj round-trip:
         "Report an Issue", "Sponsor", "Auto", "Devin Mascot", "Daily",
+        "Start Claude Code, Codex or Devin to begin tracking",
     ]
     private let targetLocales = ["ja", "zh-Hans", "zh-Hant", "ko", "vi"]
 

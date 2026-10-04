@@ -3966,36 +3966,36 @@
         }
       }
     },
-    "Open settings to set up Claude Code and Codex integration" : {
+    "Open settings to set up Claude Code, Codex or Devin integration" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "設定を開いて Claude Code と Codex の連携をセットアップ"
+            "value" : "設定を開いて Claude Code、Codex、または Devin の連携をセットアップ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "설정을 열어 Claude Code와 Codex 연동을 설정하세요"
+            "value" : "설정을 열어 Claude Code, Codex 또는 Devin 연동을 설정하세요"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mở cài đặt để thiết lập tích hợp Claude Code và Codex"
+            "value" : "Mở cài đặt để thiết lập tích hợp Claude Code, Codex hoặc Devin"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开设置以配置 Claude Code 和 Codex 集成"
+            "value" : "打开设置以配置 Claude Code、Codex 或 Devin 集成"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟設定以完成 Claude Code 和 Codex 整合"
+            "value" : "開啟設定以完成 Claude Code、Codex 或 Devin 整合"
           }
         }
       }
@@ -5490,36 +5490,36 @@
         }
       }
     },
-    "Start Claude Code or Codex to begin tracking" : {
+    "Start Claude Code, Codex or Devin to begin tracking" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claude Code または Codex を起動して追跡を開始"
+            "value" : "Claude Code、Codex、または Devin を起動して追跡を開始"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claude Code 또는 Codex를 실행하여 추적을 시작하세요"
+            "value" : "Claude Code, Codex 또는 Devin을 실행하여 추적을 시작하세요"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khởi động Claude Code hoặc Codex để bắt đầu theo dõi"
+            "value" : "Khởi động Claude Code, Codex hoặc Devin để bắt đầu theo dõi"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "启动 Claude Code 或 Codex 以开始跟踪"
+            "value" : "启动 Claude Code、Codex 或 Devin 以开始跟踪"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "啟動 Claude Code 或 Codex 以開始追蹤"
+            "value" : "啟動 Claude Code、Codex 或 Devin 以開始追蹤"
           }
         }
       }
