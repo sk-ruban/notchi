@@ -111,7 +111,13 @@ struct CostDashboardView: View {
                 CostStatFormatter.usd(selected?.costUSD ?? r.todayCostUSD)
             ),
             (
-                selected.map { String(localized: "\(dayFormatter.string(from: $0.date)) toks") } ?? String(localized: "Today's toks"),
+                selected.map {
+                    String(
+                        localized: "cost.dayTokensTitle",
+                        defaultValue: "\(dayFormatter.string(from: $0.date)) toks",
+                        comment: "Token column title for a hovered day. Translations may omit the date: the column beside it already shows it."
+                    )
+                } ?? String(localized: "Today's toks"),
                 CostStatFormatter.tokens(selected?.totalTokens ?? r.todayTokens)
             ),
             (String(localized: "30d"), CostStatFormatter.usd(r.windowCostUSD)),

@@ -166,7 +166,6 @@
       }
     },
     "%@ toks" : {
-      "comment" : "Date placeholder intentionally omitted in CJK — the adjacent column already shows the date (prevents truncation).",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1639,6 +1638,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "費用"
+          }
+        }
+      }
+    },
+    "cost.dayTokensTitle" : {
+      "comment" : "Token column title for a hovered day. Translations may omit the date: the column beside it already shows it.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%@ toks"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "토큰"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "词元"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詞元"
           }
         }
       }
