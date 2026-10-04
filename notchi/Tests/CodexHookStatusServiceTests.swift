@@ -73,6 +73,21 @@ final class CodexHookStatusServiceTests: XCTestCase {
         XCTAssertNil(CodexHookStatusService.resolveExecutable(candidates: candidates, isExecutable: { _ in false }))
     }
 
+    func testBundledCLIDirectoryIsFoundBeforeStandaloneCLI() {
+        let bundledCLI = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
+        let candidates = CodexHookStatusService.executableCandidates(home: URL(fileURLWithPath: "/Users/test"), path: "")
+        let available: Set<String> = [bundledCLI, "/opt/homebrew/bin/codex"]
+        XCTAssertEqual(
+            CodexHookStatusService.resolveExecutable(candidates: candidates, isExecutable: available.contains)?.path,
+            bundledCLI
+        )
+        let legacyCLI = "/Applications/ChatGPT.app/Contents/Resources/codex"
+        XCTAssertEqual(
+            CodexHookStatusService.resolveExecutable(candidates: candidates, isExecutable: available.union([legacyCLI]).contains)?.path,
+            legacyCLI
+        )
+    }
+
     func testMovedApplicationAndCLIOnlyInstallationsAreFound() {
         let moved = URL(fileURLWithPath: "/Volumes/Apps/Codex.app")
         let candidates = CodexHookStatusService.executableCandidates(applicationURLs: [moved], path: "/custom/bin:relative/bin")
