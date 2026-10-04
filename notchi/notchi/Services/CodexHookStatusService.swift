@@ -34,7 +34,12 @@ nonisolated enum CodexHookStatusService {
         ]
         let directories = [home.appendingPathComponent(".local/bin").path, "/opt/homebrew/bin", "/usr/local/bin"]
             + path.split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
-        return applications.map { $0.appendingPathComponent("Contents/Resources/codex") }
+        return applications.flatMap {
+            [
+                $0.appendingPathComponent("Contents/Resources/codex"),
+                $0.appendingPathComponent("Contents/Resources/codex-cli/bin/codex"),
+            ]
+        }
             + directories.map { URL(fileURLWithPath: $0).appendingPathComponent("codex") }
     }
 
