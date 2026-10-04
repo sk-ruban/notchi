@@ -111,13 +111,7 @@ struct CostDashboardView: View {
                 CostStatFormatter.usd(selected?.costUSD ?? r.todayCostUSD)
             ),
             (
-                selected.map {
-                    String(
-                        localized: "cost.dayTokensTitle",
-                        defaultValue: "\(dayFormatter.string(from: $0.date)) toks",
-                        comment: "Token column title for a hovered day. Translations may omit the date: the column beside it already shows it."
-                    )
-                } ?? String(localized: "Today's toks"),
+                selected.map { dayTokensTitle(dayLabel: dayFormatter.string(from: $0.date)) } ?? String(localized: "Today's toks"),
                 CostStatFormatter.tokens(selected?.totalTokens ?? r.todayTokens)
             ),
             (String(localized: "30d"), CostStatFormatter.usd(r.windowCostUSD)),
@@ -213,6 +207,15 @@ struct CostDashboardView: View {
         case .codex: TerminalColors.codexAccent
         case .devin: TerminalColors.devinAccent
         }
+    }
+
+    nonisolated static func dayTokensTitle(dayLabel: String, bundle: Bundle = .main) -> String {
+        String(
+            localized: "cost.dayTokensTitle",
+            defaultValue: "\(dayLabel) toks",
+            bundle: bundle,
+            comment: "Token column title for a hovered day. Translations may omit the date: the column beside it already shows it."
+        )
     }
 
     private static let dayFormatter: DateFormatter = {
