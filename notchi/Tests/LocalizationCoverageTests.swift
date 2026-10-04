@@ -27,6 +27,19 @@ final class LocalizationCoverageTests: XCTestCase {
         }
     }
 
+    func testTokenCountKeepsItsPlaceholderWhileHoveredDayTitleHasItsOwnKey() throws {
+        for locale in targetLocales {
+            let path = try XCTUnwrap(Bundle.main.path(forResource: locale, ofType: "lproj"))
+            let bundle = try XCTUnwrap(Bundle(path: path))
+
+            let tokenCount = bundle.localizedString(forKey: "%@ toks", value: nil, table: nil)
+            let hoveredDayTitle = bundle.localizedString(forKey: "cost.dayTokensTitle", value: nil, table: nil)
+
+            XCTAssertTrue(tokenCount.contains("%@"), "\(locale) dropped the token count from \"%@ toks\"")
+            XCTAssertNotEqual(hoveredDayTitle, "cost.dayTokensTitle", "\(locale) is missing the hovered-day token title")
+        }
+    }
+
     func testIntInterpolationResolvesThroughStringLocalized() throws {
         let path = try XCTUnwrap(Bundle.main.path(forResource: "ja", ofType: "lproj"))
         let ja = try XCTUnwrap(Bundle(path: path))
