@@ -32,11 +32,15 @@ final class SessionStore {
     private var resolveHostBundleIdentifier: @MainActor (pid_t) -> String? = { processId in
         TerminalJumpService.shared.hostBundleIdentifier(hosting: processId)
     }
+    private var resolveClaudeSessionName: @Sendable (Int, String) -> String? = { processId, sessionId in
+        ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId)
+    }
     private var invalidateGitPullRequestCache: @Sendable (String) -> Void = { cwd in
         GitPullRequestResolver.shared.invalidate(repositoryAt: cwd)
     }
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
+    private var claudeSessionNameGenerations: [ProviderSessionKey: Int] = [:]
     private var armedPullRequestInvalidations: [ProviderSessionKey: Set<String>] = [:]
     private static let anyToolUseArm = ""
     private var gitRefreshTask: Task<Void, Never>?
@@ -177,6 +181,9 @@ final class SessionStore {
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
         session.updateDevinRuntime(processId: event.devinProcessId)
+        if event.claudeProcessId != nil, let processId = session.claudeProcessId {
+            refreshClaudeSessionName(for: session, sessionKey: event.sessionKey, processId: processId)
+        }
         if let hostProcessId = session.hostProcessId,
            hostProcessId != previousHostProcessId,
            let processId = pid_t(exactly: hostProcessId) {
@@ -274,7 +281,12 @@ final class SessionStore {
     }
 
     func displaySessionLabel(for session: SessionData) -> String {
-        "\(session.projectName) #\(displaySessionNumber(for: session))"
+        let number = displaySessionNumber(for: session)
+        guard let name = session.claudeSessionName else {
+            return "\(session.projectName) #\(number)"
+        }
+        let isShared = sessions.values.contains { $0 !== session && $0.claudeSessionName == name }
+        return isShared ? "\(name) #\(number)" : name
     }
 
     func displayTitle(for session: SessionData) -> String {
@@ -367,6 +379,25 @@ final class SessionStore {
         }
     }
 
+    private func refreshClaudeSessionName(for session: SessionData, sessionKey: ProviderSessionKey, processId: Int) {
+        let generation = (claudeSessionNameGenerations[sessionKey] ?? 0) + 1
+        claudeSessionNameGenerations[sessionKey] = generation
+        let resolve = resolveClaudeSessionName
+        let sessionId = session.rawSessionId
+        Task.detached(priority: .utility) {
+            let name = resolve(processId, sessionId)
+            await MainActor.run {
+                guard self.sessions[sessionKey] === session,
+                      self.claudeSessionNameGenerations[sessionKey] == generation else { return }
+                let previousName = session.claudeSessionName
+                session.updateClaudeSessionName(name)
+                if session.claudeSessionName != previousName {
+                    self.recomputeDisplaySessionNumbers()
+                }
+            }
+        }
+    }
+
     private func refreshCodexPermissionMode(
         for session: SessionData,
         sessionKey: ProviderSessionKey,
@@ -390,6 +421,7 @@ final class SessionStore {
         sessions.removeValue(forKey: sessionKey)
         gitBranchGenerations.removeValue(forKey: sessionKey)
         codexPermissionModeGenerations.removeValue(forKey: sessionKey)
+        claudeSessionNameGenerations.removeValue(forKey: sessionKey)
         armedPullRequestInvalidations.removeValue(forKey: sessionKey)
         recomputeDisplaySessionNumbers()
         postActiveSessionCountChange()
@@ -720,6 +752,10 @@ final class SessionStore {
         invalidateGitPullRequestCache = invalidator
     }
 
+    func setClaudeSessionNameResolverForTesting(_ resolver: @escaping @Sendable (Int, String) -> String?) {
+        resolveClaudeSessionName = resolver
+    }
+
     func setHostBundleIdentifierResolverForTesting(_ resolver: @escaping @MainActor (pid_t) -> String?) {
         resolveHostBundleIdentifier = resolver
     }
@@ -758,6 +794,9 @@ final class SessionStore {
         codexTranscriptExists = { transcriptPath in
             FileManager.default.fileExists(atPath: transcriptPath)
         }
+        resolveClaudeSessionName = { processId, sessionId in
+            ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId)
+        }
     }
 #endif
 
@@ -769,7 +808,9 @@ final class SessionStore {
     }
 
     private func recomputeDisplaySessionNumbers() {
-        let groupedSessions = Dictionary(grouping: sessions.values, by: \.projectName)
+        let groupedSessions = Dictionary(grouping: sessions.values) { session in
+            session.claudeSessionName.map { "name:\($0)" } ?? "project:\(session.projectName)"
+        }
         var displayNumbers: [String: Int] = [:]
 
         for projectSessions in groupedSessions.values {
