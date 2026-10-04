@@ -916,9 +916,9 @@ enum WorkingIndicatorPresentation {
     static func text(for task: NotchiTask, workingVerb: String, dots: String, elapsed: String? = nil) -> String {
         switch task {
         case .compacting:
-            return "Compacting\(dots)"
+            return String(localized: "Compacting") + dots
         case .waiting:
-            return "Waiting\(dots)"
+            return String(localized: "Waiting") + dots
         default:
             guard let elapsed else { return "\(workingVerb)\(dots)" }
             return String(localized: "\(workingVerb) for \(elapsed)") + dots

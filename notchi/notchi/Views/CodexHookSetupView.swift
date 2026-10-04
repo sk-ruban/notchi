@@ -87,7 +87,7 @@ struct CodexHookSetupView: View {
         switch setup.readiness {
         case .approved:
             return hasSession
-                ? String(localized: "Connected — Notchi has received activity from Codex.")
+                ? String(localized: "Connected. Notchi has received activity from Codex.")
                 : String(localized: "Approval complete. Start a new Codex chat and send a message to see your mascot. Existing chats may need to be reopened.")
         case .needsApproval:
             return String(localized: "Approve Notchi’s hooks to show your Codex mascot.")
