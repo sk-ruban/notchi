@@ -63,6 +63,23 @@ final class UsageDetailViewTests: XCTestCase {
         XCTAssertTrue(view.showsStaleUnlimitedCredits)
     }
 
+    func testDevinPlanWithoutQuotaShowsPlanRowInsteadOfQuotaBars() async {
+        let devin = DevinUsageService(
+            readUsage: { _ in DevinUsage(daily: nil, weekly: nil, planName: "Teams", hasNoQuota: true) }
+        )
+        await devin.refresh()
+        let view = UsageDetailView(
+            claudeUsage: ClaudeUsageService(), codexUsage: CodexUsageService(), devinUsage: devin,
+            costStore: CostHistoryStore { _ in [:] },
+            codexCostStore: CostHistoryStore(provider: .codex) { _ in [:] },
+            devinCostStore: CostHistoryStore(provider: .devin) { _ in [:] },
+            defaultProvider: .devin
+        )
+
+        XCTAssertTrue(view.showsDevinNoQuotaPlan)
+        XCTAssertTrue(view.periods.isEmpty)
+    }
+
     func testDevinGetsATabWithoutAllTabWhenNoProviderHasCosts() async {
         let claude = ClaudeUsageService()
         claude.currentUsage = QuotaPeriod(utilization: 3, resetDate: nil)

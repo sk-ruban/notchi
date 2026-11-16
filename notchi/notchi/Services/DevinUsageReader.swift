@@ -3,6 +3,8 @@ import Foundation
 nonisolated struct DevinUsage: Equatable, Sendable {
     let daily: QuotaPeriod?
     let weekly: QuotaPeriod?
+    var planName: String?
+    var hasNoQuota = false
 }
 
 nonisolated enum DevinUsageReader {
@@ -29,6 +31,7 @@ nonisolated enum DevinUsageReader {
     }
 
     private enum PlanInfoField {
+        static let planName: UInt64 = 2
         static let hideDailyQuota: UInt64 = 36
         static let hideWeeklyQuota: UInt64 = 37
     }
@@ -58,16 +61,27 @@ nonisolated enum DevinUsageReader {
         let planInfo = planStatus.bytes(PlanStatusField.planInfo).flatMap(ProtobufFields.init)
         let hidesDaily = planInfo?.varint(PlanInfoField.hideDailyQuota) == 1
         let hidesWeekly = planInfo?.varint(PlanInfoField.hideWeeklyQuota) == 1
+        let dailyRemaining = planStatus.varint(PlanStatusField.dailyRemainingPercent)
+        let weeklyRemaining = planStatus.varint(PlanStatusField.weeklyRemainingPercent)
+
+        if dailyRemaining == nil && weeklyRemaining == nil {
+            return DevinUsage(
+                daily: nil,
+                weekly: nil,
+                planName: planInfo?.bytes(PlanInfoField.planName).map { String(decoding: $0, as: UTF8.self) },
+                hasNoQuota: true
+            )
+        }
 
         return DevinUsage(
             daily: hidesDaily ? nil : quota(
-                remainingPercent: planStatus.varint(PlanStatusField.dailyRemainingPercent),
+                remainingPercent: dailyRemaining,
                 resetUnix: planStatus.varint(PlanStatusField.dailyResetUnix),
                 window: QuotaWindow.daily,
                 now: now
             ),
             weekly: hidesWeekly ? nil : quota(
-                remainingPercent: planStatus.varint(PlanStatusField.weeklyRemainingPercent),
+                remainingPercent: weeklyRemaining,
                 resetUnix: planStatus.varint(PlanStatusField.weeklyResetUnix),
                 window: QuotaWindow.weekly,
                 now: now

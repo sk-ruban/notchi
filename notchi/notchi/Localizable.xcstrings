@@ -91,6 +91,40 @@
         }
       }
     },
+    "%@ plan" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ プラン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 플랜"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gói %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 套餐"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 方案"
+          }
+        }
+      }
+    },
     "%@ remaining" : {
       "localizations" : {
         "ja" : {
@@ -1678,6 +1712,7 @@
     },
     "cost.dayTokensTitle" : {
       "comment" : "Token column title for a hovered day. Translations may omit the date: the column beside it already shows it.",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3450,6 +3485,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網路錯誤，%lld 秒後重試"
+          }
+        }
+      }
+    },
+    "No daily or weekly quota" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日次・週次の上限なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일간 및 주간 한도 없음"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không giới hạn hàng ngày hoặc hàng tuần"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无每日或每周限额"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無每日或每週限額"
           }
         }
       }

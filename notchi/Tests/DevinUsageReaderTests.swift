@@ -39,6 +39,35 @@ final class DevinUsageReaderTests: XCTestCase {
         XCTAssertEqual(usage.weekly?.usagePercentage, 0)
     }
 
+    func testPlanWithoutDailyOrWeeklyRemainingHasNoQuota() throws {
+        let teamsPlanName = "Teams"
+        let planInfo = Self.lengthDelimitedField(2, Data(teamsPlanName.utf8))
+        let proto = Self.userStatus(planStatus: Self.lengthDelimitedField(1, planInfo) + Self.planStatus(
+            dailyRemaining: nil,
+            weeklyRemaining: nil,
+            dailyReset: Self.dailyResetUnix,
+            weeklyReset: Self.weeklyResetUnix
+        ))
+
+        let usage = try XCTUnwrap(DevinUsageReader.usage(fromUserStatusProto: proto, now: Self.now))
+
+        XCTAssertEqual(usage, DevinUsage(daily: nil, weekly: nil, planName: teamsPlanName, hasNoQuota: true))
+    }
+
+    func testPlanWithQuotaIsNotMarkedAsHavingNoQuota() throws {
+        let planInfo = Self.lengthDelimitedField(2, Data("Free".utf8))
+        let proto = Self.userStatus(planStatus: Self.lengthDelimitedField(1, planInfo) + Self.planStatus(
+            dailyRemaining: 99,
+            weeklyRemaining: 60,
+            dailyReset: Self.dailyResetUnix,
+            weeklyReset: Self.weeklyResetUnix
+        ))
+
+        let usage = try XCTUnwrap(DevinUsageReader.usage(fromUserStatusProto: proto, now: Self.now))
+
+        XCTAssertFalse(usage.hasNoQuota)
+    }
+
     func testHiddenQuotasAreOmitted() throws {
         let planInfo = Self.varintField(36, 1) + Self.varintField(37, 0)
         let proto = Self.userStatus(planStatus: Self.lengthDelimitedField(1, planInfo) + Self.planStatus(

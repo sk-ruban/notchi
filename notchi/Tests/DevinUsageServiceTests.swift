@@ -21,6 +21,19 @@ final class DevinUsageServiceTests: XCTestCase {
         XCTAssertEqual(service.lastObservedAt, Self.observedAt)
     }
 
+    func testRefreshPublishesPlanWithoutQuotaAsUsageData() async {
+        let teamsPlanName = "Teams"
+        let service = DevinUsageService(
+            readUsage: { _ in DevinUsage(daily: nil, weekly: nil, planName: teamsPlanName, hasNoQuota: true) }
+        )
+
+        await service.refresh()
+
+        XCTAssertTrue(service.hasNoQuota)
+        XCTAssertEqual(service.planName, teamsPlanName)
+        XCTAssertTrue(service.hasUsageData)
+    }
+
     func testRefreshClearsUsageWhenDevinStateBecomesUnavailable() async {
         let reads = UsageReadSequence([DevinUsage(daily: Self.dailyUsage, weekly: Self.weeklyUsage), nil])
         let service = DevinUsageService(readUsage: { _ in reads.next() }, now: { Self.observedAt })
