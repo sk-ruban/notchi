@@ -30,8 +30,11 @@ nonisolated enum DevinUsageReader {
         static let weekly: TimeInterval = 604_800
     }
 
+    private static let unlimitedMessageLimit = UInt64.max
+
     private enum PlanInfoField {
         static let planName: UInt64 = 2
+        static let messageLimit: UInt64 = 12
         static let hideDailyQuota: UInt64 = 36
         static let hideWeeklyQuota: UInt64 = 37
     }
@@ -64,7 +67,9 @@ nonisolated enum DevinUsageReader {
         let dailyRemaining = planStatus.varint(PlanStatusField.dailyRemainingPercent)
         let weeklyRemaining = planStatus.varint(PlanStatusField.weeklyRemainingPercent)
 
-        if dailyRemaining == nil && weeklyRemaining == nil {
+        let hasUnlimitedMessages = planInfo?.varint(PlanInfoField.messageLimit) == unlimitedMessageLimit
+
+        if hasUnlimitedMessages && dailyRemaining == nil && weeklyRemaining == nil {
             return DevinUsage(
                 daily: nil,
                 weekly: nil,
