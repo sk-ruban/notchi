@@ -8,6 +8,7 @@ final class DevinUsageReaderTests: XCTestCase {
     private static let now = Date(timeIntervalSince1970: 1_790_490_000)
     private static let secondsPerDay: UInt64 = 86_400
     private static let secondsPerWeek: UInt64 = 604_800
+    private static let unlimitedMessageLimit = UInt64.max
 
     func testDecodesDailyAndWeeklyUsageFromPlanStatus() throws {
         let proto = Self.userStatus(planStatus: Self.planStatus(
@@ -42,6 +43,7 @@ final class DevinUsageReaderTests: XCTestCase {
     func testPlanWithoutDailyOrWeeklyRemainingHasNoQuota() throws {
         let teamsPlanName = "Teams"
         let planInfo = Self.lengthDelimitedField(2, Data(teamsPlanName.utf8))
+            + Self.varintField(12, Self.unlimitedMessageLimit)
         let proto = Self.userStatus(planStatus: Self.lengthDelimitedField(1, planInfo) + Self.planStatus(
             dailyRemaining: nil,
             weeklyRemaining: nil,
@@ -52,6 +54,23 @@ final class DevinUsageReaderTests: XCTestCase {
         let usage = try XCTUnwrap(DevinUsageReader.usage(fromUserStatusProto: proto, now: Self.now))
 
         XCTAssertEqual(usage, DevinUsage(daily: nil, weekly: nil, planName: teamsPlanName, hasNoQuota: true))
+    }
+
+    func testCappedPlanWithBothQuotasExhaustedShowsThemUsedUp() throws {
+        let freeMessageLimit: UInt64 = 2_500
+        let planInfo = Self.lengthDelimitedField(2, Data("Free".utf8)) + Self.varintField(12, freeMessageLimit)
+        let proto = Self.userStatus(planStatus: Self.lengthDelimitedField(1, planInfo) + Self.planStatus(
+            dailyRemaining: nil,
+            weeklyRemaining: nil,
+            dailyReset: Self.dailyResetUnix,
+            weeklyReset: Self.weeklyResetUnix
+        ))
+
+        let usage = try XCTUnwrap(DevinUsageReader.usage(fromUserStatusProto: proto, now: Self.now))
+
+        XCTAssertFalse(usage.hasNoQuota)
+        XCTAssertEqual(usage.daily?.usagePercentage, 100)
+        XCTAssertEqual(usage.weekly?.usagePercentage, 100)
     }
 
     func testPlanWithQuotaIsNotMarkedAsHavingNoQuota() throws {
