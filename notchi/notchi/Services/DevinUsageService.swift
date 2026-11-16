@@ -16,6 +16,12 @@ final class DevinUsageService {
         currentUsage != nil || currentWeeklyUsage != nil || hasNoQuota
     }
 
+    var noQuotaLabel: String {
+        let quota = String(localized: "No daily or weekly quota")
+        guard let planName else { return quota }
+        return "\(String(localized: "\(planName) plan")) · \(quota)"
+    }
+
     static let desktopBundleIdentifier = "com.exafunction.windsurf"
 
     private static let refreshInterval: TimeInterval = 60

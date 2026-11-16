@@ -232,6 +232,36 @@ final class NotchContentViewTests: XCTestCase {
         )
     }
 
+    func testCollapsedRingContentShowsUnlimitedForDevinPlanWithoutQuota() {
+        XCTAssertEqual(
+            NotchContentView.collapsedRingContent(
+                isUsageEnabled: true,
+                provider: .devin,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                codexHasUnlimitedCredits: false,
+                devinHasNoQuota: true
+            ),
+            .unlimited
+        )
+    }
+
+    func testCollapsedRingContentShowsDevinQuotaWhenPlanHasOne() {
+        XCTAssertEqual(
+            NotchContentView.collapsedRingContent(
+                isUsageEnabled: true,
+                provider: .devin,
+                claudeUsage: nil,
+                codexSessionUsage: nil,
+                codexWeeklyUsage: nil,
+                codexHasUnlimitedCredits: false,
+                devinDailyUsage: QuotaPeriod(utilization: 12, resetsAt: nil)
+            ),
+            .percentage(12)
+        )
+    }
+
     func testCollapsedRingContentPrefersQuotaOverUnlimitedCredits() {
         XCTAssertEqual(
             NotchContentView.collapsedRingContent(

@@ -589,12 +589,21 @@ struct ExpandedPanelView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
+    private func hasUnlimitedUsage(provider: AgentProvider) -> Bool {
+        switch provider {
+        case .codex: codexUsageService.hasUnlimitedCredits
+        case .devin: devinUsageService.hasNoQuota
+        case .claude: false
+        }
+    }
+
     @ViewBuilder
     private var sharedUsageBar: some View {
         if let state = sharedUsageBarState {
             UsageBarView(
                 usage: state.usage,
-                hasUnlimitedCredits: state.isProviderSpecific && state.provider == .codex && codexUsageService.hasUnlimitedCredits,
+                hasUnlimitedCredits: state.isProviderSpecific && hasUnlimitedUsage(provider: state.provider),
+                unlimitedLabel: state.provider == .devin ? devinUsageService.noQuotaLabel : String(localized: "No spending cap"),
                 isUsingExtraUsage: state.isUsingExtraUsage,
                 isLoading: state.isLoading,
                 error: state.error,

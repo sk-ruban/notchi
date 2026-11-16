@@ -491,7 +491,8 @@ struct NotchContentView: View {
         codexWeeklyUsage: QuotaPeriod?,
         codexHasUnlimitedCredits: Bool,
         devinDailyUsage: QuotaPeriod? = nil,
-        devinWeeklyUsage: QuotaPeriod? = nil
+        devinWeeklyUsage: QuotaPeriod? = nil,
+        devinHasNoQuota: Bool = false
     ) -> CollapsedRingContent? {
         guard isUsageEnabled else { return nil }
         if let percentage = collapsedRingPercentage(
@@ -506,7 +507,11 @@ struct NotchContentView: View {
             return .percentage(percentage)
         }
         let hasCodexQuota = codexSessionUsage != nil || codexWeeklyUsage != nil
-        return provider == .codex && codexHasUnlimitedCredits && !hasCodexQuota ? .unlimited : nil
+        switch provider {
+        case .codex: return codexHasUnlimitedCredits && !hasCodexQuota ? .unlimited : nil
+        case .devin: return devinHasNoQuota ? .unlimited : nil
+        case .claude: return nil
+        }
     }
 
     private var collapsedRingContent: CollapsedRingContent? {
@@ -518,7 +523,8 @@ struct NotchContentView: View {
             codexWeeklyUsage: codexUsageService.currentWeeklyUsage,
             codexHasUnlimitedCredits: codexUsageService.hasUnlimitedCredits,
             devinDailyUsage: devinUsageService.currentUsage,
-            devinWeeklyUsage: devinUsageService.currentWeeklyUsage
+            devinWeeklyUsage: devinUsageService.currentWeeklyUsage,
+            devinHasNoQuota: devinUsageService.hasNoQuota
         )
     }
 
