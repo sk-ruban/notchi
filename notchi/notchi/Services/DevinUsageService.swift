@@ -7,11 +7,13 @@ final class DevinUsageService {
 
     var currentUsage: QuotaPeriod?
     var currentWeeklyUsage: QuotaPeriod?
+    var planName: String?
+    var hasNoQuota = false
     var lastObservedAt: Date?
     var isUsageStale = false
 
     var hasUsageData: Bool {
-        currentUsage != nil || currentWeeklyUsage != nil
+        currentUsage != nil || currentWeeklyUsage != nil || hasNoQuota
     }
 
     static let desktopBundleIdentifier = "com.exafunction.windsurf"
@@ -59,6 +61,8 @@ final class DevinUsageService {
 
         currentUsage = usage?.daily
         currentWeeklyUsage = usage?.weekly
+        planName = usage?.planName
+        hasNoQuota = usage?.hasNoQuota ?? false
         lastObservedAt = hasUsageData ? observedAt : nil
         isUsageStale = hasUsageData && !isDesktopRunning()
     }

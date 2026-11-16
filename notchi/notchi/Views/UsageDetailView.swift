@@ -116,7 +116,7 @@ struct UsageDetailView: View {
             .map(\.0)
     }
 
-    private var periods: [UsagePeriodDisplay] {
+    var periods: [UsagePeriodDisplay] {
         switch resolvedProvider {
         case .claude:
             let stale = claudeUsage.isUsageStale
@@ -206,9 +206,13 @@ struct UsageDetailView: View {
         showsUnlimitedCredits && codexUsage.isUsageStale
     }
 
+    var showsDevinNoQuotaPlan: Bool {
+        resolvedProvider == .devin && devinUsage.hasNoQuota
+    }
+
     private var usageRowCount: Int {
         periods.count + (extraUsage == nil ? 0 : 1) + (codexCreditsUSD == nil ? 0 : 1)
-            + (showsUnlimitedCredits ? 1 : 0)
+            + (showsUnlimitedCredits ? 1 : 0) + (showsDevinNoQuotaPlan ? 1 : 0)
     }
 
     @ViewBuilder private var usageRows: some View {
@@ -235,6 +239,10 @@ struct UsageDetailView: View {
 
         if let codexCreditsUSD {
             CodexCreditsRowView(remainingUSD: codexCreditsUSD)
+        }
+
+        if showsDevinNoQuotaPlan {
+            DevinNoQuotaPlanRowView(planName: devinUsage.planName, isStale: devinUsage.isUsageStale)
         }
     }
 
@@ -418,6 +426,33 @@ struct UsagePeriodRowView: View {
                     .fixedSize()
             }
             UsageProgressBar(percentUsed: display.percentUsed, color: color)
+        }
+    }
+}
+
+struct DevinNoQuotaPlanRowView: View {
+    let planName: String?
+    let isStale: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if let planName {
+                Text("\(planName) plan")
+                    .panelFont(size: 14, weight: .semibold)
+                    .foregroundColor(TerminalColors.secondaryText)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
+            Group {
+                if isStale {
+                    Text("stale data")
+                } else {
+                    Text("No daily or weekly quota")
+                }
+            }
+                .panelFont(size: 10)
+                .foregroundColor(TerminalColors.dimmedText)
+                .lineLimit(1)
         }
     }
 }
