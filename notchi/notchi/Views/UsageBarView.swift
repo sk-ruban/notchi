@@ -3,6 +3,7 @@ import SwiftUI
 struct UsageBarView: View {
     let usage: QuotaPeriod?
     let hasUnlimitedCredits: Bool
+    let unlimitedLabel: String
     let isUsingExtraUsage: Bool
     let isLoading: Bool
     let error: String?
@@ -22,6 +23,7 @@ struct UsageBarView: View {
     init(
         usage: QuotaPeriod?,
         hasUnlimitedCredits: Bool = false,
+        unlimitedLabel: String = String(localized: "No spending cap"),
         isUsingExtraUsage: Bool = false,
         isLoading: Bool,
         error: String?,
@@ -38,6 +40,7 @@ struct UsageBarView: View {
     ) {
         self.usage = usage
         self.hasUnlimitedCredits = hasUnlimitedCredits
+        self.unlimitedLabel = unlimitedLabel
         self.isUsingExtraUsage = isUsingExtraUsage
         self.isLoading = isLoading
         self.error = error
@@ -164,9 +167,10 @@ struct UsageBarView: View {
                         .panelFont(size: 11, weight: .medium)
                         .foregroundColor(TerminalColors.red.opacity(0.8))
                 } else if showsUnlimitedCredits {
-                    Text("No spending cap")
+                    Text(unlimitedLabel)
                         .panelFont(size: 11, weight: .medium)
                         .foregroundColor(unlimitedCreditsColor)
+                        .lineLimit(1)
                 } else if let usage, let resetTime = usage.formattedResetTime {
                     HStack(alignment: .center, spacing: 4) {
                         Text(resetLabelText(for: resetTime))

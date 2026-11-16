@@ -34,6 +34,26 @@ final class DevinUsageServiceTests: XCTestCase {
         XCTAssertTrue(service.hasUsageData)
     }
 
+    func testNoQuotaLabelNamesThePlan() async {
+        let service = DevinUsageService(
+            readUsage: { _ in DevinUsage(daily: nil, weekly: nil, planName: "Teams", hasNoQuota: true) }
+        )
+
+        await service.refresh()
+
+        XCTAssertEqual(service.noQuotaLabel, "Teams plan · No daily or weekly quota")
+    }
+
+    func testNoQuotaLabelWithoutPlanNameOmitsThePlan() async {
+        let service = DevinUsageService(
+            readUsage: { _ in DevinUsage(daily: nil, weekly: nil, planName: nil, hasNoQuota: true) }
+        )
+
+        await service.refresh()
+
+        XCTAssertEqual(service.noQuotaLabel, "No daily or weekly quota")
+    }
+
     func testRefreshClearsUsageWhenDevinStateBecomesUnavailable() async {
         let reads = UsageReadSequence([DevinUsage(daily: Self.dailyUsage, weekly: Self.weeklyUsage), nil])
         let service = DevinUsageService(readUsage: { _ in reads.next() }, now: { Self.observedAt })
