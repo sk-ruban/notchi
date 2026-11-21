@@ -130,4 +130,35 @@ final class FileChipTextTests: XCTestCase {
         let rendered = FileChipText.inlineAttributed("- first line\nsecond line")
         XCTAssertEqual(String(rendered.characters), "- first line\nsecond line")
     }
+
+    // At 13pt, "a " ends near x=11 and "the documentation" near x=121, all on one ~16pt line.
+    private static let hoverPrompt = "a [the documentation](https://docs.example.com) b"
+    private static let hoverWidth: CGFloat = 400
+    private static let hoverFontSize: CGFloat = 13
+    private static let docsURL = URL(string: "https://docs.example.com")
+
+    private func hoveredLink(at point: CGPoint) -> URL? {
+        FileChipText.link(
+            at: point,
+            in: FileChipText.inlineAttributed(Self.hoverPrompt),
+            width: Self.hoverWidth,
+            fontSize: Self.hoverFontSize
+        )
+    }
+
+    func testLinkAtPointReturnsTheLinkUnderThePoint() {
+        XCTAssertEqual(hoveredLink(at: CGPoint(x: 60, y: 8)), Self.docsURL)
+    }
+
+    func testLinkAtPointIsNilOverPlainText() {
+        XCTAssertNil(hoveredLink(at: CGPoint(x: 3, y: 8)))
+    }
+
+    func testLinkAtPointIsNilPastTheEndOfTheLine() {
+        XCTAssertNil(hoveredLink(at: CGPoint(x: 300, y: 8)))
+    }
+
+    func testLinkAtPointIsNilBelowTheText() {
+        XCTAssertNil(hoveredLink(at: CGPoint(x: 60, y: 40)))
+    }
 }

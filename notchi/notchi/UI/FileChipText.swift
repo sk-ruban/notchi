@@ -170,15 +170,16 @@ enum FileChipText {
             case .plain(let sub):
                 for run in sub.runs {
                     let isBold = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-                    output.append(NSAttributedString(
-                        string: String(sub[run.range].characters),
-                        attributes: [.font: isBold ? boldFont : baseFont]
-                    ))
+                    var attributes: [NSAttributedString.Key: Any] = [.font: isBold ? boldFont : baseFont]
+                    attributes[.link] = run.link
+                    output.append(NSAttributedString(string: String(sub[run.range].characters), attributes: attributes))
                 }
             case .code(let code):
                 output.append(NSAttributedString(string: code, attributes: [.font: chipFont]))
-            case .chip(let name, _):
-                let chip = NSMutableAttributedString(string: name, attributes: [.font: chipFont])
+            case .chip(let name, let link):
+                var attributes: [NSAttributedString.Key: Any] = [.font: chipFont]
+                attributes[.link] = link
+                let chip = NSMutableAttributedString(string: name, attributes: attributes)
                 if iconStyle(forFilename: name) != nil, !name.isEmpty {
                     chip.addAttribute(.kern, value: iconAdvance, range: NSRange(location: 0, length: 1))
                 }
@@ -186,6 +187,34 @@ enum FileChipText {
             }
         }
         return output
+    }
+
+    /// The link drawn under `point` (in the text's own coordinates), laid out as `render` draws it.
+    static func link(
+        at point: CGPoint,
+        in attributed: AttributedString,
+        width: CGFloat,
+        fontSize: CGFloat,
+        fontScale: CGFloat = 1
+    ) -> URL? {
+        guard width > 0 else { return nil }
+        let storage = NSTextStorage(
+            attributedString: measurementAttributedString(from: attributed, fontSize: fontSize, fontScale: fontScale)
+        )
+        let layoutManager = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        layoutManager.addTextContainer(container)
+        storage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: container)
+        guard layoutManager.numberOfGlyphs > 0 else { return nil }
+
+        // glyphIndex(for:) snaps to the nearest glyph, so confirm the point is actually on it.
+        let glyphIndex = layoutManager.glyphIndex(for: point, in: container)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: container)
+        guard glyphRect.contains(point) else { return nil }
+        let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+        return storage.attribute(.link, at: characterIndex, effectiveRange: nil) as? URL
     }
 
     static func render(
@@ -209,7 +238,8 @@ enum FileChipText {
         surface: ChipSurface,
         baseColor: Color,
         fontSize: CGFloat,
-        fontScale: CGFloat = 1
+        fontScale: CGFloat = 1,
+        hoveredLink: URL? = nil
     ) -> Text {
         let scaledSize = fontSize * fontScale
         let chipFont = Font.system(size: scaledSize - 1, design: .monospaced).weight(.medium)
@@ -219,6 +249,11 @@ enum FileChipText {
             switch segment {
             case .plain(var sub):
                 sub.foregroundColor = nil
+                if let hoveredLink {
+                    for run in sub.runs where run.link == hoveredLink {
+                        sub[run.range].underlineStyle = .single
+                    }
+                }
                 output = output + SwiftUI.Text(sub).foregroundColor(baseColor)
             case .code(let code):
                 output = output + SwiftUI.Text(styled(code, surface: surface)).font(chipFont)
