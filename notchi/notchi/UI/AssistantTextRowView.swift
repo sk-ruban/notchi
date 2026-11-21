@@ -21,10 +21,13 @@ struct AssistantTextRowView: View {
                 .frame(width: 5, height: 5)
                 .padding(.top, 6)
 
+            // Swap instantly: both views start with the same text, so the default crossfade shows it doubled.
             if isExpanded {
                 MarkdownText(cleanedText)
+                    .transition(.identity)
             } else {
                 inlineMarkdownText
+                    .transition(.identity)
             }
 
             Spacer(minLength: 8)
