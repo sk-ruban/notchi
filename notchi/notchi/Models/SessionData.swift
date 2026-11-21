@@ -48,6 +48,8 @@ final class SessionData: Identifiable {
     private(set) var promptSubmitTime: Date?
     private(set) var permissionMode: String = "default"
     private(set) var isFastMode = false
+    private(set) var contextTokens: Int?
+    private(set) var contextWindowTokens = SessionData.standardContextWindow
     private(set) var gitBranch: String?
     private(set) var gitPullRequest: GitPullRequest?
     private(set) var pendingQuestions: [PendingQuestion] = []
@@ -308,6 +310,17 @@ final class SessionData: Identifiable {
 
     func updateFastMode(_ isFastMode: Bool) {
         self.isFastMode = isFastMode
+    }
+
+    nonisolated static let standardContextWindow = 200_000
+    nonisolated static let extendedContextWindow = 1_000_000
+
+    // Transcripts don't record the window, so a session is taken as 1M once it has outgrown 200k.
+    func updateContextTokens(_ tokens: Int, peak: Int? = nil) {
+        contextTokens = tokens
+        if max(tokens, peak ?? 0) > Self.standardContextWindow {
+            contextWindowTokens = Self.extendedContextWindow
+        }
     }
 
     func updateGitBranch(_ branch: String?) {

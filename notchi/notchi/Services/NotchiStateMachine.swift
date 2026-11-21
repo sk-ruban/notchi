@@ -232,6 +232,9 @@ final class NotchiStateMachine {
         if let isFastMode = result.isFastMode {
             sessionStore.updateFastMode(isFastMode, for: sessionKey)
         }
+        if let contextTokens = result.contextTokens {
+            sessionStore.updateContextTokens(contextTokens, peak: result.peakContextTokens, for: sessionKey)
+        }
     }
 
     private func refreshCodexSessionStartTracking(

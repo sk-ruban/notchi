@@ -344,4 +344,44 @@ final class SessionDataTests: XCTestCase {
         XCTAssertEqual(claudeWave.columns, 25)
         XCTAssertEqual(codexWave.columns, 25)
     }
+
+    private static let standardContextWindow = 200_000
+    private static let extendedContextWindow = 1_000_000
+
+    func testContextWindowIsStandardWhileUsageFitsInIt() {
+        let session = SessionData(sessionId: "ctx-standard", provider: .claude, cwd: "/tmp")
+        session.updateContextTokens(200_000)
+
+        XCTAssertEqual(session.contextWindowTokens, Self.standardContextWindow)
+    }
+
+    func testContextWindowBecomesExtendedOnceUsagePassesTheStandardWindow() {
+        let session = SessionData(sessionId: "ctx-extended", provider: .claude, cwd: "/tmp")
+        session.updateContextTokens(200_001)
+
+        XCTAssertEqual(session.contextWindowTokens, Self.extendedContextWindow)
+    }
+
+    func testContextWindowStaysExtendedAfterCompactionShrinksUsage() {
+        let session = SessionData(sessionId: "ctx-compacted", provider: .claude, cwd: "/tmp")
+        session.updateContextTokens(232_000)
+        session.updateContextTokens(18_000)
+
+        XCTAssertEqual(session.contextWindowTokens, Self.extendedContextWindow)
+    }
+
+    func testContextTokensTrackTheLatestReply() {
+        let session = SessionData(sessionId: "ctx-latest", provider: .claude, cwd: "/tmp")
+        session.updateContextTokens(232_000)
+        session.updateContextTokens(18_000)
+
+        XCTAssertEqual(session.contextTokens, 18_000)
+    }
+
+    func testContextWindowIsExtendedWhenAnEarlierReplyInTheSameReadPassedTheStandardWindow() {
+        let session = SessionData(sessionId: "ctx-peak", provider: .claude, cwd: "/tmp")
+        session.updateContextTokens(18_000, peak: 232_000)
+
+        XCTAssertEqual(session.contextWindowTokens, Self.extendedContextWindow)
+    }
 }

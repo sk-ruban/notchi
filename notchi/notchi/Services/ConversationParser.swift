@@ -7,12 +7,25 @@ nonisolated struct ParseResult: Sendable {
     let events: [ParsedSessionEvent]
     /// Speed of the newest Claude reply in this chunk; nil when no reply reported one.
     let isFastMode: Bool?
+    /// Context the newest main-thread Claude reply was sent with; nil when no reply reported usage.
+    let contextTokens: Int?
+    /// Largest context among this chunk's main-thread replies, so a compact doesn't hide a bigger window.
+    let peakContextTokens: Int?
 
-    init(messages: [AssistantMessage], interrupted: Bool, events: [ParsedSessionEvent] = [], isFastMode: Bool? = nil) {
+    init(
+        messages: [AssistantMessage],
+        interrupted: Bool,
+        events: [ParsedSessionEvent] = [],
+        isFastMode: Bool? = nil,
+        contextTokens: Int? = nil,
+        peakContextTokens: Int? = nil
+    ) {
         self.messages = messages
         self.interrupted = interrupted
         self.events = events
         self.isFastMode = isFastMode
+        self.contextTokens = contextTokens
+        self.peakContextTokens = peakContextTokens
     }
 }
 
@@ -53,6 +66,7 @@ actor ConversationParser {
     private var seenMessageIds: [String: Set<String>] = [:]
     private var seenEventIds: [String: Set<String>] = [:]
     private var codexToolCallsById: [String: [String: CodexToolCall]] = [:]
+    private var extendedWindowSearchedStateKeys: Set<String> = []
 
     private static let emptyResult = ParseResult(messages: [], interrupted: false, events: [])
 
@@ -130,6 +144,8 @@ actor ConversationParser {
         var events: [ParsedSessionEvent] = []
         var interrupted = false
         var isFastMode: Bool?
+        var contextTokens: Int?
+        var peakContextTokens: Int?
         var seen = seenMessageIds[stateKey] ?? []
         var seenEvents = seenEventIds[stateKey] ?? []
         var codexToolCalls = codexToolCallsById[stateKey] ?? [:]
@@ -144,8 +160,12 @@ actor ConversationParser {
                     interrupted = true
                 }
 
-                if let speed = Self.parseClaudeReplySpeed(from: line) {
-                    isFastMode = speed == "fast"
+                if let usage = Self.parseClaudeReplyUsage(from: line) {
+                    if let speed = usage.speed { isFastMode = speed == "fast" }
+                    if let tokens = usage.contextTokens {
+                        contextTokens = tokens
+                        peakContextTokens = max(peakContextTokens ?? 0, tokens)
+                    }
                 }
 
                 guard let message = Self.parseClaudeAssistantMessage(from: line) else { continue }
@@ -186,7 +206,14 @@ actor ConversationParser {
         seenEventIds[stateKey] = seenEvents
         codexToolCallsById[stateKey] = codexToolCalls
 
-        return ParseResult(messages: messages, interrupted: interrupted, events: events, isFastMode: isFastMode)
+        return ParseResult(
+            messages: messages,
+            interrupted: interrupted,
+            events: events,
+            isFastMode: isFastMode,
+            contextTokens: contextTokens,
+            peakContextTokens: peakContextTokens
+        )
     }
 
     func parseIncremental(sessionId: String, transcriptPath: String) -> ParseResult {
@@ -202,6 +229,7 @@ actor ConversationParser {
         seenMessageIds.removeValue(forKey: stateKey)
         seenEventIds.removeValue(forKey: stateKey)
         codexToolCallsById.removeValue(forKey: stateKey)
+        extendedWindowSearchedStateKeys.remove(stateKey)
     }
 
     func resetState(for sessionId: String) {
@@ -210,6 +238,7 @@ actor ConversationParser {
 
     // Enough to reach the latest reply behind a few large tool results without reading whole transcripts.
     private static let positionMarkTailBytes: UInt64 = 256 * 1024
+    private static let extendedWindowSearchChunkBytes: UInt64 = 1024 * 1024
 
     /// Skips the existing transcript, but reports the latest Claude reply's usage so state it carries
     /// (like fast mode) is known before the next reply arrives.
@@ -242,12 +271,34 @@ actor ConversationParser {
 
         // A cut-off first line fails to parse and is skipped.
         var isFastMode: Bool?
+        var contextTokens: Int?
+        var peakContextTokens: Int?
         for line in tailContent.components(separatedBy: "\n") where !line.isEmpty {
-            if let speed = Self.parseClaudeReplySpeed(from: line) {
-                isFastMode = speed == "fast"
+            guard let usage = Self.parseClaudeReplyUsage(from: line) else { continue }
+            if let speed = usage.speed { isFastMode = speed == "fast" }
+            if let tokens = usage.contextTokens {
+                contextTokens = tokens
+                peakContextTokens = max(peakContextTokens ?? 0, tokens)
             }
         }
-        return ParseResult(messages: [], interrupted: false, isFastMode: isFastMode)
+        // A compact can leave the reply that proved a 1M window outside the tail, so look once per session.
+        if (peakContextTokens ?? 0) <= SessionData.standardContextWindow,
+           extendedWindowSearchedStateKeys.insert(stateKey).inserted,
+           let extended = Self.firstContextTokens(
+               in: fileHandle,
+               upTo: fileSize,
+               above: SessionData.standardContextWindow
+           ) {
+            peakContextTokens = extended
+        }
+
+        return ParseResult(
+            messages: [],
+            interrupted: false,
+            isFastMode: isFastMode,
+            contextTokens: contextTokens,
+            peakContextTokens: peakContextTokens
+        )
     }
 
     @discardableResult
@@ -258,16 +309,46 @@ actor ConversationParser {
         )
     }
 
-    private static func parseClaudeReplySpeed(from line: String) -> String? {
+    /// Streams the transcript from the start and stops at the first main-thread reply above `threshold`.
+    private static func firstContextTokens(in fileHandle: FileHandle, upTo end: UInt64, above threshold: Int) -> Int? {
+        guard (try? fileHandle.seek(toOffset: 0)) != nil else { return nil }
+        let newline = UInt8(ascii: "\n")
+        var remaining = end
+        var pending = Data()
+        while remaining > 0 {
+            let count = Int(min(remaining, extendedWindowSearchChunkBytes))
+            guard let chunk = try? fileHandle.read(upToCount: count), !chunk.isEmpty else { return nil }
+            remaining -= UInt64(chunk.count)
+            pending.append(chunk)
+
+            var lineStart = pending.startIndex
+            while let lineEnd = pending[lineStart...].firstIndex(of: newline) {
+                let line = String(decoding: pending[lineStart..<lineEnd], as: UTF8.self)
+                if let tokens = parseClaudeReplyUsage(from: line)?.contextTokens, tokens > threshold {
+                    return tokens
+                }
+                lineStart = pending.index(after: lineEnd)
+            }
+            pending = Data(pending[lineStart...])
+        }
+        return nil
+    }
+
+    private static func parseClaudeReplyUsage(from line: String) -> (speed: String?, contextTokens: Int?)? {
         guard line.contains("\"type\":\"assistant\""),
-              line.contains("\"speed\""),
+              line.contains("\"usage\""),
               let lineData = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
               let message = json["message"] as? [String: Any],
               let usage = message["usage"] as? [String: Any] else {
             return nil
         }
-        return usage["speed"] as? String
+        // Subagent replies run in their own context, so they say nothing about the session's.
+        let isMainThread = json["isSidechain"] as? Bool != true && message["model"] as? String != "<synthetic>"
+        let promptKeys = ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"]
+        let promptTokens = promptKeys.compactMap { (usage[$0] as? NSNumber)?.intValue }
+        let contextTokens = isMainThread && !promptTokens.isEmpty ? promptTokens.reduce(0, +) : nil
+        return (usage["speed"] as? String, contextTokens)
     }
 
     private static func parseClaudeAssistantMessage(from line: String) -> AssistantMessage? {
