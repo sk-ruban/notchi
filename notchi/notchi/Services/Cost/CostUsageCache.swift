@@ -15,16 +15,19 @@ nonisolated struct CostUsageCache: Codable, Equatable {
         var codexResume: CodexResume? = nil
     }
 
-    static let currentVersion = 2
+    static let currentVersion = 3
     var version: Int
     var files: [String: FileState]
     var buckets: DayModelBuckets
     var pricingSignature: String? = nil
+    var timeZoneIdentifier: String? = nil
 
-    func reconciled(withPricingSignature signature: String) -> CostUsageCache {
-        pricingSignature == signature
+    /// Buckets are keyed by local day, so a time zone change (e.g. travel) invalidates them.
+    func reconciled(withPricingSignature signature: String, timeZoneIdentifier: String) -> CostUsageCache {
+        pricingSignature == signature && self.timeZoneIdentifier == timeZoneIdentifier
             ? self
-            : CostUsageCache(version: Self.currentVersion, files: [:], buckets: [:], pricingSignature: signature)
+            : CostUsageCache(version: Self.currentVersion, files: [:], buckets: [:],
+                             pricingSignature: signature, timeZoneIdentifier: timeZoneIdentifier)
     }
 }
 

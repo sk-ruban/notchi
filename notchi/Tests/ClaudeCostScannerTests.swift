@@ -13,12 +13,14 @@ final class ClaudeCostScannerTests: XCTestCase {
     }
 
     private func line(msgId: String, reqId: String, input: Int, output: Int,
-                      day: String = "2026-06-24") -> String {
+                      day: String = "2026-06-24", cacheCreation1h: Int = 0, speed: String = "standard") -> String {
         """
         {"type":"assistant","timestamp":"\(day)T12:00:00.000Z","requestId":"\(reqId)",\
         "message":{"id":"\(msgId)","model":"claude-opus-4-20250101",\
         "usage":{"input_tokens":\(input),"output_tokens":\(output),\
-        "cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+        "cache_creation_input_tokens":\(cacheCreation1h),"cache_read_input_tokens":0,\
+        "cache_creation":{"ephemeral_1h_input_tokens":\(cacheCreation1h),"ephemeral_5m_input_tokens":0},\
+        "speed":"\(speed)"}}}
         """
     }
 
@@ -97,5 +99,70 @@ final class ClaudeCostScannerTests: XCTestCase {
         XCTAssertEqual(out.buckets["2026-06-24"]?["claude-opus-4"]?.input, 80,
                        "messages without ids cannot be deduped and must each count")
         XCTAssertEqual(out.buckets["2026-06-24"]?["claude-opus-4"]?.requestCount, 2)
+    }
+
+    func testFastModeRequestIsPricedAtFastMultiplier() throws {
+        let fastTokens = 100
+        let standardTokens = 100
+        let url = try writeFile([
+            line(msgId: "m1", reqId: "r1", input: fastTokens, output: 0, speed: "fast"),
+            line(msgId: "m2", reqId: "r2", input: standardTokens, output: 0),
+        ])
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!)
+
+        let nanosPerToken = 1_000 // FlatPrice: $1e-6 per input token
+        let fastMultiplier = 2
+        let expected = fastTokens * nanosPerToken * fastMultiplier + standardTokens * nanosPerToken
+        XCTAssertEqual(out.buckets["2026-06-24"]?["claude-opus-4"]?.costNanos, expected)
+    }
+
+    private struct DistinctPrices: ClaudePricingProviding {
+        nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+            ClaudeModelPricing(inputPerToken: 1e-6, outputPerToken: 5e-6,
+                cacheCreationPerToken: 1.25e-6, cacheReadPerToken: 0.1e-6, cacheCreation1hPerToken: nil,
+                thresholdTokens: nil, inputPerTokenAboveThreshold: nil,
+                outputPerTokenAboveThreshold: nil, cacheCreationPerTokenAboveThreshold: nil,
+                cacheReadPerTokenAboveThreshold: nil)
+        }
+    }
+
+    // Per-token nanos: input 1,000 · output 5,000 · 5-minute write 1,250 · 1-hour write 2,000 · cache read 100.
+    // 10 input + 20 output + 30 five-minute + 40 one-hour + 50 read = 232,500 standard, doubled for fast mode.
+    private static let fastEveryTokenClassCostNanos = 465_000
+
+    func testFastModeDoublesEveryTokenClass() throws {
+        let fastReply = """
+        {"type":"assistant","timestamp":"2026-06-24T12:00:00.000Z","requestId":"r1",\
+        "message":{"id":"m1","model":"claude-opus-4-20250101",\
+        "usage":{"input_tokens":10,"output_tokens":20,\
+        "cache_creation_input_tokens":70,"cache_read_input_tokens":50,\
+        "cache_creation":{"ephemeral_1h_input_tokens":40,"ephemeral_5m_input_tokens":30},\
+        "speed":"fast"}}}
+        """
+        let url = try writeFile([fastReply])
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        let s = ClaudeCostScanner(projectsRoots: [url.deletingLastPathComponent().deletingLastPathComponent()],
+                                  pricing: DistinctPrices(), windowDays: 30, calendar: cal)
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!)
+
+        XCTAssertEqual(out.buckets["2026-06-24"]?["claude-opus-4"]?.costNanos, Self.fastEveryTokenClassCostNanos)
+    }
+
+    func testOneHourCacheWritesArePricedAtTwiceInput() throws {
+        let oneHourWriteTokens = 100
+        let url = try writeFile([
+            line(msgId: "m1", reqId: "r1", input: 0, output: 0, cacheCreation1h: oneHourWriteTokens),
+        ])
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!)
+
+        let totals = out.buckets["2026-06-24"]?["claude-opus-4"]
+        let nanosPerInputToken = 1_000 // FlatPrice: $1e-6 per input token, 5-minute writes free
+        XCTAssertEqual(totals?.cacheCreation1h, oneHourWriteTokens)
+        XCTAssertEqual(totals?.costNanos, oneHourWriteTokens * nanosPerInputToken * 2)
     }
 }

@@ -20,7 +20,7 @@ final class CostHistoryStore {
     private var lastPricingRefresh: Date?
     private var needsRescan = false
 
-    init(windowDays: Int = 30, calendar: Calendar = .current, provider: CostProvider = .claude,
+    init(windowDays: Int = 30, calendar: Calendar = .autoupdatingCurrent, provider: CostProvider = .claude,
          scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
         self.windowDays = windowDays
         self.calendar = calendar
@@ -29,7 +29,7 @@ final class CostHistoryStore {
         self.pricingCatalog = nil
     }
 
-    convenience init(windowDays: Int = 30, calendar: Calendar = .current,
+    convenience init(windowDays: Int = 30, calendar: Calendar = .autoupdatingCurrent,
                      provider: CostProvider = .claude,
                      pricing: PricingCatalog,
                      projectsRoots: [URL],
@@ -39,9 +39,12 @@ final class CostHistoryStore {
         self.init(windowDays: windowDays, calendar: calendar, provider: provider, pricingCatalog: pricing) { now in
             await Task.detached(priority: .utility) {
                 let sig = pricing.signature()
-                let cache = CostUsageCacheStore.load(url: cacheURL).reconciled(withPricingSignature: sig)
+                let timeZoneID = calendar.timeZone.identifier
+                let cache = CostUsageCacheStore.load(url: cacheURL)
+                    .reconciled(withPricingSignature: sig, timeZoneIdentifier: timeZoneID)
                 var updated = scan(cache, now)
                 updated.pricingSignature = sig
+                updated.timeZoneIdentifier = timeZoneID
                 CostUsageCacheStore.save(updated, to: cacheURL)
                 return updated.buckets
             }.value

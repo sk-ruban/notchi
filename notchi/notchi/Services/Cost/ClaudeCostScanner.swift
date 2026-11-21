@@ -105,6 +105,8 @@ final class ClaudeCostScanner {
         let output = intval(usage["output_tokens"])
         let cacheCreate = intval(usage["cache_creation_input_tokens"])
         let cacheRead = intval(usage["cache_read_input_tokens"])
+        let cacheCreate1h = intval((usage["cache_creation"] as? [String: Any])?["ephemeral_1h_input_tokens"])
+        let speedMultiplier = usage["speed"] as? String == "fast" ? CostPricing.fastModeMultiplier : 1
         if input == 0, output == 0, cacheCreate == 0, cacheRead == 0 { return }
 
         let msgId = message["id"] as? String ?? ""
@@ -112,15 +114,15 @@ final class ClaudeCostScanner {
         let dedupKey = msgId + "|" + reqId
         if !(msgId.isEmpty && reqId.isEmpty), !seen.insert(dedupKey).inserted { return }
 
-        let cost = pricing.pricing(model: model, on: date).map {
+        let cost = pricing.pricing(model: model, on: date).flatMap {
             CostPricing.claudeCostUSD(model: model, input: input, cacheRead: cacheRead,
-                cacheCreation: cacheCreate, cacheCreation1h: 0, output: output, pricing: $0)
-        } ?? nil
+                cacheCreation: cacheCreate, cacheCreation1h: cacheCreate1h, output: output, pricing: $0)
+        }.map { $0 * speedMultiplier }
         let nanos = cost.map { Int(($0 * 1_000_000_000).rounded()) } ?? 0
         let key = CostPricing.normalizeClaudeModel(model)
         var dayModels = buckets[dayKey] ?? [:]
         dayModels[key] = (dayModels[key] ?? ModelTokenTotals()) + ModelTokenTotals(
-            input: input, cacheRead: cacheRead, cacheCreation: cacheCreate, cacheCreation1h: 0,
+            input: input, cacheRead: cacheRead, cacheCreation: cacheCreate, cacheCreation1h: cacheCreate1h,
             output: output, costNanos: nanos, requestCount: 1, pricedCount: cost == nil ? 0 : 1)
         buckets[dayKey] = dayModels
     }
