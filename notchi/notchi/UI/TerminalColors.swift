@@ -27,6 +27,7 @@ struct TerminalColors {
         Color(red: 0.99, green: 0.9, blue: 0.58),
     ]
     static let iMessageBlue = Color(red: 0, green: 0.478, blue: 1)
+    static let bubbleLink = Color(red: 155.0 / 255.0, green: 240.0 / 255.0, blue: 255.0 / 255.0)
     static let planMode = Color(red: 72.0 / 255.0, green: 150.0 / 255.0, blue: 140.0 / 255.0)
     static let acceptEdits = Color(red: 175.0 / 255.0, green: 135.0 / 255.0, blue: 255.0 / 255.0)
     static let autoMode = Color(red: 255.0 / 255.0, green: 193.0 / 255.0, blue: 7.0 / 255.0)

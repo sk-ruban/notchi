@@ -11,6 +11,8 @@ struct UserPromptBubbleView: View {
     @State private var isExpanded = false
     @State private var collapsedTextWidth: CGFloat?
     @State private var availableWidth: CGFloat = 0
+    @State private var renderedTextWidth: CGFloat = 0
+    @State private var hoveredLink: URL?
 
     private static let collapsedLineLimit = 3
     private static let fontSize: CGFloat = 13
@@ -18,7 +20,8 @@ struct UserPromptBubbleView: View {
     private var bubbleShape: RoundedRectangle { RoundedRectangle(cornerRadius: 18) }
 
     var body: some View {
-        let renderedPrompt = promptText
+        let displayedPrompt = displayedAttributed
+        let renderedPrompt = displayedPrompt.map(promptText)
 
         return VStack(alignment: .leading, spacing: renderedPrompt == nil ? 0 : 10 * panelScale) {
             imagePreviews
@@ -33,10 +36,26 @@ struct UserPromptBubbleView: View {
                         if !isExpanded { collapsedTextWidth = width }
                     }
                     .frame(width: isExpanded ? collapsedTextWidth : nil, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.width
+                    } action: { width in
+                        renderedTextWidth = width
+                    }
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            hoveredLink = displayedPrompt.flatMap { link(at: location, in: $0) }
+                        case .ended:
+                            hoveredLink = nil
+                        }
+                    }
+                    .pointerStyle(hoveredLink == nil ? nil : .link)
             }
         }
         .panelFont(size: Self.fontSize)
         .foregroundColor(.white)
+        // Links default to the accent blue, which vanishes on the blue bubble.
+        .tint(TerminalColors.bubbleLink)
         .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, 10)
         .background(bubbleShape.fill(TerminalColors.iMessageBlue))
@@ -76,12 +95,26 @@ struct UserPromptBubbleView: View {
         PanelTypography.fontScale(panelScale: panelScale)
     }
 
-    private var promptText: Text? {
-        guard let attributed = promptAttributed else { return nil }
-        return FileChipText.render(
-            attributed: isExpanded ? attributed : collapsedPrompt(attributed),
+    private var displayedAttributed: AttributedString? {
+        promptAttributed.map { isExpanded ? $0 : collapsedPrompt($0) }
+    }
+
+    private func promptText(_ attributed: AttributedString) -> Text {
+        FileChipText.render(
+            attributed: attributed,
             surface: .userBubble,
             baseColor: .white,
+            fontSize: Self.fontSize,
+            fontScale: fontScale,
+            hoveredLink: hoveredLink
+        )
+    }
+
+    private func link(at location: CGPoint, in attributed: AttributedString) -> URL? {
+        FileChipText.link(
+            at: location,
+            in: attributed,
+            width: renderedTextWidth,
             fontSize: Self.fontSize,
             fontScale: fontScale
         )
