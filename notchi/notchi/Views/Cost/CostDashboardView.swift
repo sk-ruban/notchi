@@ -125,16 +125,14 @@ struct CostDashboardView: View {
 
     private static let modelSizingReference = "Opus 4.8"
 
+    /// Model names are sized as the reference so a long one truncates instead of shrinking every value.
     static func sizingValueSets(_ r: DailyCostReport) -> [[String]] {
-        let unselected = statItems(r, selected: nil).map(\.value)
-        var reference = unselected
-        reference[reference.count - 1] = modelSizingReference
-
-        let hoverStates = r.entries
-            .filter { $0.requestCount > 0 }
-            .map { statItems(r, selected: $0).map(\.value) }
-
-        return [unselected, reference] + hoverStates
+        let selections = [nil] + r.entries.filter { $0.requestCount > 0 }
+        return selections.map { entry in
+            var values = statItems(r, selected: entry).map(\.value)
+            values[values.count - 1] = modelSizingReference
+            return values
+        }
     }
 
     @ViewBuilder private func statsRow(_ r: DailyCostReport) -> some View {
