@@ -269,4 +269,34 @@ final class UsageBarViewTests: XCTestCase {
 
         XCTAssertEqual(view.resetLabelText(for: "4m"), "Resets in 4m")
     }
+
+    func testFastModeIndicatorShowsWithLiveUsage() {
+        let view = UsageBarView(
+            usage: QuotaPeriod(utilization: 0, resetDate: Date(timeIntervalSince1970: 4_102_444_800)),
+            isFastMode: true,
+            isLoading: false,
+            error: nil,
+            statusMessage: nil,
+            isStale: false,
+            recoveryAction: .none,
+            isEnabled: true
+        )
+
+        XCTAssertTrue(view.shouldShowFastModeIndicator)
+    }
+
+    func testFastModeIndicatorHidesWhenUsageIsStale() {
+        let view = UsageBarView(
+            usage: QuotaPeriod(utilization: 0, resetDate: Date(timeIntervalSince1970: 4_102_444_800)),
+            isFastMode: true,
+            isLoading: false,
+            error: nil,
+            statusMessage: "Updating soon",
+            isStale: true,
+            recoveryAction: .none,
+            isEnabled: true
+        )
+
+        XCTAssertFalse(view.shouldShowFastModeIndicator)
+    }
 }

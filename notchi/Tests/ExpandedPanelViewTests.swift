@@ -583,4 +583,13 @@ final class ExpandedPanelViewTests: XCTestCase {
             period: period
         )
     }
+
+    func testClaudeFastModeReflectsAnyActiveClaudeSessionInFastMode() {
+        let standard = SessionData(sessionId: "claude-standard", provider: .claude, cwd: "/tmp/project")
+        let fast = SessionData(sessionId: "claude-fast", provider: .claude, cwd: "/tmp/project")
+        fast.updateFastMode(true)
+
+        XCTAssertFalse(ExpandedPanelView.claudeIsFastMode(activeSessions: [standard]))
+        XCTAssertTrue(ExpandedPanelView.claudeIsFastMode(activeSessions: [standard, fast]))
+    }
 }

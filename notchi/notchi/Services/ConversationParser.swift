@@ -5,11 +5,14 @@ nonisolated struct ParseResult: Sendable {
     let messages: [AssistantMessage]
     let interrupted: Bool
     let events: [ParsedSessionEvent]
+    /// Speed of the newest Claude reply in this chunk; nil when no reply reported one.
+    let isFastMode: Bool?
 
-    init(messages: [AssistantMessage], interrupted: Bool, events: [ParsedSessionEvent] = []) {
+    init(messages: [AssistantMessage], interrupted: Bool, events: [ParsedSessionEvent] = [], isFastMode: Bool? = nil) {
         self.messages = messages
         self.interrupted = interrupted
         self.events = events
+        self.isFastMode = isFastMode
     }
 }
 
@@ -126,6 +129,7 @@ actor ConversationParser {
         var messages: [AssistantMessage] = []
         var events: [ParsedSessionEvent] = []
         var interrupted = false
+        var isFastMode: Bool?
         var seen = seenMessageIds[stateKey] ?? []
         var seenEvents = seenEventIds[stateKey] ?? []
         var codexToolCalls = codexToolCallsById[stateKey] ?? [:]
@@ -138,6 +142,10 @@ actor ConversationParser {
                     line.contains("\"type\":\"user\"") &&
                     line.contains("\"text\":\"[Request interrupted by user") {
                     interrupted = true
+                }
+
+                if let speed = Self.parseClaudeReplySpeed(from: line) {
+                    isFastMode = speed == "fast"
                 }
 
                 guard let message = Self.parseClaudeAssistantMessage(from: line) else { continue }
@@ -178,7 +186,7 @@ actor ConversationParser {
         seenEventIds[stateKey] = seenEvents
         codexToolCallsById[stateKey] = codexToolCalls
 
-        return ParseResult(messages: messages, interrupted: interrupted, events: events)
+        return ParseResult(messages: messages, interrupted: interrupted, events: events, isFastMode: isFastMode)
     }
 
     func parseIncremental(sessionId: String, transcriptPath: String) -> ParseResult {
@@ -200,7 +208,13 @@ actor ConversationParser {
         resetState(for: ProviderSessionKey(provider: .claude, rawSessionId: sessionId))
     }
 
-    func markCurrentPosition(sessionKey: ProviderSessionKey, transcriptPath: String) {
+    // Enough to reach the latest reply behind a few large tool results without reading whole transcripts.
+    private static let positionMarkTailBytes: UInt64 = 256 * 1024
+
+    /// Skips the existing transcript, but reports the latest Claude reply's usage so state it carries
+    /// (like fast mode) is known before the next reply arrives.
+    @discardableResult
+    func markCurrentPosition(sessionKey: ProviderSessionKey, transcriptPath: String) -> ParseResult {
         let stateKey = Self.stateKey(for: sessionKey)
 
         guard let fileHandle = FileHandle(forReadingAtPath: transcriptPath) else {
@@ -208,7 +222,7 @@ actor ConversationParser {
             seenMessageIds[stateKey] = []
             seenEventIds[stateKey] = []
             codexToolCallsById[stateKey] = [:]
-            return
+            return Self.emptyResult
         }
         defer { try? fileHandle.close() }
 
@@ -217,13 +231,43 @@ actor ConversationParser {
         seenMessageIds[stateKey] = []
         seenEventIds[stateKey] = []
         codexToolCallsById[stateKey] = [:]
+
+        guard sessionKey.provider == .claude else { return Self.emptyResult }
+        let tailStart = fileSize > Self.positionMarkTailBytes ? fileSize - Self.positionMarkTailBytes : 0
+        guard (try? fileHandle.seek(toOffset: tailStart)) != nil,
+              let tail = try? fileHandle.readToEnd(),
+              let tailContent = String(data: tail, encoding: .utf8) else {
+            return Self.emptyResult
+        }
+
+        // A cut-off first line fails to parse and is skipped.
+        var isFastMode: Bool?
+        for line in tailContent.components(separatedBy: "\n") where !line.isEmpty {
+            if let speed = Self.parseClaudeReplySpeed(from: line) {
+                isFastMode = speed == "fast"
+            }
+        }
+        return ParseResult(messages: [], interrupted: false, isFastMode: isFastMode)
     }
 
-    func markCurrentPosition(sessionId: String, transcriptPath: String) {
+    @discardableResult
+    func markCurrentPosition(sessionId: String, transcriptPath: String) -> ParseResult {
         markCurrentPosition(
             sessionKey: ProviderSessionKey(provider: .claude, rawSessionId: sessionId),
             transcriptPath: transcriptPath
         )
+    }
+
+    private static func parseClaudeReplySpeed(from line: String) -> String? {
+        guard line.contains("\"type\":\"assistant\""),
+              line.contains("\"speed\""),
+              let lineData = line.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+              let message = json["message"] as? [String: Any],
+              let usage = message["usage"] as? [String: Any] else {
+            return nil
+        }
+        return usage["speed"] as? String
     }
 
     private static func parseClaudeAssistantMessage(from line: String) -> AssistantMessage? {

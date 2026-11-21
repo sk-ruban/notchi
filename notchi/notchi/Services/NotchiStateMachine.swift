@@ -100,10 +100,11 @@ final class NotchiStateMachine {
         case .userPromptSubmitted:
             if let transcriptPath {
                 pendingPositionMarks[event.sessionKey] = Task {
-                    await ConversationParser.shared.markCurrentPosition(
+                    let marked = await ConversationParser.shared.markCurrentPosition(
                         sessionKey: event.sessionKey,
                         transcriptPath: transcriptPath
                     )
+                    applyReplyUsage(marked, for: event.sessionKey)
                 }
             } else {
                 pendingPositionMarks.removeValue(forKey: event.sessionKey)?.cancel()
@@ -215,6 +216,8 @@ final class NotchiStateMachine {
                 sessionStore.recordAssistantMessages(result.messages, for: sessionKey)
             }
 
+            applyReplyUsage(result, for: sessionKey)
+
             reconcileFileSyncResult(
                 result,
                 for: sessionKey,
@@ -222,6 +225,12 @@ final class NotchiStateMachine {
             )
 
             pendingSyncTasks.removeValue(forKey: sessionKey)
+        }
+    }
+
+    private func applyReplyUsage(_ result: ParseResult, for sessionKey: ProviderSessionKey) {
+        if let isFastMode = result.isFastMode {
+            sessionStore.updateFastMode(isFastMode, for: sessionKey)
         }
     }
 
@@ -233,10 +242,11 @@ final class NotchiStateMachine {
         guard let transcriptPath else { return }
 
         pendingPositionMarks[sessionKey] = Task {
-            await ConversationParser.shared.markCurrentPosition(
+            let marked = await ConversationParser.shared.markCurrentPosition(
                 sessionKey: sessionKey,
                 transcriptPath: transcriptPath
             )
+            applyReplyUsage(marked, for: sessionKey)
         }
 
         if isInteractive {

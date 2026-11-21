@@ -261,6 +261,72 @@ final class ConversationParserTests: XCTestCase {
         XCTAssertEqual(result.messages.first?.timestamp, expectedTimestamp)
     }
 
+    func testParseIncrementalReportsFastModeFromLatestAssistantReply() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "fast-\(UUID().uuidString)"
+        let toolOnlyFastReply = assistantUsageLine(uuid: "a1", speed: "fast")
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((toolOnlyFastReply + "\n").utf8))
+
+        let fast = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+
+        let handle = try XCTUnwrap(FileHandle(forWritingAtPath: transcriptPath))
+        handle.seekToEndOfFile()
+        handle.write(Data((assistantUsageLine(uuid: "a2", speed: "standard") + "\n").utf8))
+        try handle.close()
+        let standard = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertEqual(fast.isFastMode, true)
+        XCTAssertEqual(standard.isFastMode, false)
+    }
+
+    func testParseIncrementalLeavesFastModeUnknownWithoutSpeedField() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "nospeed-\(UUID().uuidString)"
+        let line = assistantLine(uuid: "a1", text: "hi", model: "claude-opus-5-5")
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((line + "\n").utf8))
+
+        let result = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertNil(result.isFastMode)
+    }
+
+    func testMarkCurrentPositionReportsFastModeFromLatestExistingReply() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "resume-fast-\(UUID().uuidString)"
+        let lines = [assistantUsageLine(uuid: "a1", speed: "standard"), assistantUsageLine(uuid: "a2", speed: "fast")]
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((lines.joined(separator: "\n") + "\n").utf8))
+
+        let marked = await parser.markCurrentPosition(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertEqual(marked.isFastMode, true)
+    }
+
+    func testMarkCurrentPositionStillSkipsExistingReplies() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "resume-skip-\(UUID().uuidString)"
+        let line = assistantUsageLine(uuid: "a1", speed: "fast")
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((line + "\n").utf8))
+
+        _ = await parser.markCurrentPosition(sessionId: sessionId, transcriptPath: transcriptPath)
+        let afterMark = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertTrue(afterMark.messages.isEmpty)
+    }
+
+    private func assistantUsageLine(uuid: String, speed: String) -> String {
+        """
+        {"type":"assistant","uuid":"\(uuid)","timestamp":"2026-10-28T17:00:00.000Z","message":{"model":"claude-opus-5-5","role":"assistant","content":[{"type":"tool_use","id":"t-\(uuid)","name":"Bash","input":{}}],"usage":{"input_tokens":1,"output_tokens":1,"speed":"\(speed)"}}}
+        """
+    }
+
     private func assistantLine(uuid: String, text: String, model: String) -> String {
         let timestamp = "2026-04-07T09:50:04.954Z"
         return """
