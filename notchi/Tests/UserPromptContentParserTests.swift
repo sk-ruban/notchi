@@ -157,4 +157,78 @@ final class UserPromptContentParserTests: XCTestCase {
         XCTAssertEqual(content.imageAttachments.map(\.path), ["/tmp/a.png"])
         XCTAssertFalse(content.hasOtherAttachments)
     }
+
+    // The shape T3 Code sends: inline image markers, a context block, then the saved-at descriptors.
+    private static let t3PromptWithMarkers = """
+        why is this small [Image: shot one.png; ref=image_ba0d7ee3-cfaf-4bd4-8764-2baf9b0019ce] \n\
+        [Image: shot two@2x.png; ref=image_cc2b0424-5a8c-41f8-af81-efa925e63c60] \n\
+        i thought we fixed it?
+
+        <t3_context version="1">
+        <context kind="image" id="image_ba0d7ee3-cfaf-4bd4-8764-2baf9b0019ce">
+        name: shot one.png
+        mimeType: image/png
+        sizeBytes: 16965
+        </context>
+        </t3_context>
+
+        [Attached image "shot one.png" is saved at: /tmp/one.png]
+
+        [Attached image "shot two@2x.png" is saved at: /tmp/two.png]
+        """
+    private static let t3PromptWithMarkersText = """
+        why is this small [shot one.png](file:///tmp/one.png)
+        [shot two@2x.png](file:///tmp/two.png)
+        i thought we fixed it?
+        """
+
+    func testT3ImageMarkersBecomeFileLinksAndContextBlockIsRemoved() {
+        let content = UserPromptContentParser.parse(Self.t3PromptWithMarkers)
+
+        XCTAssertEqual(content.text, Self.t3PromptWithMarkersText)
+    }
+
+    func testT3PromptWithMarkersStillParsesEveryImageAttachment() {
+        let content = UserPromptContentParser.parse(Self.t3PromptWithMarkers)
+
+        XCTAssertEqual(content.imageAttachments.map(\.path), ["/tmp/one.png", "/tmp/two.png"])
+    }
+
+    func testT3MarkerLinkPercentEncodesPathAndEscapesName() {
+        let content = UserPromptContentParser.parse(
+            """
+            look [Image: a [b].png; ref=image_1]
+
+            [Attached image "a [b].png" is saved at: /tmp/my shots/a.png]
+            """
+        )
+
+        XCTAssertEqual(content.text, #"look [a \[b\].png](file:///tmp/my%20shots/a.png)"#)
+    }
+
+    func testT3MarkerWithoutSavedImageFallsBackToItsName() {
+        let content = UserPromptContentParser.parse("look [Image: gone.png; ref=image_2] here")
+
+        XCTAssertEqual(content.text, "look gone.png here")
+    }
+
+    func testBracketedTextThatIsNotAnImageMarkerIsKept() {
+        let content = UserPromptContentParser.parse("see [Image: not a marker] here")
+
+        XCTAssertEqual(content.text, "see [Image: not a marker] here")
+    }
+
+    func testSameNamedImagesLinkToTheirOwnSavedFilesInOrder() {
+        let content = UserPromptContentParser.parse(
+            """
+            first [Image: image.png; ref=image_1] then [Image: image.png; ref=image_2]
+
+            [Attached image "image.png" is saved at: /tmp/first.png]
+
+            [Attached image "image.png" is saved at: /tmp/second.png]
+            """
+        )
+
+        XCTAssertEqual(content.text, "first [image.png](file:///tmp/first.png) then [image.png](file:///tmp/second.png)")
+    }
 }

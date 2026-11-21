@@ -161,4 +161,77 @@ final class FileChipTextTests: XCTestCase {
     func testLinkAtPointIsNilBelowTheText() {
         XCTAssertNil(hoveredLink(at: CGPoint(x: 60, y: 40)))
     }
+
+    func testSegmentsTurnImageFileLinksIntoImageSegments() throws {
+        let attributed = try AttributedString(
+            markdown: "see [shot one.png](file:///tmp/my%20shots/one.png) ok",
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )
+        let segments = FileChipText.segments(from: attributed)
+
+        XCTAssertEqual(segments[1], .image("shot one.png", link: URL(fileURLWithPath: "/tmp/my shots/one.png")))
+    }
+
+    private static let longImageName = "CleanShot 2026-11-16 at 3.22.27 PM@2x.png"
+    private static let longImageNameTruncated = "CleanShot 2026-11-16 …2.27 PM@2x.png"
+
+    func testImageNameKeepsHeadAndTailAroundAnEllipsis() {
+        XCTAssertEqual(FileChipText.middleTruncatedImageName(Self.longImageName), Self.longImageNameTruncated)
+    }
+
+    func testShortImageNameIsNotTruncated() {
+        XCTAssertEqual(FileChipText.middleTruncatedImageName("shot.png"), "shot.png")
+    }
+
+    func testImageNameOneCharacterOverTheHeadAndTailIsKept() {
+        // 21 head + 14 tail + 1 = 36 characters still reads in full.
+        let name = String(repeating: "a", count: 32) + ".png"
+        XCTAssertEqual(FileChipText.middleTruncatedImageName(name), name)
+    }
+
+    // 1,000-byte files read as "1 KB" with the file count style.
+    private static let imageFileBytes = 1_000
+
+    private func imageFileURL(_ name: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(name)
+        try Data(count: Self.imageFileBytes).write(to: url)
+        return url
+    }
+
+    private func imageLink(_ name: String, to url: URL) -> String {
+        "[\(name)](\(url.absoluteString))"
+    }
+
+    func testDisplayedImageLinkCarriesTheShortenedNameAndSize() throws {
+        let url = try imageFileURL("one.png")
+        let displayed = FileChipText.displayAttributed(
+            FileChipText.inlineAttributed("see \(imageLink(Self.longImageName, to: url))")
+        )
+
+        XCTAssertEqual(String(displayed.characters), "see \(Self.longImageNameTruncated) 1 KB")
+    }
+
+    func testCollapsingFourImageLinesKeepsTheFirstThree() throws {
+        let markdown = try ["a.png", "b.png", "c.png", "d.png"]
+            .map { imageLink($0, to: try imageFileURL($0)) }
+            .joined(separator: "\n")
+        let displayed = FileChipText.displayAttributed(FileChipText.inlineAttributed(markdown))
+
+        let collapsed = PromptTailTruncation.collapsed(displayed, width: 400, lineLimit: 3) {
+            FileChipText.measurementAttributedString(from: $0, fontSize: 13)
+        }
+
+        XCTAssertEqual(collapsed.map { String($0.characters) }, "a.png 1 KB\nb.png 1 KB\nc.png 1 KB…")
+    }
+
+    func testImageSizeFollowsTheFileWhenItIsOverwritten() throws {
+        let url = try imageFileURL("shot.png")
+        let attributed = FileChipText.inlineAttributed(imageLink("shot.png", to: url))
+        _ = FileChipText.displayAttributed(attributed)
+        try Data(count: 2_000).write(to: url)
+
+        XCTAssertEqual(String(FileChipText.displayAttributed(attributed).characters), "shot.png 2 KB")
+    }
 }

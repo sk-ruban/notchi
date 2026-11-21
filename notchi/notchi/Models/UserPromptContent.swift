@@ -18,10 +18,14 @@ nonisolated enum UserPromptContentParser {
         "## My request for Codex:",
         "## My request:",
     ]
-    private static let imageExtensions: Set<String> = [
+    static let imageExtensions: Set<String> = [
         "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "tif", "tiff", "webp",
     ]
     private static let inlineImageDescriptor = #/^[ \t]*\[Attached image\s+"([^"]+)"\s+is saved at:\s*([^\]\r\n]+)\][ \t]*$/#
+    // T3 Code marks where each image sits in the prompt and appends a machine-readable context block.
+    private static let t3ImageMarker = #/\[Image: (.+?); ref=image_[A-Za-z0-9-]+\]/#
+    private static let t3ContextBlock = #/\n*<t3_context[^>]*>[\s\S]*?</t3_context>\n*/#
+    private static let markdownSpecialCharacters: Set<Character> = ["\\", "[", "]", "*", "_", "`"]
     private struct AttachmentReference {
         let displayName: String
         let path: String
@@ -34,6 +38,7 @@ nonisolated enum UserPromptContentParser {
     ) -> UserPromptContent {
         let prompt = rawPrompt?
             .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacing(t3ContextBlock, with: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var lines = prompt.components(separatedBy: .newlines)
         var references: [AttachmentReference] = []
@@ -66,14 +71,19 @@ nonisolated enum UserPromptContentParser {
             }
         }
 
-        let text = keptLines
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
         var seenPaths: Set<String> = []
         let imageAttachments = references
             .compactMap(imageAttachment)
             .filter { seenPaths.insert($0.path).inserted }
+
+        // Same-named images are told apart by order: the nth marker for a name gets its nth saved file.
+        var unclaimedPathsByName: [String: [String]] = [:]
+        for attachment in references.compactMap(imageAttachment) {
+            unclaimedPathsByName[attachment.displayName, default: []].append(attachment.path)
+        }
+        let text = keptLines.map { linkingImageMarkers(in: $0, unclaimedPathsByName: &unclaimedPathsByName) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let hasNonImageReference = references.contains { imageAttachment(for: $0) == nil }
 
         return UserPromptContent(
@@ -82,6 +92,35 @@ nonisolated enum UserPromptContentParser {
             hasAttachments: reportedHasAttachments || foundDescriptor,
             hasOtherAttachments: hasNonImageReference || (reportedHasAttachments && imageAttachments.isEmpty)
         )
+    }
+
+    /// Rewrites T3 image markers as markdown links to the saved image, or to the bare name when it wasn't saved.
+    private static func linkingImageMarkers(in line: String, unclaimedPathsByName: inout [String: [String]]) -> String {
+        guard line.contains(t3ImageMarker) else { return line }
+        var linked = ""
+        var cursor = line.startIndex
+        for match in line.matches(of: t3ImageMarker) {
+            linked += line[cursor..<match.range.lowerBound]
+            cursor = match.range.upperBound
+            let name = String(match.1)
+            guard var paths = unclaimedPathsByName[name], !paths.isEmpty else {
+                linked += escapingMarkdown(name)
+                continue
+            }
+            // A surplus marker reuses the last file rather than losing its link.
+            let path = paths.count > 1 ? paths.removeFirst() : paths[0]
+            unclaimedPathsByName[name] = paths
+            linked += "[\(escapingMarkdown(name))](\(URL(fileURLWithPath: path).absoluteString))"
+        }
+        linked += line[cursor...]
+        return String(linked.reversed().drop { $0 == " " || $0 == "\t" }.reversed())
+    }
+
+    private static func escapingMarkdown(_ text: String) -> String {
+        text.reduce(into: "") { escaped, character in
+            if markdownSpecialCharacters.contains(character) { escaped.append("\\") }
+            escaped.append(character)
+        }
     }
 
     private static func isBlank(_ line: String) -> Bool {

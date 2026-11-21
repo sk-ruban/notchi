@@ -13,10 +13,13 @@ struct UserPromptBubbleView: View {
     @State private var availableWidth: CGFloat = 0
     @State private var renderedTextWidth: CGFloat = 0
     @State private var hoveredLink: URL?
+    @State private var hoverLocation: CGPoint = .zero
+    @State private var previewedImage: UserPromptImageAttachment?
 
     private static let collapsedLineLimit = 3
     private static let fontSize: CGFloat = 13
     private static let horizontalPadding: CGFloat = 14
+    private static let previewPadding: CGFloat = 8
     private var bubbleShape: RoundedRectangle { RoundedRectangle(cornerRadius: 18) }
 
     var body: some View {
@@ -44,12 +47,29 @@ struct UserPromptBubbleView: View {
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
+                            hoverLocation = location
                             hoveredLink = displayedPrompt.flatMap { link(at: location, in: $0) }
                         case .ended:
                             hoveredLink = nil
                         }
                     }
                     .pointerStyle(hoveredLink == nil ? nil : .link)
+                    // The popover is only a glance at the image, so it goes once the pointer leaves the link.
+                    .onChange(of: hoveredLink) { _, link in
+                        if let previewedImage, link?.path != previewedImage.path { self.previewedImage = nil }
+                    }
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard FileChipText.isImageFileLink(url) else { return .systemAction }
+                        previewedImage = UserPromptImageAttachment(displayName: url.lastPathComponent, path: url.path)
+                        return .handled
+                    })
+                    .popover(
+                        item: $previewedImage,
+                        attachmentAnchor: .rect(.rect(CGRect(origin: hoverLocation, size: .zero)))
+                    ) { attachment in
+                        UserPromptImagePreview(attachment: attachment, presentation: .single)
+                            .padding(Self.previewPadding)
+                    }
             }
         }
         .panelFont(size: Self.fontSize)
@@ -238,4 +258,8 @@ private enum UserPromptImageThumbnailLoader {
         }
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
+}
+
+extension UserPromptImageAttachment: Identifiable {
+    var id: String { path }
 }

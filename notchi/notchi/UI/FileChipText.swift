@@ -13,6 +13,12 @@ enum ChipSurface {
     }
 }
 
+/// Marks the file-size text `displayAttributed` adds after an image link, so it's drawn as a dim label.
+nonisolated enum ImageSizeLabelAttribute: AttributedStringKey {
+    typealias Value = Bool
+    static let name = "notchi.imageSizeLabel"
+}
+
 enum FileChipText {
     struct IconStyle: Equatable {
         let assetName: String
@@ -67,6 +73,21 @@ enum FileChipText {
         case plain(AttributedString)
         case code(String)
         case chip(String, link: URL? = nil)
+        case image(String, link: URL)
+        case imageSize(String)
+    }
+
+    // Matches T3 Code's attachment label: "CleanShot 2026-11-16 …9.17 PM@2x.png".
+    private static let imageNameHeadLength = 21
+    private static let imageNameTailLength = 14
+
+    static func middleTruncatedImageName(_ name: String) -> String {
+        guard name.count > imageNameHeadLength + imageNameTailLength + 1 else { return name }
+        return name.prefix(imageNameHeadLength) + "…" + name.suffix(imageNameTailLength)
+    }
+
+    static func isImageFileLink(_ link: URL) -> Bool {
+        link.isFileURL && UserPromptContentParser.imageExtensions.contains(link.pathExtension.lowercased())
     }
 
     static func inlineAttributed(_ markdown: String) -> AttributedString {
@@ -109,8 +130,12 @@ enum FileChipText {
             let text = String(sub.characters)
             let isCode = run.inlinePresentationIntent?.contains(.code) == true
 
-            if isCode {
+            if run[ImageSizeLabelAttribute.self] == true {
+                result.append(.imageSize(text))
+            } else if isCode {
                 result.append(isFilenameShaped(text) ? .chip(text) : .code(text))
+            } else if let link = run.link, isImageFileLink(link) {
+                result.append(.image(text, link: link))
             } else if let link = run.link {
                 let basename = (text as NSString).lastPathComponent
                 if let fileLink = localFileLink(link), isFilenameShaped(basename) {
@@ -134,12 +159,21 @@ enum FileChipText {
         return AttributedString(sub[lower..<upper])
     }
 
-    /// Rewrites local file links to their basename so the string's characters match what is drawn,
-    /// which lets callers slice it (e.g. for truncation) before rendering.
+    /// Rewrites local file links to their basename, and image links to their shortened name and size,
+    /// so the string's characters match what is drawn and callers can slice it (e.g. for truncation).
     static func displayAttributed(_ attributed: AttributedString) -> AttributedString {
         var result = AttributedString()
         for run in attributed.runs {
             var piece = AttributedString(attributed[run.range])
+            if let link = run.link, run.inlinePresentationIntent?.contains(.code) != true, isImageFileLink(link) {
+                result.append(AttributedString(middleTruncatedImageName(String(piece.characters)), attributes: run.attributes))
+                if let size = fileSizeLabel(for: link) {
+                    var label = AttributedString(" " + size)
+                    label[ImageSizeLabelAttribute.self] = true
+                    result.append(label)
+                }
+                continue
+            }
             if let link = run.link, run.inlinePresentationIntent?.contains(.code) != true {
                 let text = String(piece.characters)
                 let basename = (text as NSString).lastPathComponent
@@ -162,6 +196,7 @@ enum FileChipText {
         let baseFont = NSFont.systemFont(ofSize: scaledSize)
         let boldFont = NSFont.boldSystemFont(ofSize: scaledSize)
         let chipFont = NSFont.monospacedSystemFont(ofSize: scaledSize - 1, weight: .medium)
+        let imageSizeFont = NSFont.systemFont(ofSize: scaledSize * imageSizeFontRatio)
         let iconAdvance = (scaledSize - 2) + ("\u{202F}" as NSString).size(withAttributes: [.font: baseFont]).width
 
         let output = NSMutableAttributedString()
@@ -184,6 +219,10 @@ enum FileChipText {
                     chip.addAttribute(.kern, value: iconAdvance, range: NSRange(location: 0, length: 1))
                 }
                 output.append(chip)
+            case .image(let name, let link):
+                output.append(NSAttributedString(string: name, attributes: [.font: baseFont, .link: link]))
+            case .imageSize(let size):
+                output.append(NSAttributedString(string: size, attributes: [.font: imageSizeFont]))
             }
         }
         return output
@@ -267,9 +306,29 @@ enum FileChipText {
                         + SwiftUI.Text(verbatim: "\u{202F}")
                 }
                 output = output + SwiftUI.Text(styled(name, surface: surface, link: link)).font(chipFont)
+            case .image(let name, let link):
+                var label = AttributedString(name)
+                label.link = link
+                if link == hoveredLink { label.underlineStyle = .single }
+                output = output + SwiftUI.Text(label)
+            case .imageSize(let size):
+                output = output + SwiftUI.Text(verbatim: size)
+                    .font(.system(size: scaledSize * imageSizeFontRatio))
+                    .foregroundColor(baseColor.opacity(imageSizeOpacity))
             }
         }
         return output
+    }
+
+    private static let imageSizeFontRatio: CGFloat = 0.8
+    private static let imageSizeOpacity = 0.7
+
+    // Read on every display rather than cached, so an image overwritten at the same path shows its new size.
+    private static func fileSizeLabel(for link: URL) -> String? {
+        guard let bytes = (try? FileManager.default.attributesOfItem(atPath: link.path))?[.size] as? NSNumber else {
+            return nil
+        }
+        return ByteCountFormatter.string(fromByteCount: bytes.int64Value, countStyle: .file)
     }
 
     private static func styled(_ text: String, surface: ChipSurface, link: URL? = nil) -> AttributedString {
