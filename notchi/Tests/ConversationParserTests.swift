@@ -321,6 +321,132 @@ final class ConversationParserTests: XCTestCase {
         XCTAssertTrue(afterMark.messages.isEmpty)
     }
 
+    // input 2 + cache read 26,260 + cache write 209,591; output is excluded.
+    private static let contextReplyUsage =
+        #"{"input_tokens":2,"cache_creation_input_tokens":209591,"cache_read_input_tokens":26260,"output_tokens":594}"#
+    private static let contextReplyTokens = 235_853
+
+    private func contextReplyLine(uuid: String, isSidechain: Bool = false) -> String {
+        """
+        {"type":"assistant","uuid":"\(uuid)","isSidechain":\(isSidechain),"timestamp":"2026-11-16T17:00:00.000Z","message":{"model":"claude-opus-5-5","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":\(Self.contextReplyUsage)}}
+        """
+    }
+
+    func testParseIncrementalReportsContextTokensFromLatestReply() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "context-\(UUID().uuidString)"
+        let lines = [assistantUsageLine(uuid: "a1", speed: "standard"), contextReplyLine(uuid: "a2")]
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((lines.joined(separator: "\n") + "\n").utf8))
+
+        let result = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertEqual(result.contextTokens, Self.contextReplyTokens)
+    }
+
+    func testParseIncrementalIgnoresSubagentRepliesForContextTokens() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "context-sidechain-\(UUID().uuidString)"
+        let line = contextReplyLine(uuid: "a1", isSidechain: true)
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((line + "\n").utf8))
+
+        let result = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertNil(result.contextTokens)
+    }
+
+    func testParseIncrementalLeavesContextTokensUnknownWithoutUsage() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let parser = ConversationParser.shared
+        let sessionId = "context-none-\(UUID().uuidString)"
+        let line = assistantLine(uuid: "a1", text: "hi", model: "claude-opus-5-5")
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((line + "\n").utf8))
+
+        let result = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertNil(result.contextTokens)
+    }
+
+    // 232K, then 18K after a compact: the display follows the latest, the window follows the peak.
+    private static let precompactUsage =
+        #"{"input_tokens":2,"cache_creation_input_tokens":0,"cache_read_input_tokens":231998,"output_tokens":5}"#
+    private static let precompactTokens = 232_000
+    private static let postcompactUsage =
+        #"{"input_tokens":2,"cache_creation_input_tokens":17998,"cache_read_input_tokens":0,"output_tokens":5}"#
+    private static let postcompactTokens = 18_000
+
+    private func usageReplyLine(uuid: String, usage: String) -> String {
+        """
+        {"type":"assistant","uuid":"\(uuid)","isSidechain":false,"timestamp":"2026-11-16T17:00:00.000Z","message":{"model":"claude-opus-5-5","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":\(usage)}}
+        """
+    }
+
+    private func writeCompactedTranscript() -> String {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let lines = [
+            usageReplyLine(uuid: "a1", usage: Self.precompactUsage),
+            usageReplyLine(uuid: "a2", usage: Self.postcompactUsage),
+        ]
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((lines.joined(separator: "\n") + "\n").utf8))
+        return transcriptPath
+    }
+
+    func testParseIncrementalReportsLatestContextTokensAfterACompact() async throws {
+        let sessionId = "compact-latest-\(UUID().uuidString)"
+        let result = await ConversationParser.shared.parseIncremental(sessionId: sessionId, transcriptPath: writeCompactedTranscript())
+        await ConversationParser.shared.resetState(for: sessionId)
+
+        XCTAssertEqual(result.contextTokens, Self.postcompactTokens)
+    }
+
+    func testParseIncrementalReportsPeakContextTokensAcrossACompact() async throws {
+        let sessionId = "compact-peak-\(UUID().uuidString)"
+        let result = await ConversationParser.shared.parseIncremental(sessionId: sessionId, transcriptPath: writeCompactedTranscript())
+        await ConversationParser.shared.resetState(for: sessionId)
+
+        XCTAssertEqual(result.peakContextTokens, Self.precompactTokens)
+    }
+
+    func testMarkCurrentPositionReportsLatestExistingContextTokens() async throws {
+        let sessionId = "resume-context-\(UUID().uuidString)"
+        let marked = await ConversationParser.shared.markCurrentPosition(sessionId: sessionId, transcriptPath: writeCompactedTranscript())
+        await ConversationParser.shared.resetState(for: sessionId)
+
+        XCTAssertEqual(marked.contextTokens, Self.postcompactTokens)
+    }
+
+    func testMarkCurrentPositionReportsPeakExistingContextTokens() async throws {
+        let sessionId = "resume-peak-\(UUID().uuidString)"
+        let marked = await ConversationParser.shared.markCurrentPosition(sessionId: sessionId, transcriptPath: writeCompactedTranscript())
+        await ConversationParser.shared.resetState(for: sessionId)
+
+        XCTAssertEqual(marked.peakContextTokens, Self.precompactTokens)
+    }
+
+    // Larger than the 256 KB tail notchi reads when it picks up a running session.
+    private static let fillerCharacters = 300_000
+
+    func testMarkCurrentPositionFindsAnExtendedWindowOutsideTheTail() async throws {
+        let transcriptPath = tempDirectoryURL.appendingPathComponent("\(UUID().uuidString).jsonl").path
+        let filler = #"{"type":"user","message":{"role":"user","content":""# + String(repeating: "x", count: Self.fillerCharacters) + #""}}"#
+        let lines = [
+            usageReplyLine(uuid: "a1", usage: Self.precompactUsage),
+            filler,
+            usageReplyLine(uuid: "a2", usage: Self.postcompactUsage),
+        ]
+        FileManager.default.createFile(atPath: transcriptPath, contents: Data((lines.joined(separator: "\n") + "\n").utf8))
+        let sessionId = "resume-history-\(UUID().uuidString)"
+
+        let marked = await ConversationParser.shared.markCurrentPosition(sessionId: sessionId, transcriptPath: transcriptPath)
+        await ConversationParser.shared.resetState(for: sessionId)
+
+        XCTAssertEqual(marked.peakContextTokens, Self.precompactTokens)
+    }
+
     private func assistantUsageLine(uuid: String, speed: String) -> String {
         """
         {"type":"assistant","uuid":"\(uuid)","timestamp":"2026-10-28T17:00:00.000Z","message":{"model":"claude-opus-5-5","role":"assistant","content":[{"type":"tool_use","id":"t-\(uuid)","name":"Bash","input":{}}],"usage":{"input_tokens":1,"output_tokens":1,"speed":"\(speed)"}}}

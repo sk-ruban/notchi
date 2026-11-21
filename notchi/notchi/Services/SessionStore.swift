@@ -550,6 +550,10 @@ final class SessionStore {
         session.recordAssistantMessages(messages)
     }
 
+    func updateContextTokens(_ tokens: Int, peak: Int?, for sessionKey: ProviderSessionKey) {
+        sessions[sessionKey]?.updateContextTokens(tokens, peak: peak)
+    }
+
     func updateFastMode(_ isFastMode: Bool, for sessionKey: ProviderSessionKey) {
         sessions[sessionKey]?.updateFastMode(isFastMode)
     }
