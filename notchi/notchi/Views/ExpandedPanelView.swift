@@ -105,6 +105,7 @@ nonisolated struct SharedUsageBarState {
     let provider: AgentProvider
     let usage: QuotaPeriod?
     let isUsingExtraUsage: Bool
+    let isFastMode: Bool
     let isLoading: Bool
     let error: String?
     let statusMessage: String?
@@ -119,6 +120,7 @@ nonisolated struct SharedUsageBarState {
         provider: AgentProvider,
         usage: QuotaPeriod?,
         isUsingExtraUsage: Bool,
+        isFastMode: Bool = false,
         isLoading: Bool,
         error: String?,
         statusMessage: String?,
@@ -132,6 +134,7 @@ nonisolated struct SharedUsageBarState {
         self.provider = provider
         self.usage = usage
         self.isUsingExtraUsage = isUsingExtraUsage
+        self.isFastMode = isFastMode
         self.isLoading = isLoading
         self.error = error
         self.statusMessage = statusMessage
@@ -327,6 +330,7 @@ struct ExpandedPanelView: View {
             provider: .claude,
             usage: Self.mainUsage(for: claudePeriod, sessionUsage: usageService.currentUsage, weeklyUsage: usageService.currentWeeklyUsage),
             isUsingExtraUsage: Self.mainUsageIsUsingExtraUsage(for: claudePeriod, isUsingExtraUsage: usageService.isUsingExtraUsage),
+            isFastMode: Self.claudeIsFastMode(activeSessions: activeSessions),
             isLoading: usageService.isLoading,
             error: usageService.error,
             statusMessage: usageService.statusMessage,
@@ -605,6 +609,7 @@ struct ExpandedPanelView: View {
                 hasUnlimitedCredits: state.isProviderSpecific && hasUnlimitedUsage(provider: state.provider),
                 unlimitedLabel: state.provider == .devin ? devinUsageService.noQuotaLabel : String(localized: "No spending cap"),
                 isUsingExtraUsage: state.isUsingExtraUsage,
+                isFastMode: state.isFastMode,
                 isLoading: state.isLoading,
                 error: state.error,
                 statusMessage: state.statusMessage,
@@ -632,6 +637,10 @@ struct ExpandedPanelView: View {
 
     static func includesClaudeUsage(activeSessions: [SessionData]) -> Bool {
         activeSessions.contains { $0.provider == .claude }
+    }
+
+    static func claudeIsFastMode(activeSessions: [SessionData]) -> Bool {
+        activeSessions.contains { $0.provider == .claude && $0.isFastMode }
     }
 
     static func includesCodexUsage(activeSessions: [SessionData]) -> Bool {

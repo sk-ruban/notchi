@@ -47,6 +47,7 @@ final class SessionData: Identifiable {
     private(set) var lastUserPromptHasOtherAttachments: Bool = false
     private(set) var promptSubmitTime: Date?
     private(set) var permissionMode: String = "default"
+    private(set) var isFastMode = false
     private(set) var gitBranch: String?
     private(set) var gitPullRequest: GitPullRequest?
     private(set) var pendingQuestions: [PendingQuestion] = []
@@ -303,6 +304,10 @@ final class SessionData: Identifiable {
 
     func updatePermissionMode(_ mode: String) {
         permissionMode = mode
+    }
+
+    func updateFastMode(_ isFastMode: Bool) {
+        self.isFastMode = isFastMode
     }
 
     func updateGitBranch(_ branch: String?) {

@@ -2444,6 +2444,41 @@
         }
       }
     },
+    "Fast" : {
+      "comment" : "Label in the usage bar shown while a Claude Code session is using fast mode, which bills at a higher rate.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高速"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "고속"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhanh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速"
+          }
+        }
+      }
+    },
     "Fetch the models this endpoint serves" : {
       "localizations" : {
         "ja" : {

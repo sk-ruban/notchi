@@ -550,6 +550,10 @@ final class SessionStore {
         session.recordAssistantMessages(messages)
     }
 
+    func updateFastMode(_ isFastMode: Bool, for sessionKey: ProviderSessionKey) {
+        sessions[sessionKey]?.updateFastMode(isFastMode)
+    }
+
     func session(for sessionKey: ProviderSessionKey) -> SessionData? {
         sessions[sessionKey]
     }

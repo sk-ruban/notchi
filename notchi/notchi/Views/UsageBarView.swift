@@ -5,6 +5,7 @@ struct UsageBarView: View {
     let hasUnlimitedCredits: Bool
     let unlimitedLabel: String
     let isUsingExtraUsage: Bool
+    let isFastMode: Bool
     let isLoading: Bool
     let error: String?
     let statusMessage: String?
@@ -25,6 +26,7 @@ struct UsageBarView: View {
         hasUnlimitedCredits: Bool = false,
         unlimitedLabel: String = String(localized: "No spending cap"),
         isUsingExtraUsage: Bool = false,
+        isFastMode: Bool = false,
         isLoading: Bool,
         error: String?,
         statusMessage: String?,
@@ -42,6 +44,7 @@ struct UsageBarView: View {
         self.hasUnlimitedCredits = hasUnlimitedCredits
         self.unlimitedLabel = unlimitedLabel
         self.isUsingExtraUsage = isUsingExtraUsage
+        self.isFastMode = isFastMode
         self.isLoading = isLoading
         self.error = error
         self.statusMessage = statusMessage
@@ -118,6 +121,10 @@ struct UsageBarView: View {
 
     var shouldShowExtraUsageIndicator: Bool {
         usage != nil && isUsingExtraUsage && !isStale
+    }
+
+    var shouldShowFastModeIndicator: Bool {
+        usage != nil && isFastMode && !isStale
     }
 
     var shouldShowConnectPlaceholder: Bool {
@@ -200,6 +207,12 @@ struct UsageBarView: View {
                         .controlSize(.mini)
                 } else {
                     HStack(alignment: .center, spacing: 6) {
+                        if shouldShowFastModeIndicator {
+                            Text("Fast")
+                                .panelFont(size: 10, weight: .medium)
+                                .foregroundColor(TerminalColors.amber)
+                                .lineLimit(1)
+                        }
                         if shouldShowExtraUsageIndicator {
                             Text("Extra Usage")
                                 .panelFont(size: 10, weight: .medium)
