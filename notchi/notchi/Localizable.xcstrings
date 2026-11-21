@@ -17,6 +17,41 @@
       },
       "shouldTranslate" : false
     },
+    "%@ / %@ context" : {
+      "comment" : "Tooltip on a session's context bar: tokens in the session's context, then the context window size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテキスト %@ / %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨텍스트 %@ / %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngữ cảnh %@ / %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文 %@ / %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文 %@ / %@"
+          }
+        }
+      }
+    },
     "%@ API returned HTTP %lld" : {
       "localizations" : {
         "en" : {

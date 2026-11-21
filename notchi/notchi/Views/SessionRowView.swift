@@ -34,6 +34,10 @@ struct SessionRowView: View {
 
                 Spacer()
 
+                if let contextTokens = session.contextTokens {
+                    ContextUsageBar(usage: ContextUsage(usedTokens: contextTokens, windowTokens: session.contextWindowTokens))
+                }
+
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .panelFont(size: 11)
