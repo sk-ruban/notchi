@@ -797,6 +797,12 @@ struct ExpandedPanelView: View {
 
                         Spacer()
 
+                        if let session = effectiveSession, let contextTokens = session.contextTokens {
+                            ContextUsageRing(
+                                usage: ContextUsage(usedTokens: contextTokens, windowTokens: session.contextWindowTokens)
+                            )
+                        }
+
                         if let session = effectiveSession, let mode = session.currentModeDisplay {
                             ModeBadgeView(mode: mode, rawMode: session.permissionMode)
                         }
