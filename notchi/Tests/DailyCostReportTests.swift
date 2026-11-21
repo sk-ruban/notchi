@@ -356,9 +356,9 @@ final class DailyCostReportTests: XCTestCase {
     }
 
     @MainActor
-    func testSizingCoversEveryHoverStateAndTheModelReference() {
+    func testSizingFitsModelColumnToTheReferenceOnly() {
         var buckets: DayModelBuckets = [:]
-        buckets["2026-06-22"] = ["gpt-5.6-sol": ModelTokenTotals(
+        buckets["2026-06-22"] = ["daybreak-blue-preview": ModelTokenTotals(
             input: 100, output: 50, costNanos: 8_000_000_000, requestCount: 1, pricedCount: 1)]
         buckets["2026-06-24"] = ["gpt-5.5": ModelTokenTotals(
             input: 300, output: 100, costNanos: 9_000_000_000, requestCount: 2, pricedCount: 2)]
@@ -372,10 +372,8 @@ final class DailyCostReportTests: XCTestCase {
         let sets = CostDashboardView.sizingValueSets(report)
         let modelColumn = sets.map { $0[$0.count - 1] }
 
-        XCTAssertTrue(modelColumn.contains("Opus 4.8"))
-        XCTAssertTrue(modelColumn.contains("5.6-sol"))
-        XCTAssertTrue(modelColumn.contains("GPT-5.5"))
-        XCTAssertEqual(sets.count, 4, "unselected + reference + one per active day")
+        XCTAssertEqual(sets.count, 3, "unselected + one per active day")
+        XCTAssertEqual(modelColumn, ["Opus 4.8", "Opus 4.8", "Opus 4.8"])
     }
 
     func testSegmentsShadeWindowTopTwoModelsAndFoldRestIntoOther() {
