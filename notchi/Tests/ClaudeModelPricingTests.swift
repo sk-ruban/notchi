@@ -138,14 +138,14 @@ final class ClaudeModelPricingTests: XCTestCase {
         let cache = CostUsageCache(version: CostUsageCache.currentVersion,
                                     files: ["f": .init(size: 100, mtime: 1, offset: 100)],
                                     buckets: ["2026-06-24": ["m": .init(input: 10, costNanos: 50)]],
-                                    pricingSignature: staleSig)
+                                    pricingSignature: staleSig, timeZoneIdentifier: "UTC")
 
-        let reset = cache.reconciled(withPricingSignature: currentSig)
+        let reset = cache.reconciled(withPricingSignature: currentSig, timeZoneIdentifier: "UTC")
         XCTAssertTrue(reset.files.isEmpty, "stale signature must discard file state")
         XCTAssertTrue(reset.buckets.isEmpty, "stale signature must discard cached costs")
         XCTAssertEqual(reset.pricingSignature, currentSig)
 
-        let kept = cache.reconciled(withPricingSignature: staleSig)
+        let kept = cache.reconciled(withPricingSignature: staleSig, timeZoneIdentifier: "UTC")
         XCTAssertEqual(kept.files.count, 1, "matching signature must keep the cache")
         XCTAssertEqual(kept.buckets.count, 1)
         XCTAssertEqual(kept.pricingSignature, staleSig)

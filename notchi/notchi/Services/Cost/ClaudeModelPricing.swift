@@ -18,6 +18,11 @@ protocol ClaudePricingProviding: Sendable {
 }
 
 nonisolated enum CostPricing {
+    /// Opus fast mode bills every token class at 2x the standard rate.
+    static let fastModeMultiplier = 2.0
+    /// Anthropic bills 1-hour cache writes at 2x base input (5-minute writes are 1.25x).
+    static let oneHourCacheWriteInputMultiplier = 2.0
+
     static func normalizeClaudeModel(_ raw: String) -> String {
         var s = raw
         if let slash = s.lastIndex(of: "/") { s = String(s[s.index(after: slash)...]) }
@@ -47,7 +52,7 @@ nonisolated enum CostPricing {
         let rdP = useAbove ? (pricing.cacheReadPerTokenAboveThreshold ?? pricing.cacheReadPerToken) : pricing.cacheReadPerToken
 
         let standardCreate = max(0, cacheCreation - cacheCreation1h)
-        let create1hCost = Double(cacheCreation1h) * (pricing.cacheCreation1hPerToken ?? crP)
+        let create1hCost = Double(cacheCreation1h) * (pricing.cacheCreation1hPerToken ?? inP * oneHourCacheWriteInputMultiplier)
 
         return Double(input) * inP
             + Double(output) * outP
