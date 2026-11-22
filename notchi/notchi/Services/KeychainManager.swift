@@ -12,7 +12,6 @@ enum KeychainManager {
     private static let notchiService = "com.ruban.notchi"
     private static let anthropicApiKeyAccount = "anthropicApiKey"
     private static let openAIApiKeyAccount = "openAIApiKey"
-    private static let cachedOAuthTokenAccount = "cachedOAuthToken"
     private static let recentCredentialCacheTTL: TimeInterval = 5
     private static let securityCLIBackoffInterval: TimeInterval = 60
     private static let credentialReadLock = NSLock()
@@ -81,20 +80,22 @@ enum KeychainManager {
 
     // MARK: - Cached OAuth Token
 
+    // Kept in memory, not notchi's keychain: writing that item prompts again whenever notchi's code
+    // signature changes (every update or rebuild). A fresh launch re-reads Claude Code's own item
+    // through /usr/bin/security, which doesn't prompt.
+    private static let cachedTokenLock = NSLock()
+    private nonisolated(unsafe) static var cachedToken: String?
+
     static func getCachedOAuthToken(allowInteraction: Bool = false) -> String? {
-        readString(
-            service: notchiService,
-            account: cachedOAuthTokenAccount,
-            allowInteraction: allowInteraction
-        )
+        cachedTokenLock.withLock { cachedToken }
     }
 
     static func cacheOAuthToken(_ token: String) {
-        saveString(token, service: notchiService, account: cachedOAuthTokenAccount)
+        cachedTokenLock.withLock { cachedToken = token }
     }
 
     static func clearCachedOAuthToken() {
-        deleteItem(service: notchiService, account: cachedOAuthTokenAccount)
+        cachedTokenLock.withLock { cachedToken = nil }
     }
 
     // MARK: - Claude Code Credentials
@@ -267,7 +268,11 @@ enum KeychainManager {
         taskNowOverride = override
     }
 
+    static var keychainWritesForTesting = 0
+
     static func _resetCredentialResolutionStateForTesting() {
+        keychainWritesForTesting = 0
+        clearCachedOAuthToken()
         credentialReadLock.lock()
         recentCredentialCacheEntry = nil
         lastSecurityCLIFailureAt = nil
@@ -373,6 +378,9 @@ enum KeychainManager {
     }
 
     private static func saveString(_ value: String, service: String, account: String) {
+        #if DEBUG
+        keychainWritesForTesting += 1
+        #endif
         let data = Data(value.utf8)
 
         // Try to update existing item first
