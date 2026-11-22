@@ -62,6 +62,12 @@ output = {
     'permission_mode': input_data.get('permission_mode', 'default')
 }
 
+# Which Claude account (config dir) fired this. Sent verbatim: Claude Code names each account's
+# keychain item after this exact string. Unset or empty means the default account.
+claude_config_dir = os.environ.get('CLAUDE_CONFIG_DIR')
+if claude_config_dir:
+    output['claude_config_dir'] = claude_config_dir
+
 def process_table():
     try:
         ps_output = subprocess.check_output(

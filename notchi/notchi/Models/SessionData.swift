@@ -56,6 +56,10 @@ final class SessionData: Identifiable {
     private(set) var pendingQuestionResponseContext: PendingQuestionResponseContext?
     private(set) var currentSpinnerVerb: String
     private(set) var claudeProcessId: Int?
+    /// Raw `CLAUDE_CONFIG_DIR` the session ran with; nil for the default Claude account.
+    private(set) var claudeConfigDir: String?
+    /// The session's Claude config directory on disk; nil when unknown.
+    private(set) var claudeConfigDirectory: URL?
     private(set) var devinProcessId: Int?
     private(set) var codexProcessId: Int?
     private(set) var codexOrigin: CodexOrigin?
@@ -329,6 +333,29 @@ final class SessionData: Identifiable {
 
     func updateGitPullRequest(_ pullRequest: GitPullRequest?) {
         gitPullRequest = pullRequest
+    }
+
+    /// Notchi's Claude usage reads the default account's login, so it only describes these sessions.
+    var usesDefaultClaudeAccount: Bool {
+        provider != .claude || claudeConfigDir == nil
+    }
+
+    func updateClaudeAccount(configDir: String?, transcriptPath: String?) {
+        guard provider == .claude else { return }
+        claudeConfigDir = configDir
+        claudeConfigDirectory = Self.claudeConfigDirectory(transcriptPath: transcriptPath, rawConfigDir: configDir)
+    }
+
+    /// Transcripts live at `<config dir>/projects/...`; that path is absolute and normalized, unlike
+    /// the raw `CLAUDE_CONFIG_DIR`, which can be relative to wherever Claude was launched.
+    nonisolated static func claudeConfigDirectory(transcriptPath: String?, rawConfigDir: String?) -> URL? {
+        if let transcriptPath, let projects = transcriptPath.range(of: "/projects/", options: .backwards) {
+            return URL(fileURLWithPath: String(transcriptPath[..<projects.lowerBound]), isDirectory: true)
+        }
+        if let rawConfigDir, rawConfigDir.hasPrefix("/") {
+            return URL(fileURLWithPath: rawConfigDir, isDirectory: true)
+        }
+        return nil
     }
 
     func updateClaudeRuntime(processId: Int?) {

@@ -68,6 +68,7 @@ struct AgentHookEnvelope: Decodable, Sendable {
     let permissionSuggestions: [AnyCodable]?
     let interactive: Bool?
     let claudeProcessId: Int?
+    let claudeConfigDir: String?
     let codexProcessId: Int?
     let codexOrigin: CodexOrigin?
     let devinProcessId: Int?
@@ -86,6 +87,7 @@ struct AgentHookEnvelope: Decodable, Sendable {
         case permissionSuggestions = "permission_suggestions"
         case interactive
         case claudeProcessId = "claude_process_id"
+        case claudeConfigDir = "claude_config_dir"
         case codexProcessId = "codex_process_id"
         case codexOrigin = "codex_origin"
         case devinProcessId = "devin_process_id"
@@ -110,6 +112,7 @@ struct AgentHookEnvelope: Decodable, Sendable {
         permissionSuggestions = try container.decodeIfPresent([AnyCodable].self, forKey: .permissionSuggestions)
         interactive = try container.decodeIfPresent(Bool.self, forKey: .interactive)
         claudeProcessId = try container.decodeIfPresent(Int.self, forKey: .claudeProcessId)
+        claudeConfigDir = try container.decodeIfPresent(String.self, forKey: .claudeConfigDir)
         codexProcessId = try container.decodeIfPresent(Int.self, forKey: .codexProcessId)
         codexOrigin = try container.decodeIfPresent(CodexOrigin.self, forKey: .codexOrigin)
         devinProcessId = try container.decodeIfPresent(Int.self, forKey: .devinProcessId)
@@ -136,6 +139,8 @@ struct HookEvent: Sendable {
     let permissionSuggestions: [AnyCodable]?
     let interactive: Bool?
     let claudeProcessId: Int?
+    /// Raw `CLAUDE_CONFIG_DIR` the Claude session ran with; nil for the default account.
+    let claudeConfigDir: String?
     let codexProcessId: Int?
     let codexOrigin: CodexOrigin?
     let devinProcessId: Int?
@@ -168,6 +173,7 @@ struct HookEvent: Sendable {
         permissionSuggestions: [AnyCodable]? = nil,
         interactive: Bool? = nil,
         claudeProcessId: Int? = nil,
+        claudeConfigDir: String? = nil,
         codexProcessId: Int? = nil,
         codexOrigin: CodexOrigin? = nil,
         devinProcessId: Int? = nil,
@@ -191,6 +197,7 @@ struct HookEvent: Sendable {
         self.permissionSuggestions = permissionSuggestions
         self.interactive = interactive
         self.claudeProcessId = claudeProcessId
+        self.claudeConfigDir = claudeConfigDir
         self.codexProcessId = codexProcessId
         self.codexOrigin = codexOrigin
         self.devinProcessId = devinProcessId

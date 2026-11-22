@@ -631,12 +631,14 @@ struct ExpandedPanelView: View {
         }
     }
 
+    // Claude usage is the default account's, so it would be wrong under another account's session.
     static func shouldShowSharedUsageBar(contextSession: SessionData?, activeSessions: [SessionData]) -> Bool {
-        !activeSessions.isEmpty || contextSession == nil
+        guard contextSession?.usesDefaultClaudeAccount ?? true else { return false }
+        return !activeSessions.isEmpty || contextSession == nil
     }
 
     static func includesClaudeUsage(activeSessions: [SessionData]) -> Bool {
-        activeSessions.contains { $0.provider == .claude }
+        activeSessions.contains { $0.provider == .claude && $0.usesDefaultClaudeAccount }
     }
 
     static func claudeIsFastMode(activeSessions: [SessionData]) -> Bool {

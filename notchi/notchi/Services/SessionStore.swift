@@ -32,8 +32,8 @@ final class SessionStore {
     private var resolveHostBundleIdentifier: @MainActor (pid_t) -> String? = { processId in
         TerminalJumpService.shared.hostBundleIdentifier(hosting: processId)
     }
-    private var resolveClaudeSessionName: @Sendable (Int, String) -> String? = { processId, sessionId in
-        ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId)
+    private var resolveClaudeSessionName: @Sendable (Int, String, URL?) -> String? = { processId, sessionId, directory in
+        ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId, in: directory)
     }
     private var invalidateGitPullRequestCache: @Sendable (String) -> Void = { cwd in
         GitPullRequestResolver.shared.invalidate(repositoryAt: cwd)
@@ -179,6 +179,7 @@ final class SessionStore {
 
         let previousHostProcessId = session.hostProcessId
         session.updateClaudeRuntime(processId: event.claudeProcessId)
+        session.updateClaudeAccount(configDir: event.claudeConfigDir, transcriptPath: event.transcriptPath)
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
         session.updateDevinRuntime(processId: event.devinProcessId)
         if event.claudeProcessId != nil, let processId = session.claudeProcessId {
@@ -384,8 +385,9 @@ final class SessionStore {
         claudeSessionNameGenerations[sessionKey] = generation
         let resolve = resolveClaudeSessionName
         let sessionId = session.rawSessionId
+        let configDirectory = session.claudeConfigDirectory
         Task.detached(priority: .utility) {
-            let name = resolve(processId, sessionId)
+            let name = resolve(processId, sessionId, configDirectory)
             await MainActor.run {
                 guard self.sessions[sessionKey] === session,
                       self.claudeSessionNameGenerations[sessionKey] == generation else { return }
@@ -760,7 +762,7 @@ final class SessionStore {
         invalidateGitPullRequestCache = invalidator
     }
 
-    func setClaudeSessionNameResolverForTesting(_ resolver: @escaping @Sendable (Int, String) -> String?) {
+    func setClaudeSessionNameResolverForTesting(_ resolver: @escaping @Sendable (Int, String, URL?) -> String?) {
         resolveClaudeSessionName = resolver
     }
 
@@ -802,8 +804,8 @@ final class SessionStore {
         codexTranscriptExists = { transcriptPath in
             FileManager.default.fileExists(atPath: transcriptPath)
         }
-        resolveClaudeSessionName = { processId, sessionId in
-            ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId)
+        resolveClaudeSessionName = { processId, sessionId, directory in
+            ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId, in: directory)
         }
     }
 #endif

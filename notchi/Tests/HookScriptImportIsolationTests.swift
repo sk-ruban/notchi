@@ -128,6 +128,49 @@ final class HookScriptImportIsolationTests: XCTestCase {
         XCTAssertFalse(delivered, "Claude hook forwarded an event fired by Devin")
     }
 
+    // Claude Code hashes this exact string for the account's keychain item, so it must arrive unaltered.
+    private static let personalConfigDirWithTrailingSlash = "/Users/someone/.claude-personal/"
+
+    private func deliverClaudeStop(sessionId: String, extraEnvironment: [String: String]) async throws -> AgentHookEnvelope {
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: recorder)
+        let script = try stageScript(named: "notchi-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        _ = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: #"{"hook_event_name":"Stop","session_id":"\#(sessionId)"}"#,
+            extraEnvironment: extraEnvironment
+        )
+
+        _ = await waitUntil(timeout: 2) {
+            await recorder.snapshot().contains { $0.sessionId == sessionId }
+        }
+        let snapshot = await recorder.snapshot()
+        return try XCTUnwrap(snapshot.first { $0.sessionId == sessionId })
+    }
+
+    func testClaudeHookReportsTheRawClaudeConfigDir() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliverClaudeStop(
+            sessionId: "personal-account",
+            extraEnvironment: ["CLAUDE_CONFIG_DIR": Self.personalConfigDirWithTrailingSlash]
+        )
+
+        XCTAssertEqual(envelope.claudeConfigDir, Self.personalConfigDirWithTrailingSlash)
+    }
+
+    func testClaudeHookReportsNoClaudeConfigDirForTheDefaultAccount() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliverClaudeStop(sessionId: "default-account", extraEnvironment: [:])
+
+        XCTAssertNil(envelope.claudeConfigDir)
+    }
+
     func testClaudePermissionResponseReachesStdoutFromDirectoryShadowingStdlib() async throws {
         try skipUnlessStdlibPythonRuns()
 
