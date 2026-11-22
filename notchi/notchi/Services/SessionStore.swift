@@ -41,6 +41,9 @@ final class SessionStore {
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
     private var claudeSessionNameGenerations: [ProviderSessionKey: Int] = [:]
+    private var noteClaudeAccountDirectory: @MainActor (URL?) -> Void = { directory in
+        ClaudeAccountStore.shared.noteSessionDirectory(directory)
+    }
     // T3 Code names a thread about a second after its first reply; reading again after a reply catches that.
     private static let defaultClaudeSessionNameRecheckDelay: Duration = .seconds(3)
     private var claudeSessionNameRecheckDelay = SessionStore.defaultClaudeSessionNameRecheckDelay
@@ -183,6 +186,9 @@ final class SessionStore {
         let previousHostProcessId = session.hostProcessId
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateClaudeAccount(configDir: event.claudeConfigDir, transcriptPath: event.transcriptPath)
+        if event.provider == .claude {
+            noteClaudeAccountDirectory(session.claudeConfigDirectory)
+        }
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
         session.updateDevinRuntime(processId: event.devinProcessId)
         if event.claudeProcessId != nil, let processId = session.claudeProcessId {
@@ -780,6 +786,10 @@ final class SessionStore {
         invalidateGitPullRequestCache = invalidator
     }
 
+    func setClaudeAccountObserverForTesting(_ observer: @escaping @MainActor (URL?) -> Void) {
+        noteClaudeAccountDirectory = observer
+    }
+
     func setClaudeSessionNameRecheckDelayForTesting(_ delay: Duration) {
         claudeSessionNameRecheckDelay = delay
     }
@@ -830,6 +840,9 @@ final class SessionStore {
             ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId, in: directory)
         }
         claudeSessionNameRecheckDelay = Self.defaultClaudeSessionNameRecheckDelay
+        noteClaudeAccountDirectory = { directory in
+            ClaudeAccountStore.shared.noteSessionDirectory(directory)
+        }
     }
 #endif
 

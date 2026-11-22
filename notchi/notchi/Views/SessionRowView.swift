@@ -18,11 +18,17 @@ struct SessionRowView: View {
                     .frame(width: 5, height: 5)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .panelFont(size: 12, weight: .medium)
-                        .foregroundColor(TerminalColors.primaryText)
-                        .lineLimit(1)
-                        .layoutPriority(1)
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .panelFont(size: 12, weight: .medium)
+                            .foregroundColor(TerminalColors.primaryText)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+
+                        if let account = badgeAccount {
+                            ClaudeAccountBadge(account: account)
+                        }
+                    }
 
                     if let preview = session.activityPreview {
                         Text(preview)
@@ -75,5 +81,32 @@ struct SessionRowView: View {
 
     private var providerAccentColor: Color {
         session.provider.accentColor
+    }
+
+    private var badgeAccount: ClaudeAccount? {
+        let accounts = ClaudeAccountStore.shared
+        guard session.provider == .claude, accounts.showsAccountBadges else { return nil }
+        return accounts.account(forSessionDirectory: session.claudeConfigDirectory)
+    }
+}
+
+private struct ClaudeAccountBadge: View {
+    let account: ClaudeAccount
+
+    @Environment(\.panelScale) private var panelScale
+
+    private static let horizontalPadding: CGFloat = 5
+    private static let verticalPadding: CGFloat = 1
+    private static let backgroundOpacity = 0.18
+
+    var body: some View {
+        Text(account.name)
+            .panelFont(size: 9, weight: .semibold)
+            .foregroundColor(account.color.color)
+            .lineLimit(1)
+            .padding(.horizontal, Self.horizontalPadding * panelScale)
+            .padding(.vertical, Self.verticalPadding * panelScale)
+            .background(account.color.color.opacity(Self.backgroundOpacity), in: Capsule())
+            .fixedSize()
     }
 }

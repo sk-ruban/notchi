@@ -2,6 +2,7 @@ enum SettingsScreen: Equatable {
     case general
     case appearance
     case emotionAnalysis
+    case claudeAccount(id: String)
 }
 
 enum SettingsBackAction: Equatable {
