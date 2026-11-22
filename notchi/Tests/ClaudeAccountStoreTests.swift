@@ -430,6 +430,16 @@ final class ClaudeAccountStoreTests: XCTestCase {
         XCTAssertNotNil(store.usageAccount(for: try account(".claude", in: store)).storageSuffix)
     }
 
+    func testDefaultAccountReadsTheDefaultLoginAgainAfterASessionWithoutAConfigDir() throws {
+        let defaultFolder = try makeAccount(".claude")
+        let store = makeStore()
+        store.noteSession(directory: defaultFolder, rawConfigDir: defaultFolder.path)
+
+        store.noteSession(directory: defaultFolder, rawConfigDir: nil)
+
+        XCTAssertEqual(store.usageAccount(for: try account(".claude", in: store)), .default)
+    }
+
     func testAccountsKeepTheirUsageStateApart() throws {
         try makeAccount(".claude")
         try makeAccount(".claude-work")
