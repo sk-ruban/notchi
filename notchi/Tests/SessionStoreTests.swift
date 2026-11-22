@@ -528,7 +528,7 @@ final class SessionStoreTests: XCTestCase {
 
     func testClaudeSessionNameReplacesProjectLabel() async {
         let store = SessionStore.shared
-        store.setClaudeSessionNameResolverForTesting { processId, _ in
+        store.setClaudeSessionNameResolverForTesting { processId, _, _ in
             processId == 4242 ? "tally-domain-audit" : nil
         }
 
@@ -546,9 +546,31 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.displayTitle(for: session), "tally-domain-audit - check the audit")
     }
 
+    func testClaudeSessionNameIsReadFromTheSessionsOwnAccountDirectory() async {
+        let personalAccount = "/Users/someone/.claude-personal"
+        let store = SessionStore.shared
+        let readDirectories = InvalidationRecorder()
+        store.setClaudeSessionNameResolverForTesting { _, _, directory in
+            readDirectories.record(directory?.path ?? "<default>")
+            return "personal-review"
+        }
+
+        let session = store.process(makeEvent(
+            sessionId: "claude-account-name-\(UUID().uuidString)",
+            transcriptPath: "\(personalAccount)/projects/-tmp/1b2c.jsonl",
+            event: .sessionStarted,
+            status: "waiting_for_input",
+            claudeProcessId: 4244,
+            claudeConfigDir: personalAccount
+        ))
+
+        _ = await waitUntil(timeout: 1) { session.claudeSessionName != nil }
+        XCTAssertEqual(readDirectories.values, [personalAccount])
+    }
+
     func testNamingASessionRenumbersTheRestOfItsProject() async {
         let store = SessionStore.shared
-        store.setClaudeSessionNameResolverForTesting { processId, _ in
+        store.setClaudeSessionNameResolverForTesting { processId, _, _ in
             processId == 4243 ? "review" : nil
         }
 
@@ -576,7 +598,7 @@ final class SessionStoreTests: XCTestCase {
 
     func testClaudeSessionNameClearsWhenLookupStopsReturningIt() async {
         let store = SessionStore.shared
-        store.setClaudeSessionNameResolverForTesting { _, _ in "review" }
+        store.setClaudeSessionNameResolverForTesting { _, _, _ in "review" }
         let sessionId = "claude-clear-\(UUID().uuidString)"
 
         let session = store.process(makeEvent(
@@ -588,7 +610,7 @@ final class SessionStoreTests: XCTestCase {
         let named = await waitUntil(timeout: 1) { session.claudeSessionName == "review" }
         XCTAssertTrue(named)
 
-        store.setClaudeSessionNameResolverForTesting { _, _ in nil }
+        store.setClaudeSessionNameResolverForTesting { _, _, _ in nil }
         _ = store.process(makeEvent(
             sessionId: sessionId,
             event: .userPromptSubmitted,
@@ -602,7 +624,7 @@ final class SessionStoreTests: XCTestCase {
 
     func testDuplicateClaudeSessionNamesKeepNumbers() async {
         let store = SessionStore.shared
-        store.setClaudeSessionNameResolverForTesting { _, _ in "review" }
+        store.setClaudeSessionNameResolverForTesting { _, _, _ in "review" }
 
         let first = store.process(makeEvent(
             sessionId: "claude-dup-1-\(UUID().uuidString)",
@@ -627,7 +649,7 @@ final class SessionStoreTests: XCTestCase {
 
     func testStaleClaudeSessionNameLookupDoesNotOverwriteNewerResult() async throws {
         let store = SessionStore.shared
-        store.setClaudeSessionNameResolverForTesting { processId, _ in
+        store.setClaudeSessionNameResolverForTesting { processId, _, _ in
             if processId == 4248 {
                 Thread.sleep(forTimeInterval: 0.3)
                 return "old-name"
@@ -2209,6 +2231,7 @@ final class SessionStoreTests: XCTestCase {
         interactionRequestId: String? = nil,
         permissionMode: String? = nil,
         claudeProcessId: Int? = nil,
+        claudeConfigDir: String? = nil,
         codexProcessId: Int? = nil
     ) -> HookEvent {
         HookEvent(
@@ -2228,6 +2251,7 @@ final class SessionStoreTests: XCTestCase {
             permissionSuggestions: permissionSuggestions,
             interactive: true,
             claudeProcessId: claudeProcessId,
+            claudeConfigDir: claudeConfigDir,
             codexProcessId: codexProcessId,
             interactionRequestId: interactionRequestId
         )

@@ -592,4 +592,37 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertFalse(ExpandedPanelView.claudeIsFastMode(activeSessions: [standard]))
         XCTAssertTrue(ExpandedPanelView.claudeIsFastMode(activeSessions: [standard, fast]))
     }
+
+    // MARK: - Other Claude accounts
+
+    private func claudeSession(_ id: String, configDir: String?) -> SessionData {
+        let session = SessionData(sessionId: id, provider: .claude, cwd: "/tmp/project")
+        session.updateClaudeAccount(configDir: configDir, transcriptPath: nil)
+        return session
+    }
+
+    func testUsageBarIsHiddenWhileViewingASessionFromAnotherClaudeAccount() {
+        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
+
+        XCTAssertFalse(ExpandedPanelView.shouldShowSharedUsageBar(contextSession: personal, activeSessions: [personal]))
+    }
+
+    func testUsageBarShowsWhileViewingADefaultAccountClaudeSession() {
+        let work = claudeSession("work", configDir: nil)
+
+        XCTAssertTrue(ExpandedPanelView.shouldShowSharedUsageBar(contextSession: work, activeSessions: [work]))
+    }
+
+    func testClaudeUsageIsLeftOutWhenOnlyOtherAccountSessionsAreActive() {
+        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
+
+        XCTAssertFalse(ExpandedPanelView.includesClaudeUsage(activeSessions: [personal]))
+    }
+
+    func testClaudeUsageIsIncludedWhenADefaultAccountSessionIsActive() {
+        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
+        let work = claudeSession("work", configDir: nil)
+
+        XCTAssertTrue(ExpandedPanelView.includesClaudeUsage(activeSessions: [personal, work]))
+    }
 }

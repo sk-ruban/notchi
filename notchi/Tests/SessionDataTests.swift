@@ -384,4 +384,61 @@ final class SessionDataTests: XCTestCase {
 
         XCTAssertEqual(session.contextWindowTokens, Self.extendedContextWindow)
     }
+
+    // MARK: - Claude account
+
+    private static let personalAccountPath = "/Users/someone/.claude-personal"
+
+    func testClaudeAccountDirectoryComesFromTheTranscriptPath() {
+        let directory = SessionData.claudeConfigDirectory(
+            transcriptPath: "\(Self.personalAccountPath)/projects/-Users-someone-app/1b2c.jsonl",
+            rawConfigDir: nil
+        )
+
+        XCTAssertEqual(directory?.path, Self.personalAccountPath)
+    }
+
+    func testSubagentTranscriptPathPointsAtTheSameAccountDirectory() {
+        let directory = SessionData.claudeConfigDirectory(
+            transcriptPath: "\(Self.personalAccountPath)/projects/-Users-someone-app/1b2c/subagents/agent-7.jsonl",
+            rawConfigDir: nil
+        )
+
+        XCTAssertEqual(directory?.path, Self.personalAccountPath)
+    }
+
+    func testAccountDirectoryInsideAProjectsFolderIsKeptWhole() {
+        let accountInsideProjects = "/Users/someone/projects/claude-work"
+
+        let directory = SessionData.claudeConfigDirectory(
+            transcriptPath: "\(accountInsideProjects)/projects/-Users-someone-projects-app/1b2c.jsonl",
+            rawConfigDir: nil
+        )
+
+        XCTAssertEqual(directory?.path, accountInsideProjects)
+    }
+
+    func testAccountDirectoryFallsBackToAnAbsoluteConfigDirWithoutATranscript() {
+        let directory = SessionData.claudeConfigDirectory(transcriptPath: nil, rawConfigDir: Self.personalAccountPath)
+
+        XCTAssertEqual(directory?.path, Self.personalAccountPath)
+    }
+
+    func testRelativeConfigDirWithoutATranscriptGivesNoAccountDirectory() {
+        XCTAssertNil(SessionData.claudeConfigDirectory(transcriptPath: nil, rawConfigDir: "claude-personal"))
+    }
+
+    func testClaudeSessionWithoutAConfigDirUsesTheDefaultAccount() {
+        let session = SessionData(sessionId: "default-account", provider: .claude, cwd: "/tmp")
+        session.updateClaudeAccount(configDir: nil, transcriptPath: "/Users/someone/.claude/projects/-tmp/a.jsonl")
+
+        XCTAssertTrue(session.usesDefaultClaudeAccount)
+    }
+
+    func testClaudeSessionWithAConfigDirUsesAnotherAccount() {
+        let session = SessionData(sessionId: "personal-account", provider: .claude, cwd: "/tmp")
+        session.updateClaudeAccount(configDir: Self.personalAccountPath, transcriptPath: nil)
+
+        XCTAssertFalse(session.usesDefaultClaudeAccount)
+    }
 }

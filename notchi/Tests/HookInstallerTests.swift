@@ -156,4 +156,231 @@ final class HookInstallerTests: XCTestCase {
 
         XCTAssertNil(HookInstaller.removeManagedHookSettings(from: existing))
     }
+
+    // MARK: - Shared hook script
+
+    private static let legacyAccountRelativeCommand = #""${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/notchi-hook.sh""#
+    private static let scriptOutput = "notchi hook ran"
+
+    private func makeHome() throws -> URL {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HookInstallerTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: home) }
+        return home
+    }
+
+    private func installSharedScript(in home: URL, body: String) throws {
+        let script = HookInstaller.sharedHookScriptURL(home: home)
+        try FileManager.default.createDirectory(at: script.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "#!/bin/bash\n\(body)\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+    }
+
+    /// Runs a hook command the way Claude Code does, through `/bin/sh -c`, with stdin attached.
+    private func runHookCommand(_ command: String, home: URL) throws -> (output: String, status: Int32) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin"]
+        let stdin = Pipe()
+        let stdout = Pipe()
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        try process.run()
+        stdin.fileHandleForWriting.write(Data(#"{"hook_event_name":"Stop"}"#.utf8))
+        try stdin.fileHandleForWriting.close()
+        process.waitUntilExit()
+        let output = String(decoding: stdout.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        return (output.trimmingCharacters(in: .whitespacesAndNewlines), process.terminationStatus)
+    }
+
+    func testHookCommandRunsTheSharedScript() throws {
+        let home = try makeHome()
+        try installSharedScript(in: home, body: "cat >/dev/null; echo '\(Self.scriptOutput)'")
+
+        XCTAssertEqual(try runHookCommand(HookInstaller.hookCommand, home: home).output, Self.scriptOutput)
+    }
+
+    func testHookCommandExitsQuietlyWhenTheSharedScriptIsMissing() throws {
+        let home = try makeHome()
+
+        let result = try runHookCommand(HookInstaller.hookCommand, home: home)
+
+        XCTAssertEqual(result.output + "|\(result.status)", "|0")
+    }
+
+    func testHookCommandPassesThroughTheScriptsExitStatus() throws {
+        let blockingExitStatus: Int32 = 2
+        let home = try makeHome()
+        try installSharedScript(in: home, body: "exit \(blockingExitStatus)")
+
+        XCTAssertEqual(try runHookCommand(HookInstaller.hookCommand, home: home).status, blockingExitStatus)
+    }
+
+    func testLegacyScriptHandsOffToTheSharedScript() throws {
+        let home = try makeHome()
+        try installSharedScript(in: home, body: "cat >/dev/null; echo '\(Self.scriptOutput)'")
+        let legacy = home.appendingPathComponent("legacy-notchi-hook.sh")
+        try HookFile.writeScriptIfNeeded(Data(HookInstaller.legacyScriptShim.utf8), to: legacy)
+
+        XCTAssertEqual(try runHookCommand("'\(legacy.path)'", home: home).output, Self.scriptOutput)
+    }
+
+    // MARK: - Other Claude accounts
+
+    private func settings(withCommand command: String) throws -> Data {
+        try JSONSerialization.data(withJSONObject: [
+            "theme": "dark",
+            "hooks": ["Stop": [["hooks": [["type": "command", "command": command]]]]],
+        ])
+    }
+
+    private func stopCommands(in data: Data) throws -> [String] {
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let stop = try XCTUnwrap((json["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]])
+        return stop.flatMap { ($0["hooks"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String } }
+    }
+
+    func testMigratingCopiedAccountSettingsSwitchesToTheSharedCommand() throws {
+        let copied = try settings(withCommand: Self.legacyAccountRelativeCommand)
+
+        let migrated = try XCTUnwrap(HookInstaller.migratedHookSettings(from: copied, command: HookInstaller.hookCommand))
+
+        XCTAssertEqual(try stopCommands(in: migrated), [HookInstaller.hookCommand])
+    }
+
+    func testMigratingSettingsWithoutNotchiHooksLeavesThemAlone() throws {
+        let unrelated = try settings(withCommand: "echo other")
+
+        XCTAssertNil(HookInstaller.migratedHookSettings(from: unrelated, command: HookInstaller.hookCommand))
+    }
+
+    func testOnlyOtherClaudeAccountsThatRunNotchiAreMigrated() throws {
+        let home = try makeHome()
+        let fileManager = FileManager.default
+        func account(_ name: String, command: String?) throws -> URL {
+            let directory = home.appendingPathComponent(name, isDirectory: true)
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            if let command {
+                try settings(withCommand: command).write(to: directory.appendingPathComponent("settings.json"))
+            }
+            return directory
+        }
+        let primary = try account(".claude", command: Self.legacyAccountRelativeCommand)
+        let personal = try account(".claude-personal", command: Self.legacyAccountRelativeCommand)
+        _ = try account(".claude-scratch", command: "echo other")
+        _ = try account(".claude-empty", command: nil)
+        _ = try account(".config", command: Self.legacyAccountRelativeCommand)
+        try Data("{}".utf8).write(to: home.appendingPathComponent(".claude.json"))
+
+        let found = HookInstaller.otherAccountSettingsURLs(home: home, excluding: primary)
+
+        XCTAssertEqual(found.map(\.path), [personal.appendingPathComponent("settings.json").path])
+    }
+
+    private func personalAccount(in home: URL) throws -> URL {
+        let account = home.appendingPathComponent(".claude-personal", isDirectory: true)
+        try FileManager.default.createDirectory(at: account, withIntermediateDirectories: true)
+        try settings(withCommand: Self.legacyAccountRelativeCommand).write(to: account.appendingPathComponent("settings.json"))
+        return account
+    }
+
+    func testMigratedAccountsOldScriptPathHandsOffToTheSharedScript() throws {
+        let home = try makeHome()
+        let personal = try personalAccount(in: home)
+        try installSharedScript(in: home, body: "cat >/dev/null; echo '\(Self.scriptOutput)'")
+
+        HookInstaller.migrateOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        // What a session started before the migration still runs.
+        let oldCommandInPersonal = #"CLAUDE_CONFIG_DIR='\#(personal.path)'; "${CLAUDE_CONFIG_DIR}/hooks/notchi-hook.sh""#
+        XCTAssertEqual(try runHookCommand(oldCommandInPersonal, home: home).output, Self.scriptOutput)
+    }
+
+    func testMigratingOtherAccountsSwitchesTheirSettingsToTheSharedCommand() throws {
+        let home = try makeHome()
+        let personal = try personalAccount(in: home)
+
+        HookInstaller.migrateOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        let migrated = try Data(contentsOf: personal.appendingPathComponent("settings.json"))
+        XCTAssertEqual(try stopCommands(in: migrated), [HookInstaller.hookCommand])
+    }
+
+    func testRemovingFromOtherAccountsDeletesTheirOldPathScript() throws {
+        let home = try makeHome()
+        let personal = try personalAccount(in: home)
+        HookInstaller.migrateOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        HookInstaller.removeFromOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: personal.appendingPathComponent("hooks/notchi-hook.sh").path))
+    }
+
+    func testRemovingFromOtherAccountsPrunesTheirHooks() throws {
+        let home = try makeHome()
+        let personal = try personalAccount(in: home)
+        HookInstaller.migrateOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        HookInstaller.removeFromOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        XCTAssertFalse(HookInstaller.isHookInstalled(in: try Data(contentsOf: personal.appendingPathComponent("settings.json"))))
+    }
+
+    func testSymlinkedClaudeAccountDirectoryIsMigrated() throws {
+        let home = try makeHome()
+        let dotfilesAccount = home.appendingPathComponent("dotfiles/claude-personal", isDirectory: true)
+        try FileManager.default.createDirectory(at: dotfilesAccount, withIntermediateDirectories: true)
+        try settings(withCommand: Self.legacyAccountRelativeCommand)
+            .write(to: dotfilesAccount.appendingPathComponent("settings.json"))
+        let linked = home.appendingPathComponent(".claude-personal")
+        try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: dotfilesAccount)
+
+        let found = HookInstaller.otherAccountSettingsURLs(home: home, excluding: home.appendingPathComponent(".claude"))
+
+        XCTAssertEqual(found.map(\.path), [linked.appendingPathComponent("settings.json").path])
+    }
+
+    func testSettingsWriteKeepsFilePermissions() throws {
+        let privateFilePermissions = 0o600
+        let home = try makeHome()
+        let url = home.appendingPathComponent("settings.json")
+        try Data("{}".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: privateFilePermissions], ofItemAtPath: url.path)
+
+        try HookInstaller.writeSettings(Data("{\"a\":1}".utf8), to: url)
+
+        let permissions = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber
+        XCTAssertEqual(permissions?.intValue, privateFilePermissions)
+    }
+
+    func testSettingsWriteThroughASymlinkUpdatesTheTarget() throws {
+        let home = try makeHome()
+        let target = home.appendingPathComponent("dotfiles-settings.json")
+        let link = home.appendingPathComponent("settings.json")
+        try Data("{}".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        try HookInstaller.writeSettings(Data("{\"a\":1}".utf8), to: link)
+
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "{\"a\":1}")
+    }
+
+    func testUnreadableSettingsAreNotReplacedWithOnlyNotchiHooks() {
+        let settingsWithComment = Data("""
+            {
+              // the user's own note
+              "theme": "dark"
+            }
+            """.utf8)
+
+        XCTAssertNil(HookInstaller.upsertHookSettings(from: settingsWithComment, command: HookInstaller.hookCommand))
+    }
+
+    func testSerializedSettingsDoNotEscapeSlashes() throws {
+        let data = try XCTUnwrap(HookInstaller.upsertHookSettings(from: nil, command: HookInstaller.hookCommand))
+
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains(#"\/"#))
+    }
 }
