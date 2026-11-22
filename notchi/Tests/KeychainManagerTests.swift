@@ -171,4 +171,29 @@ final class KeychainManagerTests: XCTestCase {
         let data = makeCredentialPayload(accessToken: accessToken, expiresAt: expiresAt, scopes: scopes)
         return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
     }
+
+    // MARK: - Cached token
+
+    func testCachedOAuthTokenIsReadBackInTheSameRun() {
+        KeychainManager.cacheOAuthToken("token-a")
+
+        XCTAssertEqual(KeychainManager.getCachedOAuthToken(), "token-a")
+    }
+
+    func testClearingTheCachedOAuthTokenForgetsIt() {
+        KeychainManager.cacheOAuthToken("token-a")
+
+        KeychainManager.clearCachedOAuthToken()
+
+        XCTAssertNil(KeychainManager.getCachedOAuthToken())
+    }
+
+    // Writing notchi's own keychain item prompts whenever notchi's code signature changes.
+    func testCachingTheOAuthTokenLeavesTheKeychainAlone() {
+        KeychainManager.clearCachedOAuthToken()
+
+        KeychainManager.cacheOAuthToken("token-a")
+
+        XCTAssertEqual(KeychainManager.keychainWritesForTesting, 0)
+    }
 }
