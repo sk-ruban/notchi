@@ -81,7 +81,8 @@ final class ClaudeUsageServicesTests: XCTestCase {
             hasNotchiHooks: { _ in true },
             addHooks: { _ in true },
             removeHooks: { _ in },
-            accountsDidChange: { _ in }
+            accountsDidChange: { _ in },
+            costAccountsDidChange: { _ in }
         )
         store.refresh()
         return (store, home)

@@ -188,10 +188,89 @@ final class UsageDetailViewTests: XCTestCase {
         )
     }
 
-    private func account(_ name: String, sessionPercent: Double?) -> UsageDetailView.ClaudeAccountUsage {
+    private func account(_ name: String, sessionPercent: Double?, cost: CostHistoryStore? = nil) -> UsageDetailView.ClaudeAccountUsage {
         let usage = ClaudeUsageService()
         usage.currentUsage = sessionPercent.map { QuotaPeriod(utilization: $0, resetDate: nil) }
-        return UsageDetailView.ClaudeAccountUsage(id: name, name: name, color: .orange, usage: usage)
+        return UsageDetailView.ClaudeAccountUsage(id: name, name: name, color: .orange, usage: usage, cost: cost)
+    }
+
+    private static let workSpendNanos = 2_000_000_000
+    private static let personalSpendNanos = 5_000_000_000
+    private static let workSpendUSD = 2.0
+    private static let personalSpendUSD = 5.0
+    private static let bothAccountsSpendUSD = 7.0
+
+    /// A cost history that spent `nanos` today.
+    private func costStore(spendingTodayNanos nanos: Int) async -> CostHistoryStore {
+        let today = DailyCostReport.dayKey(Date(), calendar: .autoupdatingCurrent)
+        let store = CostHistoryStore { _ in
+            [today: ["claude-opus-4": ModelTokenTotals(input: 10, costNanos: nanos, requestCount: 1, pricedCount: 1)]]
+        }
+        await store.refresh()
+        return store
+    }
+
+    private func workAndPersonalWithSpend(initialAccountId: String?) async -> UsageDetailView {
+        usageView(
+            claude: ClaudeUsageService(),
+            accounts: [
+                account("Work", sessionPercent: 3, cost: await costStore(spendingTodayNanos: Self.workSpendNanos)),
+                account("Personal", sessionPercent: 50, cost: await costStore(spendingTodayNanos: Self.personalSpendNanos)),
+            ],
+            initialAccountId: initialAccountId
+        )
+    }
+
+    func testClaudeChartShowsThePickedAccountsSpend() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: "Personal")
+
+        XCTAssertEqual(try XCTUnwrap(view.claudeCostReport).windowCostUSD, Self.personalSpendUSD, accuracy: 1e-9)
+    }
+
+    func testAllAccountsChartAddsUpEveryAccountsSpend() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: UsageDetailView.allClaudeAccountsId)
+
+        XCTAssertEqual(try XCTUnwrap(view.claudeCostReport).windowCostUSD, Self.bothAccountsSpendUSD, accuracy: 1e-9)
+    }
+
+    func testAllAccountsChartStacksOneSegmentPerAccount() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: UsageDetailView.allClaudeAccountsId)
+
+        XCTAssertEqual(try XCTUnwrap(view.claudeCostReport?.entries.last).segments.map(\.models), [["Work"], ["Personal"]])
+    }
+
+    func testAllAccountsIsShownWhenPicked() async {
+        let view = await workAndPersonalWithSpend(initialAccountId: UsageDetailView.allClaudeAccountsId)
+
+        XCTAssertTrue(view.isShowingAllClaudeAccounts)
+    }
+
+    func testAllAccountsIsIgnoredWithOneAccount() async {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [account("Work", sessionPercent: 3, cost: await costStore(spendingTodayNanos: Self.workSpendNanos))],
+            initialAccountId: UsageDetailView.allClaudeAccountsId
+        )
+
+        XCTAssertFalse(view.isShowingAllClaudeAccounts)
+    }
+
+    func testOneAccountsChartShowsItsOwnSpendOnly() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: "Work")
+
+        XCTAssertEqual(try XCTUnwrap(view.claudeCostReport).windowCostUSD, Self.workSpendUSD, accuracy: 1e-9)
+    }
+
+    func testClaudeHasDataWhenOnlyAnotherAccountHasSpend() async {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [
+                account("Work", sessionPercent: nil, cost: CostHistoryStore { _ in [:] }),
+                account("Personal", sessionPercent: nil, cost: await costStore(spendingTodayNanos: Self.personalSpendNanos)),
+            ]
+        )
+
+        XCTAssertTrue(view.claudeHasData)
     }
 
     func testClaudeTabStartsOnTheGivenAccount() {

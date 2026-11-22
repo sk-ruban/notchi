@@ -62,7 +62,8 @@ final class ClaudeAccountStoreTests: XCTestCase {
                 removedHooks.append(directory.lastPathComponent)
                 accountsWithHooks.remove(directory.lastPathComponent)
             },
-            accountsDidChange: { _ in }
+            accountsDidChange: { _ in },
+            costAccountsDidChange: { _ in }
         )
         store.refresh()
         return store
