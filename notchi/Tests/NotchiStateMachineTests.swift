@@ -8,7 +8,7 @@ final class NotchiStateMachineTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         // Keep session tests away from the real Claude config folders.
-        SessionStore.shared.setClaudeAccountObserverForTesting { _ in }
+        SessionStore.shared.setClaudeAccountObserverForTesting { _, _ in }
     }
 
     override func tearDown() async throws {

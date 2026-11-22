@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import notchi
 
@@ -167,5 +168,79 @@ final class UsageDetailViewTests: XCTestCase {
             UsageDetailView.resolvedProvider(selected: .codex, claudeHasData: false, codexHasData: false),
             .codex
         )
+    }
+
+    // MARK: - Claude accounts
+
+    private func usageView(
+        claude: ClaudeUsageService,
+        accounts: [UsageDetailView.ClaudeAccountUsage],
+        initialAccountId: String? = nil
+    ) -> UsageDetailView {
+        UsageDetailView(
+            claudeUsage: claude, codexUsage: CodexUsageService(), devinUsage: DevinUsageService(readUsage: { _ in nil }),
+            costStore: CostHistoryStore { _ in [:] },
+            codexCostStore: CostHistoryStore(provider: .codex) { _ in [:] },
+            devinCostStore: CostHistoryStore(provider: .devin) { _ in [:] },
+            defaultProvider: .claude,
+            claudeAccounts: accounts,
+            initialClaudeAccountId: initialAccountId
+        )
+    }
+
+    private func account(_ name: String, sessionPercent: Double?) -> UsageDetailView.ClaudeAccountUsage {
+        let usage = ClaudeUsageService()
+        usage.currentUsage = sessionPercent.map { QuotaPeriod(utilization: $0, resetDate: nil) }
+        return UsageDetailView.ClaudeAccountUsage(id: name, name: name, color: .orange, usage: usage)
+    }
+
+    func testClaudeTabStartsOnTheGivenAccount() {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [account("Work", sessionPercent: 3), account("Personal", sessionPercent: 50)],
+            initialAccountId: "Personal"
+        )
+
+        XCTAssertEqual(view.periods.first?.percentUsed, 50)
+    }
+
+    func testClaudeTabWithoutAStartingAccountShowsTheAccountThePickerHighlights() {
+        let claude = ClaudeUsageService()
+        claude.currentUsage = QuotaPeriod(utilization: 12, resetDate: nil)
+        let view = usageView(claude: claude, accounts: [account("Work", sessionPercent: 3), account("Personal", sessionPercent: 50)])
+
+        XCTAssertEqual(view.periods.first?.percentUsed, 3)
+    }
+
+    func testClaudeTabWithoutAccountsShowsTheGivenService() {
+        let claude = ClaudeUsageService()
+        claude.currentUsage = QuotaPeriod(utilization: 12, resetDate: nil)
+        let view = usageView(claude: claude, accounts: [])
+
+        XCTAssertEqual(view.periods.first?.percentUsed, 12)
+    }
+
+    func testAccountPickerShowsWithTwoClaudeAccounts() {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [account("Work", sessionPercent: 3), account("Personal", sessionPercent: 50)]
+        )
+
+        XCTAssertTrue(view.showsClaudeAccountPicker)
+    }
+
+    func testAccountPickerIsHiddenWithOneClaudeAccount() {
+        let view = usageView(claude: ClaudeUsageService(), accounts: [account("Work", sessionPercent: 3)])
+
+        XCTAssertFalse(view.showsClaudeAccountPicker)
+    }
+
+    func testClaudeHasDataWhenOnlyAnotherAccountHasUsage() {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [account("Work", sessionPercent: nil), account("Personal", sessionPercent: 50)]
+        )
+
+        XCTAssertTrue(view.claudeHasData)
     }
 }

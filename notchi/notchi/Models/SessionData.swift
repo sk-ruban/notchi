@@ -356,11 +356,6 @@ final class SessionData: Identifiable {
         gitPullRequest = pullRequest
     }
 
-    /// Notchi's Claude usage reads the default account's login, so it only describes these sessions.
-    var usesDefaultClaudeAccount: Bool {
-        provider != .claude || claudeConfigDir == nil
-    }
-
     func updateClaudeAccount(configDir: String?, transcriptPath: String?) {
         guard provider == .claude else { return }
         claudeConfigDir = configDir

@@ -4,6 +4,9 @@ import Observation
 @MainActor
 @Observable
 final class CostHistoryStore {
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
     private(set) var report: DailyCostReport?
     private(set) var buckets: DayModelBuckets = [:]
     private(set) var isScanning = false

@@ -176,6 +176,7 @@ struct NotchContentView: View {
     @State private var settingsPath: [SettingsScreen] = []
     @State private var showingUsageDetail = false
     @State private var usageDetailProvider: AgentProvider?
+    @State private var usageDetailClaudeAccountId: String?
     @State private var showingSessionActivity = false
     @State private var isMuted = AppSettings.isMuted
     @State private var isActivityCollapsed = false
@@ -435,9 +436,13 @@ struct NotchContentView: View {
         (spriteSession ?? effectiveSession)?.provider ?? lastUsedProvider
     }
 
+    private var ringClaudeUsageService: ClaudeUsageService {
+        ClaudeUsageServices.shared.service(forSession: collapsedSpriteSession ?? activeSession) ?? usageService
+    }
+
     private var ringIsStale: Bool {
         switch ringProvider {
-        case .claude: usageService.isUsageStale
+        case .claude: ringClaudeUsageService.isUsageStale
         case .codex: codexUsageService.isUsageStale
         case .devin: devinUsageService.isUsageStale
         }
@@ -518,7 +523,7 @@ struct NotchContentView: View {
         Self.collapsedRingContent(
             isUsageEnabled: AppSettings.isUsageEnabled,
             provider: ringProvider,
-            claudeUsage: usageService.currentUsage,
+            claudeUsage: ringClaudeUsageService.currentUsage,
             codexSessionUsage: codexUsageService.currentUsage,
             codexWeeklyUsage: codexUsageService.currentWeeklyUsage,
             codexHasUnlimitedCredits: codexUsageService.hasUnlimitedCredits,
@@ -707,6 +712,10 @@ struct NotchContentView: View {
                 hoveredSessionId = nil
             }
         }
+        // However usage closes (Back, Settings, collapsing), the ring's account only applies to the next ring click.
+        .onChange(of: showingUsageDetail) { _, showing in
+            if !showing { usageDetailClaudeAccountId = nil }
+        }
         .onChange(of: sessionStore.activeSessionCount) { _, count in
             if count < 2 {
                 showingSessionActivity = false
@@ -734,6 +743,7 @@ struct NotchContentView: View {
                         codexUsageService: CodexUsageService.shared,
                         devinUsageService: DevinUsageService.shared,
                         usageDetailProvider: usageDetailProvider,
+                        usageDetailClaudeAccountId: usageDetailClaudeAccountId,
                         showingSettings: $showingPanelSettings,
                         settingsPath: $settingsPath,
                         showingSessionActivity: $showingSessionActivity,
@@ -915,6 +925,7 @@ struct NotchContentView: View {
                             guard !isExpanded else { return }
                             isActivityCollapsed = false
                             usageDetailProvider = ringProvider
+                            usageDetailClaudeAccountId = ClaudeUsageServices.shared.account(forSession: collapsedSpriteSession ?? activeSession)?.id
                             showingUsageDetail = true
                             panelManager.expand()
                         }

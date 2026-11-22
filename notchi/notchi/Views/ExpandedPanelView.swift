@@ -113,6 +113,8 @@ nonisolated struct SharedUsageBarState {
     let recoveryAction: ClaudeUsageRecoveryAction
     let lastObservedAt: Date?
     let labelOverride: String?
+    /// Which Claude account the usage is for, when there's more than one.
+    let accountName: String?
     let isProviderSpecific: Bool
     let period: MainUsageBarPeriod
 
@@ -128,6 +130,7 @@ nonisolated struct SharedUsageBarState {
         recoveryAction: ClaudeUsageRecoveryAction,
         lastObservedAt: Date?,
         labelOverride: String? = nil,
+        accountName: String? = nil,
         isProviderSpecific: Bool = true,
         period: MainUsageBarPeriod = .session
     ) {
@@ -142,6 +145,7 @@ nonisolated struct SharedUsageBarState {
         self.recoveryAction = recoveryAction
         self.lastObservedAt = lastObservedAt
         self.labelOverride = labelOverride
+        self.accountName = accountName
         self.isProviderSpecific = isProviderSpecific
         self.period = period
     }
@@ -175,6 +179,8 @@ struct ExpandedPanelView: View {
     let codexUsageService: CodexUsageService
     let devinUsageService: DevinUsageService
     let usageDetailProvider: AgentProvider?
+    /// The Claude account whose ring opened the usage page, which can differ from the session in view.
+    let usageDetailClaudeAccountId: String?
     @Binding var showingSettings: Bool
     @Binding var settingsPath: [SettingsScreen]
     @Binding var showingSessionActivity: Bool
@@ -200,6 +206,7 @@ struct ExpandedPanelView: View {
         codexUsageService: CodexUsageService,
         devinUsageService: DevinUsageService,
         usageDetailProvider: AgentProvider?,
+        usageDetailClaudeAccountId: String? = nil,
         showingSettings: Binding<Bool>,
         settingsPath: Binding<[SettingsScreen]>,
         showingSessionActivity: Binding<Bool>,
@@ -212,6 +219,7 @@ struct ExpandedPanelView: View {
         self.codexUsageService = codexUsageService
         self.devinUsageService = devinUsageService
         self.usageDetailProvider = usageDetailProvider
+        self.usageDetailClaudeAccountId = usageDetailClaudeAccountId
         _showingSettings = showingSettings
         _settingsPath = settingsPath
         _showingSessionActivity = showingSessionActivity
@@ -240,6 +248,28 @@ struct ExpandedPanelView: View {
         hoveredSession ?? effectiveSession
     }
 
+    /// The Claude usage for the account being looked at, else the most recently active one.
+    private var claudeUsageService: ClaudeUsageService {
+        ClaudeUsageServices.shared.service(forSession: usageContextSession) ?? usageService
+    }
+
+    private var claudeAccountUsages: [UsageDetailView.ClaudeAccountUsage] {
+        let accounts = ClaudeAccountStore.shared
+        return accounts.accounts.filter(\.isNotchiEnabled).map { account in
+            let usageAccount = accounts.usageAccount(for: account)
+            return UsageDetailView.ClaudeAccountUsage(
+                id: account.id,
+                name: account.name,
+                color: account.color.color,
+                usage: usageAccount == .default ? usageService : ClaudeUsageServices.shared.service(for: usageAccount)
+            )
+        }
+    }
+
+    private var claudeUsageAccountName: String? {
+        ClaudeUsageServices.shared.accountName(forSession: usageContextSession)
+    }
+
     private var usageDetailDefaultProvider: AgentProvider {
         Self.usageDetailDefaultProvider(
             requestedProvider: usageDetailProvider,
@@ -249,7 +279,8 @@ struct ExpandedPanelView: View {
     }
 
     private var hasUsageDetailData: Bool {
-        usageService.hasUsageData || codexUsageService.hasUsageData || devinUsageService.hasUsageData
+        usageService.hasUsageData || claudeUsageService.hasUsageData
+            || codexUsageService.hasUsageData || devinUsageService.hasUsageData
             || !CostHistoryStore.shared.buckets.isEmpty || !CostHistoryStore.sharedCodex.buckets.isEmpty
             || !CostHistoryStore.sharedDevin.buckets.isEmpty
     }
@@ -321,26 +352,28 @@ struct ExpandedPanelView: View {
         let includesDevin = Self.includesDevinUsage(activeSessions: activeSessions)
         let period = mainUsageBarPeriod
 
+        let claudeService = claudeUsageService
         let claudePeriod = Self.effectiveMainUsagePeriod(
             for: period,
-            sessionUsage: usageService.currentUsage,
-            weeklyUsage: usageService.currentWeeklyUsage
+            sessionUsage: claudeService.currentUsage,
+            weeklyUsage: claudeService.currentWeeklyUsage
         )
         let claude = includesClaude ? SharedUsageBarState(
             provider: .claude,
-            usage: Self.mainUsage(for: claudePeriod, sessionUsage: usageService.currentUsage, weeklyUsage: usageService.currentWeeklyUsage),
-            isUsingExtraUsage: Self.mainUsageIsUsingExtraUsage(for: claudePeriod, isUsingExtraUsage: usageService.isUsingExtraUsage),
+            usage: Self.mainUsage(for: claudePeriod, sessionUsage: claudeService.currentUsage, weeklyUsage: claudeService.currentWeeklyUsage),
+            isUsingExtraUsage: Self.mainUsageIsUsingExtraUsage(for: claudePeriod, isUsingExtraUsage: claudeService.isUsingExtraUsage),
             isFastMode: Self.claudeIsFastMode(activeSessions: activeSessions),
-            isLoading: usageService.isLoading,
-            error: usageService.error,
-            statusMessage: usageService.statusMessage,
+            isLoading: claudeService.isLoading,
+            error: claudeService.error,
+            statusMessage: claudeService.statusMessage,
             isStale: Self.mainUsageIsStale(
                 for: claudePeriod,
-                isUsageStale: usageService.isUsageStale,
-                isWeeklyUsageHeldOver: usageService.isWeeklyUsageHeldOver
+                isUsageStale: claudeService.isUsageStale,
+                isWeeklyUsageHeldOver: claudeService.isWeeklyUsageHeldOver
             ),
-            recoveryAction: usageService.recoveryAction,
-            lastObservedAt: usageService.lastObservedAt,
+            recoveryAction: claudeService.recoveryAction,
+            lastObservedAt: claudeService.lastObservedAt,
+            accountName: claudeUsageAccountName,
             period: claudePeriod
         ) : nil
 
@@ -394,7 +427,8 @@ struct ExpandedPanelView: View {
             claude: claude,
             codex: codex,
             devin: devin,
-            lastUsedProvider: AppSettings.lastUsedAgentProvider
+            lastUsedProvider: AppSettings.lastUsedAgentProvider,
+            claudeUsageEnabled: claudeUsageService.isUsageEnabled
         )
     }
 
@@ -549,7 +583,11 @@ struct ExpandedPanelView: View {
                 costStore: CostHistoryStore.shared,
                 codexCostStore: CostHistoryStore.sharedCodex,
                 devinCostStore: CostHistoryStore.sharedDevin,
-                defaultProvider: usageDetailDefaultProvider
+                defaultProvider: usageDetailDefaultProvider,
+                claudeAccounts: claudeAccountUsages,
+                // Opens on the account whose ring or usage bar led here.
+                initialClaudeAccountId: usageDetailClaudeAccountId
+                    ?? ClaudeUsageServices.shared.account(forSession: usageContextSession)?.id
             )
             .padding(.horizontal, 12)
             .padding(.top, 8)
@@ -618,9 +656,13 @@ struct ExpandedPanelView: View {
                 label: state.label,
                 resetLabelPrefix: sharedUsageResetLabelPrefix,
                 compact: !shouldShowSessionPicker && panelMode == .islandOnly,
-                isEnabled: state.isProviderSpecific ? Self.sharedUsageBarIsEnabled(provider: state.provider) : true,
-                onConnect: state.provider == .claude && state.isProviderSpecific ? { usageService.connectAndStartPolling() } : nil,
-                onRetry: state.provider == .claude && state.isProviderSpecific ? { usageService.retryNow() } : nil,
+                isEnabled: state.isProviderSpecific
+                    ? Self.sharedUsageBarIsEnabled(provider: state.provider, appUsageEnabled: claudeUsageService.isUsageEnabled)
+                    : true,
+                onConnect: state.provider == .claude && state.isProviderSpecific ? {
+                    ClaudeUsageServices.shared.connectAndStartPolling()
+                } : nil,
+                onRetry: state.provider == .claude && state.isProviderSpecific ? { claudeUsageService.retryNow() } : nil,
                 onOpenDetail: hasUsageDetailData ? {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         isActivityCollapsed = false
@@ -631,14 +673,12 @@ struct ExpandedPanelView: View {
         }
     }
 
-    // Claude usage is the default account's, so it would be wrong under another account's session.
     static func shouldShowSharedUsageBar(contextSession: SessionData?, activeSessions: [SessionData]) -> Bool {
-        guard contextSession?.usesDefaultClaudeAccount ?? true else { return false }
-        return !activeSessions.isEmpty || contextSession == nil
+        !activeSessions.isEmpty || contextSession == nil
     }
 
     static func includesClaudeUsage(activeSessions: [SessionData]) -> Bool {
-        activeSessions.contains { $0.provider == .claude && $0.usesDefaultClaudeAccount }
+        activeSessions.contains { $0.provider == .claude }
     }
 
     static func claudeIsFastMode(activeSessions: [SessionData]) -> Bool {
@@ -672,6 +712,9 @@ struct ExpandedPanelView: View {
         var parts: [String] = []
         if hasMixedProviderSessions(activeSessions) {
             parts.append(state.provider.displayName)
+        }
+        if let accountName = state.accountName {
+            parts.append(accountName)
         }
         if state.period == .weekly || state.period != requestedPeriod {
             let periodName = state.period.displayName(for: state.provider)

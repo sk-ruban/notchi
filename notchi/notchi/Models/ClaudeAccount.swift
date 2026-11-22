@@ -41,4 +41,6 @@ struct ClaudeAccount: Identifiable, Equatable {
 struct ClaudeAccountPreference: Codable, Equatable {
     var name: String?
     var color: ClaudeAccountColor?
+    /// `CLAUDE_CONFIG_DIR` exactly as this account's sessions report it; its login is named after it.
+    var configDir: String?
 }

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 
@@ -9,14 +10,15 @@ struct ClaudeOAuthCredentials: Equatable {
 
 enum KeychainManager {
     private static let claudeCodeService = "Claude Code-credentials"
+    private static let configDirHashLength = 8
     private static let notchiService = "com.ruban.notchi"
     private static let anthropicApiKeyAccount = "anthropicApiKey"
     private static let openAIApiKeyAccount = "openAIApiKey"
     private static let recentCredentialCacheTTL: TimeInterval = 5
     private static let securityCLIBackoffInterval: TimeInterval = 60
     private static let credentialReadLock = NSLock()
-    private nonisolated(unsafe) static var recentCredentialCacheEntry: ClaudeCredentialCacheEntry?
-    private nonisolated(unsafe) static var lastSecurityCLIFailureAt: Date?
+    private nonisolated(unsafe) static var recentCredentialCacheEntries: [String: ClaudeCredentialCacheEntry] = [:]
+    private nonisolated(unsafe) static var lastSecurityCLIFailureAt: [String: Date] = [:]
     private static let isoFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -36,11 +38,21 @@ enum KeychainManager {
     private nonisolated(unsafe) static var taskNowOverride: (() -> Date)?
     #endif
 
-    static func refreshAccessTokenSilently() -> String? {
-        guard let credentials = getOAuthCredentials(allowInteraction: false) else {
+    /// The keychain item Claude Code keeps an account's login in. Like Claude Code, this hashes the
+    /// `CLAUDE_CONFIG_DIR` value as set apart from NFC normalization, so a trailing slash names another
+    /// login; unset or empty is the default account.
+    static func claudeCredentialsService(forConfigDir configDir: String?) -> String {
+        guard let configDir, !configDir.isEmpty else { return claudeCodeService }
+        let digest = SHA256.hash(data: Data(configDir.precomposedStringWithCanonicalMapping.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "\(claudeCodeService)-\(hex.prefix(configDirHashLength))"
+    }
+
+    static func refreshAccessTokenSilently(service: String = claudeCodeService) -> String? {
+        guard let credentials = getOAuthCredentials(service: service, allowInteraction: false) else {
             return nil
         }
-        cacheOAuthToken(credentials.accessToken)
+        cacheOAuthToken(credentials.accessToken, service: service)
         return credentials.accessToken
     }
 
@@ -84,49 +96,52 @@ enum KeychainManager {
     // signature changes (every update or rebuild). A fresh launch re-reads Claude Code's own item
     // through /usr/bin/security, which doesn't prompt.
     private static let cachedTokenLock = NSLock()
-    private nonisolated(unsafe) static var cachedToken: String?
+    private nonisolated(unsafe) static var cachedTokens: [String: String] = [:]
 
-    static func getCachedOAuthToken(allowInteraction: Bool = false) -> String? {
-        cachedTokenLock.withLock { cachedToken }
+    static func getCachedOAuthToken(service: String = claudeCodeService, allowInteraction: Bool = false) -> String? {
+        cachedTokenLock.withLock { cachedTokens[service] }
     }
 
-    static func cacheOAuthToken(_ token: String) {
-        cachedTokenLock.withLock { cachedToken = token }
+    static func cacheOAuthToken(_ token: String, service: String = claudeCodeService) {
+        cachedTokenLock.withLock { cachedTokens[service] = token }
     }
 
-    static func clearCachedOAuthToken() {
-        cachedTokenLock.withLock { cachedToken = nil }
+    static func clearCachedOAuthToken(service: String = claudeCodeService) {
+        cachedTokenLock.withLock { cachedTokens[service] = nil }
     }
 
     // MARK: - Claude Code Credentials
 
-    static func getOAuthCredentials(allowInteraction: Bool) -> ClaudeOAuthCredentials? {
+    static func getOAuthCredentials(
+        service: String = claudeCodeService,
+        allowInteraction: Bool
+    ) -> ClaudeOAuthCredentials? {
         let now = currentDate()
-        if let cached = recentCredentialCache(at: now) {
+        if let cached = recentCredentialCache(for: service, at: now) {
             return cached.credentials
         }
 
         // Primary: /usr/bin/security CLI (avoids ACL dialog)
-        if shouldAttemptSecurityCLI(at: now) {
-            if let json = readClaudeCodeKeychainViaCLI(),
+        if shouldAttemptSecurityCLI(service: service, at: now) {
+            if let json = readClaudeCodeKeychainViaCLI(service: service),
                let credentials = decodeClaudeOAuthCredentials(from: json) {
-                cacheRecentCredential(credentials, source: "/usr/bin/security CLI", at: now)
-                clearSecurityCLIBackoff()
+                cacheRecentCredential(credentials, for: service, source: "/usr/bin/security CLI", at: now)
+                clearSecurityCLIBackoff(service: service)
                 return credentials
             }
-            recordSecurityCLIFailure(at: now)
+            recordSecurityCLIFailure(service: service, at: now)
         }
 
         // Fallback: Security.framework using the caller's interaction policy.
-        guard let json = readClaudeCodeKeychain(allowInteraction: allowInteraction),
+        guard let json = readClaudeCodeKeychain(service: service, allowInteraction: allowInteraction),
               let credentials = decodeClaudeOAuthCredentials(from: json) else {
             return nil
         }
-        cacheRecentCredential(credentials, source: "Security.framework", at: now)
+        cacheRecentCredential(credentials, for: service, source: "Security.framework", at: now)
         return credentials
     }
 
-    private static func readClaudeCodeKeychainViaCLI() -> [String: Any]? {
+    private static func readClaudeCodeKeychainViaCLI(service: String) -> [String: Any]? {
         #if DEBUG
         if let override = taskSecurityCLIReadOverride {
             return override()
@@ -135,7 +150,7 @@ enum KeychainManager {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", claudeCodeService, "-w"]
+        process.arguments = ["find-generic-password", "-s", service, "-w"]
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -162,7 +177,7 @@ enum KeychainManager {
         return json
     }
 
-    private static func readClaudeCodeKeychain(allowInteraction: Bool) -> [String: Any]? {
+    private static func readClaudeCodeKeychain(service: String, allowInteraction: Bool) -> [String: Any]? {
         #if DEBUG
         if let override = taskSecurityFrameworkReadOverride {
             return override(allowInteraction)
@@ -171,7 +186,7 @@ enum KeychainManager {
 
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: claudeCodeService,
+            kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -192,25 +207,30 @@ enum KeychainManager {
         return json
     }
 
-    private static func recentCredentialCache(at now: Date) -> ClaudeCredentialCacheEntry? {
+    private static func recentCredentialCache(for service: String, at now: Date) -> ClaudeCredentialCacheEntry? {
         credentialReadLock.lock()
         defer { credentialReadLock.unlock() }
 
-        guard let entry = recentCredentialCacheEntry else {
+        guard let entry = recentCredentialCacheEntries[service] else {
             return nil
         }
 
         guard now.timeIntervalSince(entry.resolvedAt) <= recentCredentialCacheTTL else {
-            recentCredentialCacheEntry = nil
+            recentCredentialCacheEntries[service] = nil
             return nil
         }
 
         return entry
     }
 
-    private static func cacheRecentCredential(_ credentials: ClaudeOAuthCredentials, source: String, at now: Date) {
+    private static func cacheRecentCredential(
+        _ credentials: ClaudeOAuthCredentials,
+        for service: String,
+        source: String,
+        at now: Date
+    ) {
         credentialReadLock.lock()
-        recentCredentialCacheEntry = ClaudeCredentialCacheEntry(
+        recentCredentialCacheEntries[service] = ClaudeCredentialCacheEntry(
             credentials: credentials,
             resolvedAt: now,
             source: source
@@ -218,31 +238,32 @@ enum KeychainManager {
         credentialReadLock.unlock()
     }
 
-    private static func shouldAttemptSecurityCLI(at now: Date) -> Bool {
+    // Per login, so one account's missing item doesn't skip the prompt-free CLI read for the others.
+    private static func shouldAttemptSecurityCLI(service: String, at now: Date) -> Bool {
         credentialReadLock.lock()
         defer { credentialReadLock.unlock() }
 
-        guard let lastFailure = lastSecurityCLIFailureAt else {
+        guard let lastFailure = lastSecurityCLIFailureAt[service] else {
             return true
         }
 
         if now.timeIntervalSince(lastFailure) >= securityCLIBackoffInterval {
-            lastSecurityCLIFailureAt = nil
+            lastSecurityCLIFailureAt[service] = nil
             return true
         }
 
         return false
     }
 
-    private static func recordSecurityCLIFailure(at now: Date) {
+    private static func recordSecurityCLIFailure(service: String, at now: Date) {
         credentialReadLock.lock()
-        lastSecurityCLIFailureAt = now
+        lastSecurityCLIFailureAt[service] = now
         credentialReadLock.unlock()
     }
 
-    private static func clearSecurityCLIBackoff() {
+    private static func clearSecurityCLIBackoff(service: String) {
         credentialReadLock.lock()
-        lastSecurityCLIFailureAt = nil
+        lastSecurityCLIFailureAt[service] = nil
         credentialReadLock.unlock()
     }
 
@@ -272,10 +293,10 @@ enum KeychainManager {
 
     static func _resetCredentialResolutionStateForTesting() {
         keychainWritesForTesting = 0
-        clearCachedOAuthToken()
+        cachedTokenLock.withLock { cachedTokens = [:] }
         credentialReadLock.lock()
-        recentCredentialCacheEntry = nil
-        lastSecurityCLIFailureAt = nil
+        recentCredentialCacheEntries = [:]
+        lastSecurityCLIFailureAt = [:]
         credentialReadLock.unlock()
         taskSecurityCLIReadOverride = nil
         taskSecurityFrameworkReadOverride = nil

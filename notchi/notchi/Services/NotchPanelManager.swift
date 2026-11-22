@@ -93,7 +93,7 @@ final class NotchPanelManager {
             return NotchContentView.collapsedRingPercentage(
                 isUsageEnabled: AppSettings.isUsageEnabled,
                 provider: AppSettings.lastUsedAgentProvider,
-                claudeUsage: ClaudeUsageService.shared.currentUsage,
+                claudeUsage: (ClaudeUsageServices.shared.service(forSession: nil) ?? ClaudeUsageService.shared).currentUsage,
                 codexSessionUsage: CodexUsageService.shared.currentUsage,
                 codexWeeklyUsage: CodexUsageService.shared.currentWeeklyUsage,
                 devinDailyUsage: DevinUsageService.shared.currentUsage,

@@ -3,6 +3,9 @@ import AppKit
 @MainActor
 @Observable
 final class DevinUsageService {
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
     static let shared = DevinUsageService()
 
     var currentUsage: QuotaPeriod?

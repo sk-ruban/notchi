@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 
@@ -12,6 +13,7 @@ final class ClaudeAccountStore {
     }()
 
     private(set) var accounts: [ClaudeAccount] = []
+    private(set) var mostRecentlyActiveAccountKey: String?
 
     nonisolated private static let preferencesKey = "claudeAccountPreferences"
     nonisolated private static let accountsWithNotchiKey = "claudeAccountsWithNotchi"
@@ -29,10 +31,14 @@ final class ClaudeAccountStore {
     private let hasNotchiHooks: (URL) -> Bool
     private let addHooks: (URL) -> Bool
     private let removeHooks: (URL) -> Void
+    private let accountsDidChange: @MainActor ([ClaudeUsageAccount]) -> Void
     private var sessionDirectories: Set<String> = []
     private var accountsByKey: [String: ClaudeAccount] = [:]
     private var keysBySessionPath: [String: String] = [:]
     private var accountKeysWithSessions: Set<String> = []
+    private var reportedConfigDirs: [String: String?] = [:]
+    // Views look this up on every render; it only changes when preferences are saved.
+    @ObservationIgnored private var usageAccountsByKey: [String: ClaudeUsageAccount] = [:]
 
     init(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -42,7 +48,8 @@ final class ClaudeAccountStore {
         removeSharedScript: @escaping () -> Void = { HookInstaller.removeSharedScript() },
         hasNotchiHooks: @escaping (URL) -> Bool = { HookInstaller.isHookInstalled(inAccount: $0) },
         addHooks: @escaping (URL) -> Bool = { HookInstaller.addHooks(toAccount: $0) },
-        removeHooks: @escaping (URL) -> Void = { HookInstaller.removeHooks(fromAccount: $0) }
+        removeHooks: @escaping (URL) -> Void = { HookInstaller.removeHooks(fromAccount: $0) },
+        accountsDidChange: @escaping @MainActor ([ClaudeUsageAccount]) -> Void = { ClaudeUsageServices.shared.sync(with: $0) }
     ) {
         self.home = home
         self.defaultDirectory = defaultDirectory
@@ -52,6 +59,7 @@ final class ClaudeAccountStore {
         self.hasNotchiHooks = hasNotchiHooks
         self.addHooks = addHooks
         self.removeHooks = removeHooks
+        self.accountsDidChange = accountsDidChange
     }
 
     // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
@@ -100,6 +108,32 @@ final class ClaudeAccountStore {
             )
         }
         accountsByKey = Dictionary(uniqueKeysWithValues: accounts.map { ($0.key, $0) })
+        accountsDidChange(accounts.filter(\.isNotchiEnabled).map(usageAccount(for:)))
+    }
+
+    var mostRecentlyActiveAccount: ClaudeAccount? {
+        mostRecentlyActiveAccountKey.flatMap { accountsByKey[$0] }
+    }
+
+    /// The Claude Code login an account's usage is read from, and where its usage state is kept.
+    func usageAccount(for account: ClaudeAccount) -> ClaudeUsageAccount {
+        if let cached = usageAccountsByKey[account.key] { return cached }
+        let usageAccount = resolvedUsageAccount(for: account)
+        usageAccountsByKey[account.key] = usageAccount
+        return usageAccount
+    }
+
+    private func resolvedUsageAccount(for account: ClaudeAccount) -> ClaudeUsageAccount {
+        // Before its first session, a non-default account is assumed to be set the way it's spelled on disk.
+        let configDir = Self.preferences(in: defaults)[account.key]?.configDir
+            ?? (account.isDefault ? nil : account.directory.path)
+        // Only the default login keeps the original state keys, which the shared usage service also uses.
+        guard let configDir else { return .default }
+        return ClaudeUsageAccount(
+            credentialsService: KeychainManager.claudeCredentialsService(forConfigDir: configDir),
+            // Each login keeps its own saved quota, so a respelled folder doesn't restore another login's backoff.
+            storageSuffix: Self.storageSuffix(for: account.key + "\n" + configDir)
+        )
     }
 
     /// The account a session belongs to; sessions without a known directory belong to the default one.
@@ -108,15 +142,32 @@ final class ClaudeAccountStore {
         return accountsByKey[sessionKey(for: directory)]
     }
 
-    /// Adds an account a session came from that discovery missed, e.g. a config dir outside `~`, and
-    /// rechecks a known one on its first session, since its hooks may have changed since the last refresh.
-    func noteSessionDirectory(_ directory: URL?) {
-        guard let directory, accountKeysWithSessions.insert(sessionKey(for: directory)).inserted else { return }
-        if account(forSessionDirectory: directory) == nil {
+    /// Called for every Claude hook event. Tracks the most recent account and the `CLAUDE_CONFIG_DIR`
+    /// its sessions report; on an account's first session it also adds an account discovery missed
+    /// (e.g. a config dir outside `~`) and rechecks its hooks, which may have changed since the last refresh.
+    func noteSession(directory: URL?, rawConfigDir: String?) {
+        guard let directory else {
+            let defaultKey = accounts.first(where: \.isDefault)?.key
+            if mostRecentlyActiveAccountKey != defaultKey { mostRecentlyActiveAccountKey = defaultKey }
+            return
+        }
+        let key = sessionKey(for: directory)
+        if mostRecentlyActiveAccountKey != key { mostRecentlyActiveAccountKey = key }
+        // The same folder can be launched with a different spelling, which names a different login.
+        guard reportedConfigDirs[key] != .some(rawConfigDir) else { return }
+        reportedConfigDirs[key] = .some(rawConfigDir)
+        let isFirstSession = accountKeysWithSessions.insert(key).inserted
+
+        if isFirstSession, account(forSessionDirectory: directory) == nil {
             sessionDirectories.insert(directory.path)
         }
+        var preferences = Self.preferences(in: defaults)
+        if preferences[key]?.configDir != rawConfigDir {
+            preferences[key, default: ClaudeAccountPreference()].configDir = rawConfigDir
+            save(preferences)
+        }
         refresh()
-        if account(forSessionDirectory: directory)?.isNotchiEnabled == true {
+        if isFirstSession, account(forSessionDirectory: directory)?.isNotchiEnabled == true {
             Self.rememberAccountsWithNotchi([directory], in: defaults)
         }
     }
@@ -176,6 +227,12 @@ final class ClaudeAccountStore {
         return accountDirectoriesWithNotchi(in: defaults)
     }
 
+    /// Whether an account other than `directory` runs notchi, as of the last switch or launch.
+    nonisolated static func hasAccountsWithNotchi(besides directory: URL, in defaults: UserDefaults = .standard) -> Bool {
+        let excludedKey = key(for: directory)
+        return (defaults.stringArray(forKey: accountsWithNotchiKey) ?? []).contains { $0 != excludedKey }
+    }
+
     nonisolated static func preferences(in defaults: UserDefaults = .standard) -> [String: ClaudeAccountPreference] {
         guard let data = defaults.data(forKey: preferencesKey) else { return [:] }
         return (try? JSONDecoder().decode([String: ClaudeAccountPreference].self, from: data)) ?? [:]
@@ -207,6 +264,13 @@ final class ClaudeAccountStore {
             }
     }
 
+    nonisolated private static let storageSuffixLength = 8
+
+    nonisolated private static func storageSuffix(for key: String) -> String {
+        let digest = SHA256.hash(data: Data(key.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined().prefix(storageSuffixLength).description
+    }
+
     // Resolving symlinks touches the disk, and this runs for every hook event.
     private func sessionKey(for directory: URL) -> String {
         if let key = keysBySessionPath[directory.path] { return key }
@@ -217,6 +281,7 @@ final class ClaudeAccountStore {
 
     private func save(_ preferences: [String: ClaudeAccountPreference]) {
         defaults.set(try? JSONEncoder().encode(preferences), forKey: Self.preferencesKey)
+        usageAccountsByKey = [:]
     }
 
     private func updatePreference(for account: ClaudeAccount, _ change: (inout ClaudeAccountPreference) -> Void) {

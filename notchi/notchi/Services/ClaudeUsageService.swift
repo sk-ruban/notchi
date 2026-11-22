@@ -55,6 +55,11 @@ struct ClaudeUsageServiceDependencies {
     var pollJitter: () -> Double
     var now: () -> Date
     var schedulePoll: @MainActor (TimeInterval, @escaping () -> Void) -> any ClaudeUsagePollTimer
+    // Per account, so one account's failed login can't switch the others' usage off.
+    var isUsageEnabled: () -> Bool = { AppSettings.isUsageEnabled }
+    var setUsageEnabled: (Bool) -> Void = { AppSettings.isUsageEnabled = $0 }
+    var loadExtraUsageObservation: () -> ClaudeExtraUsageObservation? = { AppSettings.claudeExtraUsageObservation }
+    var saveExtraUsageObservation: (ClaudeExtraUsageObservation?) -> Void = { AppSettings.claudeExtraUsageObservation = $0 }
 }
 
 private struct LivePollTimer: ClaudeUsagePollTimer {
@@ -633,63 +638,145 @@ private struct ClaudeUsageAccessTokenResolution {
     let credentials: ClaudeOAuthCredentials?
 }
 
-extension ClaudeUsageServiceDependencies {
-    static let live = Self(
-        fetchUsage: { request in
-            try await URLSession.shared.data(for: request)
-        },
-        getOAuthTokenFromEnvironment: {
-            let rawToken = ProcessInfo.processInfo.environment["CLAUDE_CODE_OAUTH_TOKEN"]?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let rawToken, !rawToken.isEmpty else {
-                return nil
-            }
-            return rawToken
-        },
-        getCachedOAuthToken: { allowInteraction in
-            KeychainManager.getCachedOAuthToken(allowInteraction: allowInteraction)
-        },
-        getOAuthCredentials: { allowInteraction in
-            KeychainManager.getOAuthCredentials(allowInteraction: allowInteraction)
-        },
-        cacheOAuthToken: { token in
-            KeychainManager.cacheOAuthToken(token)
-        },
-        refreshAccessTokenSilently: {
-            KeychainManager.refreshAccessTokenSilently()
-        },
-        clearCachedOAuthToken: {
-            KeychainManager.clearCachedOAuthToken()
-        },
-        loadRecoverySnapshot: {
-            AppSettings.claudeUsageRecoverySnapshot
-        },
-        saveRecoverySnapshot: { snapshot in
-            AppSettings.claudeUsageRecoverySnapshot = snapshot
-        },
-        clearRecoverySnapshot: {
-            AppSettings.claudeUsageRecoverySnapshot = nil
-        },
-        resolveUserAgent: {
-            // WHY: the resolver can block for seconds on shell/CLI probes, so
-            // run it off the main actor that ClaudeUsageService lives on.
-            await Task.detached(priority: .utility) {
-                ClaudeCLIResolver.resolveUserAgent()
-            }.value
-        },
-        pollJitter: {
-            Double.random(in: -2...2)
-        },
-        now: {
-            Date()
-        },
-        schedulePoll: { interval, handler in
-            let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { _ in
-                handler()
-            }
-            return LivePollTimer(timer: timer)
-        }
+/// Which Claude Code login a usage service reads, and where it keeps its saved state.
+struct ClaudeUsageAccount: Hashable, Sendable {
+    let credentialsService: String
+    /// Nil for the default account, which keeps the original settings keys.
+    let storageSuffix: String?
+
+    static let `default` = ClaudeUsageAccount(
+        credentialsService: KeychainManager.claudeCredentialsService(forConfigDir: nil),
+        storageSuffix: nil
     )
+}
+
+extension ClaudeUsageServiceDependencies {
+    static var live: Self { live(for: .default) }
+
+    nonisolated private static let recoverySnapshotKey = "claudeUsageRecoverySnapshot"
+    nonisolated private static let extraUsageObservationKey = "claudeExtraUsageObservation"
+    nonisolated private static let usageDisabledAccountsKey = "claudeUsageDisabledAccounts"
+    nonisolated private static let defaultAccountDisabledKey = "default"
+
+    static func live(
+        for account: ClaudeUsageAccount,
+        defaults: UserDefaults = .standard,
+        isGlobalUsageEnabled: @escaping () -> Bool = { AppSettings.isUsageEnabled },
+        setGlobalUsageEnabled: @escaping (Bool) -> Void = { AppSettings.isUsageEnabled = $0 },
+        hasOtherAccountsWithNotchi: @escaping () -> Bool = {
+            ClaudeAccountStore.hasAccountsWithNotchi(besides: ClaudeConfigDirectoryResolver.resolveWithoutProbing())
+        }
+    ) -> Self {
+        let service = account.credentialsService
+        let snapshotKey = storageKey(recoverySnapshotKey, for: account)
+        let observationKey = storageKey(extraUsageObservationKey, for: account)
+
+        var dependencies = Self(
+            fetchUsage: { request in
+                try await URLSession.shared.data(for: request)
+            },
+            getOAuthTokenFromEnvironment: {
+                // An environment token belongs to whichever login started notchi, i.e. the default account.
+                guard account.storageSuffix == nil else { return nil }
+                let rawToken = ProcessInfo.processInfo.environment["CLAUDE_CODE_OAUTH_TOKEN"]?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let rawToken, !rawToken.isEmpty else {
+                    return nil
+                }
+                return rawToken
+            },
+            getCachedOAuthToken: { allowInteraction in
+                KeychainManager.getCachedOAuthToken(service: service, allowInteraction: allowInteraction)
+            },
+            getOAuthCredentials: { allowInteraction in
+                KeychainManager.getOAuthCredentials(service: service, allowInteraction: allowInteraction)
+            },
+            cacheOAuthToken: { token in
+                KeychainManager.cacheOAuthToken(token, service: service)
+            },
+            refreshAccessTokenSilently: {
+                KeychainManager.refreshAccessTokenSilently(service: service)
+            },
+            clearCachedOAuthToken: {
+                KeychainManager.clearCachedOAuthToken(service: service)
+            },
+            loadRecoverySnapshot: {
+                decoded(ClaudeUsageRecoverySnapshot.self, forKey: snapshotKey, in: defaults)
+            },
+            saveRecoverySnapshot: { snapshot in
+                store(snapshot, forKey: snapshotKey, in: defaults)
+            },
+            clearRecoverySnapshot: {
+                defaults.removeObject(forKey: snapshotKey)
+            },
+            resolveUserAgent: {
+                // WHY: the resolver can block for seconds on shell/CLI probes, so
+                // run it off the main actor that ClaudeUsageService lives on.
+                await Task.detached(priority: .utility) {
+                    ClaudeCLIResolver.resolveUserAgent()
+                }.value
+            },
+            pollJitter: {
+                Double.random(in: -2...2)
+            },
+            now: {
+                Date()
+            },
+            schedulePoll: { interval, handler in
+                let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { _ in
+                    handler()
+                }
+                return LivePollTimer(timer: timer)
+            }
+        )
+        dependencies.loadExtraUsageObservation = {
+            decoded(ClaudeExtraUsageObservation.self, forKey: observationKey, in: defaults)
+        }
+        dependencies.saveExtraUsageObservation = { observation in
+            store(observation, forKey: observationKey, in: defaults)
+        }
+
+        // Connecting usage is one switch for every account; a failing login only turns its own account off,
+        // and the switch itself only when no other account could still show usage.
+        let disabledKey = account.storageSuffix ?? defaultAccountDisabledKey
+        let disabledAccounts = { Set(defaults.stringArray(forKey: usageDisabledAccountsKey) ?? []) }
+        dependencies.isUsageEnabled = {
+            isGlobalUsageEnabled() && !disabledAccounts().contains(disabledKey)
+        }
+        dependencies.setUsageEnabled = { enabled in
+            var disabled = disabledAccounts()
+            if enabled { disabled.remove(disabledKey) } else { disabled.insert(disabledKey) }
+            defaults.set(disabled.sorted(), forKey: usageDisabledAccountsKey)
+            guard account.storageSuffix == nil else { return }
+            if enabled {
+                setGlobalUsageEnabled(true)
+            } else if !hasOtherAccountsWithNotchi() {
+                setGlobalUsageEnabled(false)
+            }
+        }
+        return dependencies
+    }
+
+    nonisolated private static func storageKey(_ base: String, for account: ClaudeUsageAccount) -> String {
+        account.storageSuffix.map { "\(base)-\($0)" } ?? base
+    }
+
+    nonisolated private static func decoded<Value: Decodable>(
+        _ type: Value.Type,
+        forKey key: String,
+        in defaults: UserDefaults
+    ) -> Value? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    nonisolated private static func store<Value: Encodable>(_ value: Value?, forKey key: String, in defaults: UserDefaults) {
+        if let value, let data = try? JSONEncoder().encode(value) {
+            defaults.set(data, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
 }
 
 @MainActor @Observable
@@ -758,8 +845,16 @@ final class ClaudeUsageService {
         self.dependencies = dependencies
     }
 
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
+    /// Whether this account's usage is on: the usage switch, minus an account whose login failed.
+    var isUsageEnabled: Bool {
+        dependencies.isUsageEnabled()
+    }
+
     func connectAndStartPolling() {
-        AppSettings.isUsageEnabled = true
+        dependencies.setUsageEnabled(true)
         clearTransientState()
         clearOAuthBackoffState()
         restorePersistedExtraUsageObservationIfNeeded()
@@ -776,7 +871,7 @@ final class ClaudeUsageService {
                 if currentUsage != nil {
                     scheduleSelfHealRetry()
                 } else {
-                    AppSettings.isUsageEnabled = false
+                    dependencies.setUsageEnabled(false)
                 }
                 return
             }
@@ -791,7 +886,7 @@ final class ClaudeUsageService {
     }
 
     func handleClaudeResumeTrigger(_ trigger: ClaudeUsageResumeTrigger) {
-        guard AppSettings.isUsageEnabled else {
+        guard dependencies.isUsageEnabled() else {
             return
         }
 
@@ -835,13 +930,13 @@ final class ClaudeUsageService {
                     presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
                     scheduleSelfHealRetry()
                 } else {
-                    AppSettings.isUsageEnabled = false
+                    dependencies.setUsageEnabled(false)
                     clearTransientState()
                 }
                 return
             }
 
-            AppSettings.isUsageEnabled = true
+            dependencies.setUsageEnabled(true)
             cachedToken = resolution.token
 
             restorePersistedExtraUsageObservationIfNeeded()
@@ -981,7 +1076,7 @@ final class ClaudeUsageService {
     }
 
     private func scheduleSelfHealRetry() {
-        guard AppSettings.isUsageEnabled else { return }
+        guard dependencies.isUsageEnabled() else { return }
         selfHealRetryTimer?.invalidate()
         selfHealRetryTimer = dependencies.schedulePoll(Self.selfHealRetryInterval) { [weak self] in
             Task { @MainActor [weak self] in
@@ -992,7 +1087,7 @@ final class ClaudeUsageService {
 
     private func attemptSelfHeal() async {
         selfHealRetryTimer = nil
-        guard AppSettings.isUsageEnabled, pollTimer == nil, !isLoading else { return }
+        guard dependencies.isUsageEnabled(), pollTimer == nil, !isLoading else { return }
 
         guard let resolution = resolveStoredAccessToken(
             allowsCredentialRecovery: true,
@@ -1305,7 +1400,7 @@ final class ClaudeUsageService {
             consecutiveRateLimits = 0
             clearOAuthBackoffState()
             isConnected = true
-            AppSettings.isUsageEnabled = true
+            dependencies.setUsageEnabled(true)
             preferHeadersFallback = false
             clearTransientState()
             currentUsage = usageResponse.fiveHour
@@ -1774,7 +1869,7 @@ final class ClaudeUsageService {
     private func performDelayedResumeReconnect(trigger: ClaudeUsageResumeTrigger) {
         pendingResumeReconnectTimer = nil
 
-        guard AppSettings.isUsageEnabled else {
+        guard dependencies.isUsageEnabled() else {
             return
         }
 
@@ -1972,12 +2067,12 @@ final class ClaudeUsageService {
     }
 
     private func restorePersistedExtraUsageObservationIfNeeded() {
-        guard let observation = AppSettings.claudeExtraUsageObservation else {
+        guard let observation = dependencies.loadExtraUsageObservation() else {
             return
         }
 
         guard isExtraUsageWindowStillValid(resetMarker: observation.extraUsageResetMarker, now: dependencies.now()) else {
-            AppSettings.claudeExtraUsageObservation = nil
+            dependencies.saveExtraUsageObservation(nil)
             return
         }
 
@@ -2022,11 +2117,11 @@ final class ClaudeUsageService {
 
     private func persistExtraUsageObservationIfNeeded() {
         guard let observation = makeExtraUsageObservation() else {
-            AppSettings.claudeExtraUsageObservation = nil
+            dependencies.saveExtraUsageObservation(nil)
             return
         }
 
-        AppSettings.claudeExtraUsageObservation = observation
+        dependencies.saveExtraUsageObservation(observation)
     }
 
     private func makeExtraUsageObservation() -> ClaudeExtraUsageObservation? {
