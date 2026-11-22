@@ -34,48 +34,87 @@ struct HookInstaller {
         let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
         let claudeDir = claudeConfig.directoryURL
 
-        guard claudeConfigDirectoryExists(resolution: claudeConfig) else {
+        guard isClaudeAvailable(resolution: claudeConfig) else {
             logger.warning("Claude Code not installed (config dir not found at \(claudeDir.path, privacy: .public))")
             return false
         }
 
+        guard installSharedScript() else { return false }
+
+        let accounts = ClaudeAccountStore.accountsToInstall(
+            defaultDirectory: claudeDir,
+            migrated: migrateOtherAccounts(excluding: claudeDir)
+        )
+        var installedAny = false
+        for account in accounts where FileManager.default.fileExists(atPath: account.path) && addAccountHooks(to: account) {
+            installedAny = true
+        }
+        return installedAny
+    }
+
+    nonisolated static func removeSharedScript() {
+        try? FileManager.default.removeItem(at: sharedHookScriptURL())
+    }
+
+    /// Adds notchi to one more Claude account; the Claude hooks themselves must already be on.
+    @discardableResult
+    nonisolated static func addHooks(toAccount directory: URL) -> Bool {
+        installSharedScript() && addAccountHooks(to: directory)
+    }
+
+    nonisolated static func removeHooks(fromAccount directory: URL) {
+        try? FileManager.default.removeItem(at: legacyScriptURL(forAccount: directory))
+        pruneManagedHooks(inSettingsAt: directory.appendingPathComponent(settingsFileName))
+    }
+
+    nonisolated static func isHookInstalled(inAccount directory: URL) -> Bool {
+        isHookInstalled(in: try? Data(contentsOf: directory.appendingPathComponent(settingsFileName)))
+    }
+
+    /// Points the account's settings at the shared script and leaves the shim at its old script path.
+    @discardableResult
+    nonisolated static func addAccountHooks(to directory: URL) -> Bool {
+        let shim = legacyScriptURL(forAccount: directory)
+        do {
+            try FileManager.default.createDirectory(at: shim.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try HookFile.writeScriptIfNeeded(Data(legacyScriptShim.utf8), to: shim)
+        } catch {
+            logger.error("Failed to install hook shim: \(error.localizedDescription)")
+            return false
+        }
+        return updateSettings(at: directory.appendingPathComponent(settingsFileName)) {
+            upsertHookSettings(from: $0, command: hookCommand)
+        }
+    }
+
+    nonisolated private static func installSharedScript() -> Bool {
         guard let bundled = Bundle.main.url(forResource: "notchi-hook", withExtension: "sh"),
               let bundledData = try? Data(contentsOf: bundled) else {
             logger.error("Hook script not found in bundle")
             return false
         }
-
         let sharedScript = sharedHookScriptURL()
         do {
             try FileManager.default.createDirectory(at: sharedScript.deletingLastPathComponent(), withIntermediateDirectories: true)
             try HookFile.writeScriptIfNeeded(HookFile.installableScript(from: bundledData), to: sharedScript)
-            try FileManager.default.createDirectory(at: claudeConfig.hooksDirectoryURL, withIntermediateDirectories: true)
-            try HookFile.writeScriptIfNeeded(Data(legacyScriptShim.utf8), to: claudeConfig.hookScriptURL)
+            return true
         } catch {
             logger.error("Failed to install hook script: \(error.localizedDescription)")
             return false
         }
-
-        let installed = updateSettings(at: claudeConfig.settingsURL) { upsertHookSettings(from: $0, command: hookCommand) }
-        migrateOtherAccounts(excluding: claudeDir)
-        return installed
     }
 
     /// Switches other accounts that run notchi to the shared command, and leaves the shim at their old
-    /// script path for their sessions that started before the switch.
+    /// script path for their sessions that started before the switch. Returns those accounts.
+    @discardableResult
     nonisolated static func migrateOtherAccounts(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         excluding primaryDirectory: URL
-    ) {
-        for settings in otherAccountSettingsURLs(home: home, excluding: primaryDirectory) {
-            _ = updateSettings(at: settings) { migratedHookSettings(from: $0, command: hookCommand) }
-            let oldScript = legacyScriptURL(forAccountSettings: settings)
-            do {
-                try FileManager.default.createDirectory(at: oldScript.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try HookFile.writeScriptIfNeeded(Data(legacyScriptShim.utf8), to: oldScript)
-            } catch {
-                logger.error("Failed to install hook shim: \(error.localizedDescription)")
-            }
+    ) -> [URL] {
+        otherAccountSettingsURLs(home: home, excluding: primaryDirectory).map { settings in
+            let account = settings.deletingLastPathComponent()
+            addAccountHooks(to: account)
+            return account
         }
     }
 
@@ -84,13 +123,12 @@ struct HookInstaller {
         excluding primaryDirectory: URL
     ) {
         for settings in otherAccountSettingsURLs(home: home, excluding: primaryDirectory) {
-            try? FileManager.default.removeItem(at: legacyScriptURL(forAccountSettings: settings))
-            pruneManagedHooks(inSettingsAt: settings)
+            removeHooks(fromAccount: settings.deletingLastPathComponent())
         }
     }
 
-    nonisolated private static func legacyScriptURL(forAccountSettings settings: URL) -> URL {
-        settings.deletingLastPathComponent()
+    nonisolated private static func legacyScriptURL(forAccount directory: URL) -> URL {
+        directory
             .appendingPathComponent("hooks", isDirectory: true)
             .appendingPathComponent("notchi-hook.sh")
     }
@@ -116,12 +154,6 @@ struct HookInstaller {
             .map { $0.appendingPathComponent(settingsFileName) }
             .filter { isHookInstalled(in: try? Data(contentsOf: $0)) }
             .sorted { $0.path < $1.path }
-    }
-
-    /// Rewrites notchi's hook command in settings that already run it; nil when they don't.
-    nonisolated static func migratedHookSettings(from existingData: Data?, command: String) -> Data? {
-        guard isHookInstalled(in: existingData) else { return nil }
-        return upsertHookSettings(from: existingData, command: command)
     }
 
     /// Nil when existing settings can't be parsed, so a hand-edited file is never replaced wholesale.
@@ -252,10 +284,19 @@ struct HookInstaller {
         }
     }
 
+    /// True while any Claude account runs notchi.
     nonisolated static func isInstalled() -> Bool {
-        let settings = ClaudeConfigDirectoryResolver.resolve().settingsURL
+        let accounts = [ClaudeConfigDirectoryResolver.resolve().directoryURL]
+            + ClaudeAccountStore.accountDirectoriesWithNotchi()
+        return accounts.contains { isHookInstalled(inAccount: $0) }
+    }
 
-        return isHookInstalled(in: try? Data(contentsOf: settings))
+    /// Claude Code counts as installed when its default config dir exists or an account runs notchi.
+    nonisolated static func isClaudeAvailable(
+        resolution: ClaudeConfigDirectoryResolution = ClaudeConfigDirectoryResolver.resolve()
+    ) -> Bool {
+        claudeConfigDirectoryExists(resolution: resolution)
+            || ClaudeAccountStore.accountDirectoriesWithNotchi().contains { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     nonisolated static func claudeConfigDirectoryExists(
@@ -268,10 +309,13 @@ struct HookInstaller {
     nonisolated static func uninstall() {
         let claudeConfig = ClaudeConfigDirectoryResolver.resolve()
 
-        try? FileManager.default.removeItem(at: sharedHookScriptURL())
-        try? FileManager.default.removeItem(at: claudeConfig.hookScriptURL)
-        pruneManagedHooks(inSettingsAt: claudeConfig.settingsURL)
+        removeSharedScript()
+        removeHooks(fromAccount: claudeConfig.directoryURL)
         removeFromOtherAccounts(excluding: claudeConfig.directoryURL)
+        for account in ClaudeAccountStore.accountDirectoriesWithNotchi() {
+            removeHooks(fromAccount: account)
+        }
+        ClaudeAccountStore.forgetAccountsWithNotchi()
     }
 
     nonisolated private static func pruneManagedHooks(inSettingsAt settings: URL) {

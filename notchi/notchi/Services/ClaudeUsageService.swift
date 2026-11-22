@@ -191,6 +191,19 @@ enum ClaudeConfigDirectoryResolver {
         }
     }
 
+    /// The resolved directory without running the shell probe, for callers on the main thread:
+    /// the cached result, else `CLAUDE_CONFIG_DIR` from notchi's own environment, else `~/.claude`.
+    nonisolated static func resolveWithoutProbing() -> URL {
+        let snapshot = currentState()
+        if let cachedResolution = snapshot.cachedResolution {
+            return cachedResolution.directoryURL
+        }
+        if let path = normalize(path: snapshot.testHooks.environment()["CLAUDE_CONFIG_DIR"]) {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude", isDirectory: true)
+    }
+
     nonisolated static func resolve() -> ClaudeConfigDirectoryResolution {
         let snapshot = currentState()
         if let cachedResolution = snapshot.cachedResolution {

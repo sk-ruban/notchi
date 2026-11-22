@@ -14,7 +14,7 @@ struct ClaudeProviderAdapter: AgentProviderAdapter {
     }
 
     nonisolated func isProviderAvailable() -> Bool {
-        HookInstaller.claudeConfigDirectoryExists()
+        HookInstaller.isClaudeAvailable()
     }
 
     nonisolated func isInstalled() -> Bool {

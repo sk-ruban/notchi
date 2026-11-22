@@ -28,18 +28,40 @@ struct SettingsStatusBadge: View {
 }
 
 struct SettingsRowView<Trailing: View>: View {
-    let icon: String
+    private enum Icon {
+        case symbol(String)
+        /// A template image in the asset catalog, for icons SF Symbols doesn't have.
+        case asset(String)
+    }
+
+    private let icon: Icon
     let title: LocalizedStringKey
     @ViewBuilder let trailing: () -> Trailing
 
     @Environment(\.panelScale) private var panelScale
 
+    private static var iconSize: CGFloat { 12 }
+    // SF Symbols at a 12pt font draw about 16pt wide, so an image icon needs a bigger box to match them.
+    private static var assetIconSize: CGFloat { 16 }
+    private static var iconColumnWidth: CGFloat { 20 }
+
+    init(icon: String, title: LocalizedStringKey, @ViewBuilder trailing: @escaping () -> Trailing) {
+        self.icon = .symbol(icon)
+        self.title = title
+        self.trailing = trailing
+    }
+
+    init(assetIcon: String, title: LocalizedStringKey, @ViewBuilder trailing: @escaping () -> Trailing) {
+        self.icon = .asset(assetIcon)
+        self.title = title
+        self.trailing = trailing
+    }
+
     var body: some View {
         HStack {
-            Image(systemName: icon)
-                .panelIcon(size: 12)
+            iconView
                 .foregroundColor(TerminalColors.secondaryText)
-                .frame(width: 20 * panelScale)
+                .frame(width: Self.iconColumnWidth * panelScale)
 
             Text(title)
                 .panelFont(size: 12)
@@ -51,6 +73,21 @@ struct SettingsRowView<Trailing: View>: View {
         }
         .padding(.vertical, SettingsLayout.rowVerticalPadding)
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        switch icon {
+        case .symbol(let name):
+            Image(systemName: name)
+                .panelIcon(size: Self.iconSize)
+        case .asset(let name):
+            Image(name)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: Self.assetIconSize * panelScale, height: Self.assetIconSize * panelScale)
+        }
     }
 }
 

@@ -242,20 +242,6 @@ final class HookInstallerTests: XCTestCase {
         return stop.flatMap { ($0["hooks"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String } }
     }
 
-    func testMigratingCopiedAccountSettingsSwitchesToTheSharedCommand() throws {
-        let copied = try settings(withCommand: Self.legacyAccountRelativeCommand)
-
-        let migrated = try XCTUnwrap(HookInstaller.migratedHookSettings(from: copied, command: HookInstaller.hookCommand))
-
-        XCTAssertEqual(try stopCommands(in: migrated), [HookInstaller.hookCommand])
-    }
-
-    func testMigratingSettingsWithoutNotchiHooksLeavesThemAlone() throws {
-        let unrelated = try settings(withCommand: "echo other")
-
-        XCTAssertNil(HookInstaller.migratedHookSettings(from: unrelated, command: HookInstaller.hookCommand))
-    }
-
     func testOnlyOtherClaudeAccountsThatRunNotchiAreMigrated() throws {
         let home = try makeHome()
         let fileManager = FileManager.default
@@ -326,6 +312,55 @@ final class HookInstallerTests: XCTestCase {
         HookInstaller.removeFromOtherAccounts(home: home, excluding: home.appendingPathComponent(".claude"))
 
         XCTAssertFalse(HookInstaller.isHookInstalled(in: try Data(contentsOf: personal.appendingPathComponent("settings.json"))))
+    }
+
+    func testAddingAccountHooksSetsTheSharedCommand() throws {
+        let home = try makeHome()
+        let work = home.appendingPathComponent(".claude-work", isDirectory: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+
+        XCTAssertTrue(HookInstaller.addAccountHooks(to: work))
+
+        XCTAssertEqual(
+            try stopCommands(in: Data(contentsOf: work.appendingPathComponent("settings.json"))),
+            [HookInstaller.hookCommand]
+        )
+    }
+
+    func testAddingAccountHooksLeavesTheShimAtItsOldScriptPath() throws {
+        let home = try makeHome()
+        let work = home.appendingPathComponent(".claude-work", isDirectory: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+
+        HookInstaller.addAccountHooks(to: work)
+
+        XCTAssertEqual(
+            try String(contentsOf: work.appendingPathComponent("hooks/notchi-hook.sh"), encoding: .utf8),
+            HookInstaller.legacyScriptShim
+        )
+    }
+
+    func testRemovingAccountHooksLeavesItsOtherSettings() throws {
+        let home = try makeHome()
+        let personal = try personalAccount(in: home)
+        HookInstaller.addAccountHooks(to: personal)
+
+        HookInstaller.removeHooks(fromAccount: personal)
+
+        let json = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: personal.appendingPathComponent("settings.json"))) as? [String: Any]
+        )
+        XCTAssertEqual(json["theme"] as? String, "dark")
+    }
+
+    func testRemovingAccountHooksTakesNotchiOutOfItsSettings() throws {
+        let home = try makeHome()
+        let personal = try personalAccount(in: home)
+        HookInstaller.addAccountHooks(to: personal)
+
+        HookInstaller.removeHooks(fromAccount: personal)
+
+        XCTAssertFalse(HookInstaller.isHookInstalled(inAccount: personal))
     }
 
     func testSymlinkedClaudeAccountDirectoryIsMigrated() throws {

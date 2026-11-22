@@ -64,6 +64,7 @@ struct PanelSettingsView: View {
     @State private var codexHooksEnabled = AppSettings.areHooksEnabled(for: .codex)
     @State private var devinHooksEnabled = AppSettings.areHooksEnabled(for: .devin)
     @State private var areHooksExpanded = false
+    @State private var failedAccountKeys: Set<String> = []
     @State private var codexSetup: CodexHookSetup?
     @State private var isCheckingCodex = false
     @State private var codexCheckRevision = 0
@@ -121,6 +122,8 @@ struct PanelSettingsView: View {
             SettingsAppearanceView()
         case .emotionAnalysis:
             EmotionAnalysisSettingsView()
+        case .claudeAccount(let id):
+            ClaudeAccountSettingsView(accountId: id)
         }
     }
 
@@ -159,7 +162,7 @@ struct PanelSettingsView: View {
     private var integrationsSection: some View {
         VStack(alignment: .leading, spacing: SettingsLayout.sectionSpacing) {
             Button(action: toggleHooksExpanded) {
-                SettingsRowView(icon: "terminal", title: "Agent Hooks") {
+                SettingsRowView(assetIcon: "ProvidersBot", title: "Providers") {
                     HStack(spacing: 6) {
                         if !areHooksExpanded {
                             let status = hooksSummaryStatus()
@@ -191,7 +194,9 @@ struct PanelSettingsView: View {
 
     private var hooksProviderList: some View {
         VStack(alignment: .leading, spacing: 4) {
-            hookProviderRow(for: .claude, status: claudeHooksStatus)
+            ForEach(ClaudeAccountStore.shared.accounts) { account in
+                claudeAccountRow(account)
+            }
             hookProviderRow(for: .codex, status: codexHooksStatus)
             if codexHooksStatus == .installed, codexSetup?.readiness != .approved {
                 CodexHookSetupView(
@@ -209,24 +214,113 @@ struct PanelSettingsView: View {
     }
 
     private func hookProviderRow(for provider: AgentProvider, status: AgentHookInstallStatus) -> some View {
-        Button(action: { toggleHooks(for: provider) }) {
-            HStack(spacing: 8) {
-                Text(provider.displayName)
-                    .panelFont(size: 11)
-                    .foregroundColor(TerminalColors.primaryText)
+        providerRow(
+            dotColor: provider.accentColor,
+            title: provider.displayName,
+            detail: nil,
+            badge: provider == .codex && status == .installed ? codexSetupBadge() : hookProviderStatus(status),
+            isOn: hooksEnabled(for: provider),
+            isAvailable: status != .providerUnavailable,
+            toggle: { toggleHooks(for: provider) },
+            open: nil
+        )
+    }
 
-                Spacer()
-
-                statusBadge(provider == .codex && status == .installed ? codexSetupBadge() : hookProviderStatus(status))
-
-                ToggleSwitch(isOn: hooksEnabled(for: provider))
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .contentShape(Rectangle())
+    /// Each Claude config folder is its own provider entry, like Codex and Devin.
+    private func claudeAccountRow(_ account: ClaudeAccount) -> some View {
+        let isAvailable = FileManager.default.fileExists(atPath: account.directory.path)
+        let status: AgentHookInstallStatus = if !isAvailable {
+            .providerUnavailable
+        } else if failedAccountKeys.contains(account.key) {
+            .failed
+        } else {
+            account.isNotchiEnabled ? .installed : .disabled
         }
-        .buttonStyle(.plain)
-        .disabled(status == .providerUnavailable)
+        return providerRow(
+            dotColor: account.color.color,
+            title: AgentProvider.claude.displayName,
+            detail: ClaudeAccountStore.shared.accounts.count > 1 ? account.name : nil,
+            badge: hookProviderStatus(status),
+            isOn: account.isNotchiEnabled,
+            isAvailable: isAvailable,
+            toggle: { toggleNotchi(for: account) },
+            open: { path.append(.claudeAccount(id: account.id)) }
+        )
+    }
+
+    /// Shared layout so every provider's dot, badge, switch and chevron column line up.
+    private func providerRow(
+        dotColor: Color,
+        title: String,
+        detail: String?,
+        badge: StatusBadge,
+        isOn: Bool,
+        isAvailable: Bool,
+        toggle: @escaping () -> Void,
+        open: (() -> Void)?
+    ) -> some View {
+        HStack(spacing: 8) {
+            Button(action: toggle) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: Self.providerDotSize * SettingsLayout.scale, height: Self.providerDotSize * SettingsLayout.scale)
+
+                    HStack(spacing: 4) {
+                        Text(title)
+                            .foregroundColor(TerminalColors.primaryText)
+                        if let detail {
+                            Text(detail)
+                                .foregroundColor(TerminalColors.secondaryText)
+                        }
+                    }
+                    .panelFont(size: 11)
+                    .lineLimit(1)
+
+                    Spacer()
+
+                    statusBadge(badge)
+
+                    // A provider that isn't installed can't be on, whatever the saved preference says.
+                    ToggleSwitch(isOn: isOn && isAvailable)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!isAvailable)
+
+            Group {
+                if let open {
+                    Button(action: open) {
+                        Image(systemName: "chevron.right")
+                            .panelFont(size: 9, weight: .semibold)
+                            .foregroundColor(TerminalColors.dimmedText)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(String(localized: "Account settings"))
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: Self.providerChevronWidth * SettingsLayout.scale)
+        }
+        .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
+        .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
+    }
+
+    private static let providerDotSize: CGFloat = 8
+    private static let providerChevronWidth: CGFloat = 12
+
+    private func toggleNotchi(for account: ClaudeAccount) {
+        if ClaudeAccountStore.shared.setNotchiEnabled(!account.isNotchiEnabled, for: account) {
+            failedAccountKeys.remove(account.key)
+        } else {
+            failedAccountKeys.insert(account.key)
+        }
+        claudeHooksEnabled = AppSettings.areHooksEnabled(for: .claude)
+        claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
     }
 
     private var emotionAnalysisRow: some View {
@@ -508,6 +602,7 @@ struct PanelSettingsView: View {
         case .claude:
             claudeHooksEnabled = enabled
             claudeHooksStatus = status
+            ClaudeAccountStore.shared.refresh()
         case .codex:
             codexHooksEnabled = enabled
             codexHooksStatus = status
@@ -520,6 +615,7 @@ struct PanelSettingsView: View {
     }
 
     private func refreshHookStatuses() {
+        ClaudeAccountStore.shared.refresh()
         claudeHooksStatus = IntegrationCoordinator.shared.installStatus(for: .claude)
         codexHooksStatus = IntegrationCoordinator.shared.installStatus(for: .codex)
         devinHooksStatus = IntegrationCoordinator.shared.installStatus(for: .devin)
