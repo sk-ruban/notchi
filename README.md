@@ -82,4 +82,4 @@ Notchi is free and open source. If it's useful to you, you can [sponsor developm
 
 GPL-3.0-only. See [LICENSE](LICENSE).
 
-[dmg]: https://github.com/sk-ruban/notchi/releases/download/v1.3.0/Notchi-1.3.0.dmg
+[dmg]: https://github.com/sk-ruban/notchi/releases/download/v1.3.1/Notchi-1.3.1.dmg
