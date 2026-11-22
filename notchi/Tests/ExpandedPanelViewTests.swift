@@ -601,28 +601,67 @@ final class ExpandedPanelViewTests: XCTestCase {
         return session
     }
 
-    func testUsageBarIsHiddenWhileViewingASessionFromAnotherClaudeAccount() {
+    func testUsageBarShowsWhileViewingASessionFromAnotherClaudeAccount() {
         let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
 
-        XCTAssertFalse(ExpandedPanelView.shouldShowSharedUsageBar(contextSession: personal, activeSessions: [personal]))
+        XCTAssertTrue(ExpandedPanelView.shouldShowSharedUsageBar(contextSession: personal, activeSessions: [personal]))
     }
 
-    func testUsageBarShowsWhileViewingADefaultAccountClaudeSession() {
+    func testClaudeUsageIsIncludedWhenOnlyOtherAccountSessionsAreActive() {
+        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
+
+        XCTAssertTrue(ExpandedPanelView.includesClaudeUsage(activeSessions: [personal]))
+    }
+
+    private func claudeUsageState(accountName: String?) -> SharedUsageBarState {
+        SharedUsageBarState(
+            provider: .claude,
+            usage: nil,
+            isUsingExtraUsage: false,
+            isLoading: false,
+            error: nil,
+            statusMessage: nil,
+            isStale: false,
+            recoveryAction: .none,
+            lastObservedAt: nil,
+            accountName: accountName
+        )
+    }
+
+    func testResetLabelNamesTheAccountWhenOnlyClaudeIsActive() {
+        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
+
+        let prefix = ExpandedPanelView.sharedUsageResetLabelPrefix(
+            state: claudeUsageState(accountName: "Personal"),
+            activeSessions: [personal],
+            requestedPeriod: .session
+        )
+
+        XCTAssertEqual(prefix, "Personal")
+    }
+
+    func testResetLabelNamesTheProviderAndAccountNextToOtherProviders() {
+        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
+        let codex = SessionData(sessionId: "codex", provider: .codex, cwd: "/tmp/project")
+
+        let prefix = ExpandedPanelView.sharedUsageResetLabelPrefix(
+            state: claudeUsageState(accountName: "Personal"),
+            activeSessions: [personal, codex],
+            requestedPeriod: .session
+        )
+
+        XCTAssertEqual(prefix, "Claude Personal")
+    }
+
+    func testResetLabelHasNoAccountNameWithASingleAccount() {
         let work = claudeSession("work", configDir: nil)
 
-        XCTAssertTrue(ExpandedPanelView.shouldShowSharedUsageBar(contextSession: work, activeSessions: [work]))
-    }
+        let prefix = ExpandedPanelView.sharedUsageResetLabelPrefix(
+            state: claudeUsageState(accountName: nil),
+            activeSessions: [work],
+            requestedPeriod: .session
+        )
 
-    func testClaudeUsageIsLeftOutWhenOnlyOtherAccountSessionsAreActive() {
-        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
-
-        XCTAssertFalse(ExpandedPanelView.includesClaudeUsage(activeSessions: [personal]))
-    }
-
-    func testClaudeUsageIsIncludedWhenADefaultAccountSessionIsActive() {
-        let personal = claudeSession("personal", configDir: "/Users/someone/.claude-personal")
-        let work = claudeSession("work", configDir: nil)
-
-        XCTAssertTrue(ExpandedPanelView.includesClaudeUsage(activeSessions: [personal, work]))
+        XCTAssertNil(prefix)
     }
 }

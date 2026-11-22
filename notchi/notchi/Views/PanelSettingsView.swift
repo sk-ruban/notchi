@@ -446,7 +446,7 @@ struct PanelSettingsView: View {
     }
 
     private func connectUsage() {
-        ClaudeUsageService.shared.connectAndStartPolling()
+        ClaudeUsageServices.shared.connectAndStartPolling()
     }
 
     private func toggleHooksExpanded() {

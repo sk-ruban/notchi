@@ -196,4 +196,69 @@ final class KeychainManagerTests: XCTestCase {
 
         XCTAssertEqual(KeychainManager.keychainWritesForTesting, 0)
     }
+
+    // MARK: - Claude accounts
+
+    // Expected suffixes are the first 8 hex digits of `printf '%s' <path> | shasum -a 256`.
+    private static let workAccountPath = "/Users/someone/.claude-work"
+    private static let workAccountService = "Claude Code-credentials-18cc900a"
+    private static let workAccountPathWithSlashService = "Claude Code-credentials-fb460960"
+
+    func testDefaultAccountUsesTheUnsuffixedCredentialsService() {
+        XCTAssertEqual(KeychainManager.claudeCredentialsService(forConfigDir: nil), "Claude Code-credentials")
+    }
+
+    func testEmptyConfigDirCountsAsTheDefaultAccount() {
+        XCTAssertEqual(KeychainManager.claudeCredentialsService(forConfigDir: ""), "Claude Code-credentials")
+    }
+
+    func testConfigDirIsHashedIntoTheCredentialsServiceName() {
+        XCTAssertEqual(KeychainManager.claudeCredentialsService(forConfigDir: Self.workAccountPath), Self.workAccountService)
+    }
+
+    func testConfigDirIsHashedExactlyAsWritten() {
+        XCTAssertEqual(
+            KeychainManager.claudeCredentialsService(forConfigDir: Self.workAccountPath + "/"),
+            Self.workAccountPathWithSlashService
+        )
+    }
+
+    // `printf '%s' "/Users/someone/.claude-café" | shasum -a 256` with é precomposed; Claude Code
+    // NFC-normalizes the folder before hashing, so a decomposed é names the same login.
+    private static let accentedPathService = "Claude Code-credentials-e7e7d1c8"
+
+    func testDecomposedAccentNamesTheSameLoginAsClaudeCode() {
+        XCTAssertEqual(KeychainManager.claudeCredentialsService(forConfigDir: "/Users/someone/.claude-cafe\u{301}"), Self.accentedPathService)
+    }
+
+    func testOneAccountsMissingLoginDoesNotSkipTheCLIReadForAnother() {
+        var cliReads = 0
+        KeychainManager._setSecurityCLIReadOverrideForTesting {
+            cliReads += 1
+            return cliReads == 1 ? nil : ["claudeAiOauth": ["accessToken": "work-token"]]
+        }
+        KeychainManager._setSecurityFrameworkReadOverrideForTesting { _ in nil }
+        _ = KeychainManager.getOAuthCredentials(allowInteraction: false)
+
+        let work = KeychainManager.getOAuthCredentials(service: Self.workAccountService, allowInteraction: false)
+
+        XCTAssertEqual(work?.accessToken, "work-token")
+    }
+
+    func testCachedTokensAreKeptPerAccount() {
+        KeychainManager.cacheOAuthToken("work-token", service: Self.workAccountService)
+        KeychainManager.cacheOAuthToken("default-token")
+
+        XCTAssertEqual(KeychainManager.getCachedOAuthToken(service: Self.workAccountService), "work-token")
+    }
+
+    func testRecentCredentialsAreKeptPerAccount() throws {
+        KeychainManager._setSecurityCLIReadOverrideForTesting { ["claudeAiOauth": ["accessToken": "default-token"]] }
+        _ = KeychainManager.getOAuthCredentials(allowInteraction: false)
+        KeychainManager._setSecurityCLIReadOverrideForTesting { ["claudeAiOauth": ["accessToken": "work-token"]] }
+
+        let work = KeychainManager.getOAuthCredentials(service: Self.workAccountService, allowInteraction: false)
+
+        XCTAssertEqual(work?.accessToken, "work-token")
+    }
 }

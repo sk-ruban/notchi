@@ -61,7 +61,8 @@ final class ClaudeAccountStoreTests: XCTestCase {
                 guard removeHooksSucceeds else { return }
                 removedHooks.append(directory.lastPathComponent)
                 accountsWithHooks.remove(directory.lastPathComponent)
-            }
+            },
+            accountsDidChange: { _ in }
         )
         store.refresh()
         return store
@@ -92,7 +93,7 @@ final class ClaudeAccountStoreTests: XCTestCase {
         let elsewhere = home.appendingPathComponent("work/claude-config", isDirectory: true)
         let store = makeStore()
 
-        store.noteSessionDirectory(elsewhere)
+        store.noteSession(directory: elsewhere, rawConfigDir: elsewhere.path)
 
         XCTAssertEqual(store.account(forSessionDirectory: elsewhere)?.directory.path, elsewhere.path)
     }
@@ -102,7 +103,7 @@ final class ClaudeAccountStoreTests: XCTestCase {
         let elsewhere = home.appendingPathComponent("work/claude-config", isDirectory: true)
         try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
         let firstRun = makeStore()
-        firstRun.noteSessionDirectory(elsewhere)
+        firstRun.noteSession(directory: elsewhere, rawConfigDir: elsewhere.path)
         firstRun.setNotchiEnabled(true, for: try XCTUnwrap(firstRun.account(forSessionDirectory: elsewhere)))
 
         XCTAssertNotNil(makeStore().account(forSessionDirectory: elsewhere))
@@ -324,7 +325,7 @@ final class ClaudeAccountStoreTests: XCTestCase {
         let store = makeStore()
         accountsWithHooks.insert(".claude-work")
 
-        store.noteSessionDirectory(work)
+        store.noteSession(directory: work, rawConfigDir: work.path)
 
         XCTAssertTrue(store.showsAccountBadges)
     }
@@ -337,7 +338,7 @@ final class ClaudeAccountStoreTests: XCTestCase {
         accountsWithHooks = [".claude", "claude-config"]
         ClaudeAccountStore.trackDefaultAccountIfNeeded(home.appendingPathComponent(".claude"), in: defaults)
         let store = makeStore()
-        store.noteSessionDirectory(elsewhere)
+        store.noteSession(directory: elsewhere, rawConfigDir: elsewhere.path)
 
         store.setNotchiEnabled(false, for: try account(".claude", in: store))
 
@@ -347,6 +348,104 @@ final class ClaudeAccountStoreTests: XCTestCase {
             in: defaults
         )
         XCTAssertEqual(atNextLaunch.map(\.lastPathComponent), ["claude-config"])
+    }
+
+    // MARK: - Usage
+
+    // The first 8 hex digits of `printf '%s' "/Users/someone/.claude-work/" | shasum -a 256`.
+    private static let reportedConfigDir = "/Users/someone/.claude-work/"
+    private static let reportedConfigDirService = "Claude Code-credentials-fb460960"
+
+    func testDefaultAccountReadsTheDefaultLogin() throws {
+        try makeAccount(".claude")
+
+        XCTAssertEqual(makeStore().usageAccount(for: try account(".claude", in: makeStore())), .default)
+    }
+
+    func testAccountReadsTheLoginNamedAfterTheConfigDirItsSessionsReport() throws {
+        try makeAccount(".claude")
+        let work = try makeAccount(".claude-work")
+        let store = makeStore()
+
+        store.noteSession(directory: work, rawConfigDir: Self.reportedConfigDir)
+
+        XCTAssertEqual(store.usageAccount(for: try account(".claude-work", in: store)).credentialsService, Self.reportedConfigDirService)
+    }
+
+    // The first 8 hex digits of `printf '%s' "/Users/someone/.claude-work" | shasum -a 256`.
+    private static let respelledConfigDir = "/Users/someone/.claude-work"
+    private static let respelledConfigDirService = "Claude Code-credentials-18cc900a"
+
+    func testAccountFollowsALaterSessionThatSpellsItsConfigDirDifferently() throws {
+        try makeAccount(".claude")
+        let work = try makeAccount(".claude-work")
+        let store = makeStore()
+        store.noteSession(directory: work, rawConfigDir: Self.reportedConfigDir)
+
+        store.noteSession(directory: work, rawConfigDir: Self.respelledConfigDir)
+
+        XCTAssertEqual(store.usageAccount(for: try account(".claude-work", in: store)).credentialsService, Self.respelledConfigDirService)
+    }
+
+    func testALaterLoginForTheSameFolderKeepsItsOwnSavedUsageState() throws {
+        try makeAccount(".claude")
+        let work = try makeAccount(".claude-work")
+        let store = makeStore()
+        store.noteSession(directory: work, rawConfigDir: Self.reportedConfigDir)
+        let firstLogin = store.usageAccount(for: try account(".claude-work", in: store)).storageSuffix
+
+        store.noteSession(directory: work, rawConfigDir: Self.respelledConfigDir)
+
+        XCTAssertNotEqual(store.usageAccount(for: try account(".claude-work", in: store)).storageSuffix, firstLogin)
+    }
+
+    func testReportedConfigDirIsRememberedAcrossLaunches() throws {
+        try makeAccount(".claude")
+        let work = try makeAccount(".claude-work")
+        makeStore().noteSession(directory: work, rawConfigDir: Self.reportedConfigDir)
+
+        let store = makeStore()
+
+        XCTAssertEqual(store.usageAccount(for: try account(".claude-work", in: store)).credentialsService, Self.reportedConfigDirService)
+    }
+
+    func testAccountWithoutSessionsReadsTheLoginNamedAfterItsFolder() throws {
+        try makeAccount(".claude")
+        let work = try makeAccount(".claude-work")
+        let store = makeStore()
+
+        XCTAssertEqual(
+            store.usageAccount(for: try account(".claude-work", in: store)).credentialsService,
+            KeychainManager.claudeCredentialsService(forConfigDir: work.path)
+        )
+    }
+
+    func testDefaultAccountWithAConfigDirKeepsItsUsageStateApart() throws {
+        let defaultFolder = try makeAccount(".claude")
+        let store = makeStore()
+
+        store.noteSession(directory: defaultFolder, rawConfigDir: defaultFolder.path)
+
+        XCTAssertNotNil(store.usageAccount(for: try account(".claude", in: store)).storageSuffix)
+    }
+
+    func testAccountsKeepTheirUsageStateApart() throws {
+        try makeAccount(".claude")
+        try makeAccount(".claude-work")
+        let store = makeStore()
+
+        XCTAssertNotNil(store.usageAccount(for: try account(".claude-work", in: store)).storageSuffix)
+    }
+
+    func testMostRecentlyActiveAccountFollowsTheLatestSession() throws {
+        try makeAccount(".claude")
+        let work = try makeAccount(".claude-work")
+        let store = makeStore()
+        store.noteSession(directory: home.appendingPathComponent(".claude"), rawConfigDir: nil)
+
+        store.noteSession(directory: work, rawConfigDir: Self.reportedConfigDir)
+
+        XCTAssertEqual(store.mostRecentlyActiveAccount?.directory.lastPathComponent, ".claude-work")
     }
 
     // MARK: - Launch install

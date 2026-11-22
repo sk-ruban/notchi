@@ -69,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
                 NotchiStateMachine.shared.handleEvent(event)
             }
             await ClaudeUsageService.shared.startPolling()
+            // Builds the account list after the hooks install, which also starts each other account's usage.
+            await ClaudeAccountStore.shared.refresh()
             await CodexUsageService.shared.startPolling()
             await DevinUsageService.shared.startPolling()
             await CostHistoryStore.shared.start()
@@ -86,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         globalShortcutService.stop()
         integrationCoordinator.stop()
         ClaudeUsageService.shared.stopPolling()
+        ClaudeUsageServices.shared.stopPolling()
         CodexUsageService.shared.stopPolling()
         DevinUsageService.shared.stopPolling()
     }
@@ -203,6 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
     @objc private func handleSystemWake() {
         MainActor.assumeIsolated {
             ClaudeUsageService.shared.startPolling(afterSystemWake: true)
+            ClaudeUsageServices.shared.startPolling(afterSystemWake: true)
             Task { await CodexUsageService.shared.refreshFromAPI() }
             Task { await DevinUsageService.shared.refresh() }
         }

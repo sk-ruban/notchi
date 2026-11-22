@@ -26,7 +26,7 @@ final class NotchiStateMachine {
     private var codexProcessMissCounts: [ProviderSessionKey: Int] = [:]
     private var fileWatchers: [ProviderSessionKey: (source: DispatchSourceFileSystemObject, fd: Int32)] = [:]
     var handleClaudeUsageResumeTrigger: (ClaudeUsageResumeTrigger) -> Void = { trigger in
-        ClaudeUsageService.shared.handleClaudeResumeTrigger(trigger)
+        ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
     }
     var isCodexProcessAlive: (Int) -> Bool
     var onCodexSessionsEnded: () -> Void = {
@@ -591,7 +591,7 @@ final class NotchiStateMachine {
 
     func resetTestingHooks() {
         handleClaudeUsageResumeTrigger = { trigger in
-            ClaudeUsageService.shared.handleClaudeResumeTrigger(trigger)
+            ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
         }
         isCodexProcessAlive = Self.defaultCodexProcessAlive
         onCodexSessionsEnded = {

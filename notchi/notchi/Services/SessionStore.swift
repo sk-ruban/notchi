@@ -41,8 +41,8 @@ final class SessionStore {
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
     private var claudeSessionNameGenerations: [ProviderSessionKey: Int] = [:]
-    private var noteClaudeAccountDirectory: @MainActor (URL?) -> Void = { directory in
-        ClaudeAccountStore.shared.noteSessionDirectory(directory)
+    private var noteClaudeAccountSession: @MainActor (URL?, String?) -> Void = { directory, configDir in
+        ClaudeAccountStore.shared.noteSession(directory: directory, rawConfigDir: configDir)
     }
     // T3 Code names a thread about a second after its first reply; reading again after a reply catches that.
     private static let defaultClaudeSessionNameRecheckDelay: Duration = .seconds(3)
@@ -187,7 +187,7 @@ final class SessionStore {
         session.updateClaudeRuntime(processId: event.claudeProcessId)
         session.updateClaudeAccount(configDir: event.claudeConfigDir, transcriptPath: event.transcriptPath)
         if event.provider == .claude {
-            noteClaudeAccountDirectory(session.claudeConfigDirectory)
+            noteClaudeAccountSession(session.claudeConfigDirectory, session.claudeConfigDir)
         }
         session.updateCodexRuntime(processId: event.codexProcessId, origin: event.codexOrigin)
         session.updateDevinRuntime(processId: event.devinProcessId)
@@ -786,8 +786,8 @@ final class SessionStore {
         invalidateGitPullRequestCache = invalidator
     }
 
-    func setClaudeAccountObserverForTesting(_ observer: @escaping @MainActor (URL?) -> Void) {
-        noteClaudeAccountDirectory = observer
+    func setClaudeAccountObserverForTesting(_ observer: @escaping @MainActor (URL?, String?) -> Void) {
+        noteClaudeAccountSession = observer
     }
 
     func setClaudeSessionNameRecheckDelayForTesting(_ delay: Duration) {
@@ -840,8 +840,8 @@ final class SessionStore {
             ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId, in: directory)
         }
         claudeSessionNameRecheckDelay = Self.defaultClaudeSessionNameRecheckDelay
-        noteClaudeAccountDirectory = { directory in
-            ClaudeAccountStore.shared.noteSessionDirectory(directory)
+        noteClaudeAccountSession = { directory, configDir in
+            ClaudeAccountStore.shared.noteSession(directory: directory, rawConfigDir: configDir)
         }
     }
 #endif

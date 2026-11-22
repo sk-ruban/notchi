@@ -428,22 +428,6 @@ final class SessionDataTests: XCTestCase {
         XCTAssertNil(SessionData.claudeConfigDirectory(transcriptPath: nil, rawConfigDir: "claude-personal"))
     }
 
-    func testClaudeSessionWithoutAConfigDirUsesTheDefaultAccount() {
-        let session = SessionData(sessionId: "default-account", provider: .claude, cwd: "/tmp")
-        session.updateClaudeAccount(configDir: nil, transcriptPath: "/Users/someone/.claude/projects/-tmp/a.jsonl")
-
-        XCTAssertTrue(session.usesDefaultClaudeAccount)
-    }
-
-    func testClaudeSessionWithAConfigDirUsesAnotherAccount() {
-        let session = SessionData(sessionId: "personal-account", provider: .claude, cwd: "/tmp")
-        session.updateClaudeAccount(configDir: Self.personalAccountPath, transcriptPath: nil)
-
-        XCTAssertFalse(session.usesDefaultClaudeAccount)
-    }
-
-    // MARK: - T3 Code scratch folders
-
     func testT3ScratchFolderShowsItsPromptWords() {
         XCTAssertEqual(
             SessionData.projectName(forDirectory: "/Users/someone/.t3/scratch/2026-11-22-hey-test-2437ec67"),

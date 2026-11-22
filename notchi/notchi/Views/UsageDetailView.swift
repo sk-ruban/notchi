@@ -8,6 +8,15 @@ struct UsageDetailView: View {
     let codexCostStore: CostHistoryStore
     let devinCostStore: CostHistoryStore
     let defaultProvider: AgentProvider
+    /// Every Claude account running notchi; with two or more, the Claude tab can switch between them.
+    let claudeAccounts: [ClaudeAccountUsage]
+
+    struct ClaudeAccountUsage: Identifiable {
+        let id: String
+        let name: String
+        let color: Color
+        let usage: ClaudeUsageService
+    }
 
     enum UsageTab: Hashable {
         case provider(AgentProvider)
@@ -15,6 +24,7 @@ struct UsageDetailView: View {
     }
 
     @State private var selectedTab: UsageTab
+    @State private var selectedClaudeAccountId: String?
     @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
     @Environment(\.panelScale) private var panelScale
 
@@ -25,7 +35,9 @@ struct UsageDetailView: View {
         costStore: CostHistoryStore,
         codexCostStore: CostHistoryStore,
         devinCostStore: CostHistoryStore,
-        defaultProvider: AgentProvider
+        defaultProvider: AgentProvider,
+        claudeAccounts: [ClaudeAccountUsage] = [],
+        initialClaudeAccountId: String? = nil
     ) {
         self.claudeUsage = claudeUsage
         self.codexUsage = codexUsage
@@ -34,11 +46,41 @@ struct UsageDetailView: View {
         self.codexCostStore = codexCostStore
         self.devinCostStore = devinCostStore
         self.defaultProvider = defaultProvider
+        self.claudeAccounts = claudeAccounts
+        _selectedClaudeAccountId = State(initialValue: initialClaudeAccountId)
         _selectedTab = State(initialValue: .provider(defaultProvider))
     }
 
     var claudeHasData: Bool {
-        claudeUsage.hasUsageData || !costStore.buckets.isEmpty
+        claudeUsage.hasUsageData || claudeAccounts.contains { $0.usage.hasUsageData } || !costStore.buckets.isEmpty
+    }
+
+    var showsClaudeAccountPicker: Bool {
+        claudeAccounts.count > 1
+    }
+
+    /// The picked account, else the first one listed, which the picker then shows as picked.
+    private var selectedClaudeAccount: ClaudeAccountUsage? {
+        claudeAccounts.first { $0.id == selectedClaudeAccountId } ?? claudeAccounts.first
+    }
+
+    /// The Claude usage the tab shows: the picked account's, else the one this view was given.
+    private var selectedClaudeUsage: ClaudeUsageService {
+        selectedClaudeAccount?.usage ?? claudeUsage
+    }
+
+    static func claudePeriods(_ usage: ClaudeUsageService) -> [UsagePeriodDisplay] {
+        let stale = usage.isUsageStale
+        let heldOver = usage.isWeeklyUsageHeldOver
+        return [
+            UsageMetrics.periodDisplay(title: String(localized: "Session"), usage: usage.currentUsage, isStale: stale),
+            UsageMetrics.periodDisplay(title: String(localized: "Weekly"), usage: usage.currentWeeklyUsage, isStale: heldOver),
+            UsageMetrics.periodDisplay(
+                title: usage.currentModelUsageName ?? String(localized: "Model"),
+                usage: usage.currentModelUsage,
+                isStale: heldOver
+            ),
+        ].compactMap { $0 }
     }
 
     var codexHasData: Bool {
@@ -119,17 +161,7 @@ struct UsageDetailView: View {
     var periods: [UsagePeriodDisplay] {
         switch resolvedProvider {
         case .claude:
-            let stale = claudeUsage.isUsageStale
-            let heldOver = claudeUsage.isWeeklyUsageHeldOver
-            return [
-                UsageMetrics.periodDisplay(title: String(localized: "Session"), usage: claudeUsage.currentUsage, isStale: stale),
-                UsageMetrics.periodDisplay(title: String(localized: "Weekly"), usage: claudeUsage.currentWeeklyUsage, isStale: heldOver),
-                UsageMetrics.periodDisplay(
-                    title: claudeUsage.currentModelUsageName ?? String(localized: "Model"),
-                    usage: claudeUsage.currentModelUsage,
-                    isStale: heldOver
-                ),
-            ].compactMap { $0 }
+            return Self.claudePeriods(selectedClaudeUsage)
         case .codex:
             let stale = codexUsage.isUsageStale
             return [
@@ -151,7 +183,7 @@ struct UsageDetailView: View {
 
     private var extraUsage: ExtraUsageDisplay? {
         resolvedProvider == .claude
-            ? UsageMetrics.extraUsageDisplay(claudeUsage.currentExtraUsage)
+            ? UsageMetrics.extraUsageDisplay(selectedClaudeUsage.currentExtraUsage)
             : nil
     }
 
@@ -255,28 +287,67 @@ struct UsageDetailView: View {
                 .padding(.bottom, showGrassIsland ? -4 : 2)
 
             if case .provider = resolvedTab {
-                if Self.usesTwoColumnLayout(
-                    rowCount: usageRowCount,
-                    showGrassIsland: showGrassIsland,
-                    panelScale: panelScale
-                ) {
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 14, alignment: .topLeading),
-                            GridItem(.flexible(), alignment: .topLeading),
-                        ],
-                        spacing: 12
-                    ) {
-                        usageRows
-                    }
-                } else {
-                    usageRows
-                }
+                usageGrid(rowCount: usageRowCount) { usageRows }
             } else {
                 providerBreakdown
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func usageGrid<Rows: View>(rowCount: Int, @ViewBuilder rows: () -> Rows) -> some View {
+        if Self.usesTwoColumnLayout(rowCount: rowCount, showGrassIsland: showGrassIsland, panelScale: panelScale) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 14, alignment: .topLeading),
+                    GridItem(.flexible(), alignment: .topLeading),
+                ],
+                spacing: 12
+            ) {
+                rows()
+            }
+        } else {
+            rows()
+        }
+    }
+
+    private static let accountDotSize: CGFloat = 8
+    private static let accountDotHitSize: CGFloat = 16
+    private static let selectedAccountRingWidth: CGFloat = 1.5
+    private static let selectedAccountRingInset: CGFloat = -2.5
+
+    /// Sits on the header line, so switching accounts never changes the page's height.
+    private var claudeAccountPicker: some View {
+        HStack(spacing: 6) {
+            if let selected = selectedClaudeAccount {
+                Text(selected.name)
+                    .panelFont(size: 11, weight: .semibold)
+                    .foregroundColor(TerminalColors.secondaryText)
+                    .lineLimit(1)
+            }
+            HStack(spacing: 2) {
+                ForEach(claudeAccounts) { account in
+                    let isSelected = account.id == selectedClaudeAccount?.id
+                    Button(action: { selectedClaudeAccountId = account.id }) {
+                        Circle()
+                            .fill(account.color)
+                            .frame(width: Self.accountDotSize * panelScale, height: Self.accountDotSize * panelScale)
+                            .overlay {
+                                if isSelected {
+                                    Circle()
+                                        .stroke(TerminalColors.primaryText, lineWidth: Self.selectedAccountRingWidth)
+                                        .padding(Self.selectedAccountRingInset)
+                                }
+                            }
+                            .frame(width: Self.accountDotHitSize * panelScale, height: Self.accountDotHitSize * panelScale)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(account.name)
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -290,6 +361,10 @@ struct UsageDetailView: View {
             }
 
             Spacer()
+
+            if resolvedTab == .provider(.claude), showsClaudeAccountPicker {
+                claudeAccountPicker
+            }
         }
     }
 
