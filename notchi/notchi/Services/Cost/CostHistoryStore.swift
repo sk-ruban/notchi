@@ -20,7 +20,7 @@ final class CostHistoryStore {
     private let refreshInterval: TimeInterval = 90
     private let pricingRetryInterval: TimeInterval = 60 * 60
     private let pricingCatalog: PricingCatalog?
-    private var lastPricingRefresh: Date?
+    private let pricingClock: PricingRefreshClock
     private var needsRescan = false
 
     init(windowDays: Int = 30, calendar: Calendar = .autoupdatingCurrent, provider: CostProvider = .claude,
@@ -30,16 +30,19 @@ final class CostHistoryStore {
         self.provider = provider
         self.scanProvider = scanProvider
         self.pricingCatalog = nil
+        self.pricingClock = PricingRefreshClock()
     }
 
     convenience init(windowDays: Int = 30, calendar: Calendar = .autoupdatingCurrent,
                      provider: CostProvider = .claude,
                      pricing: PricingCatalog,
+                     pricingClock: PricingRefreshClock = PricingRefreshClock(),
                      projectsRoots: [URL],
                      cacheURL: URL) {
         let scan = Self.makeScan(provider: provider, projectsRoots: projectsRoots,
                                  pricing: pricing, windowDays: windowDays, calendar: calendar)
-        self.init(windowDays: windowDays, calendar: calendar, provider: provider, pricingCatalog: pricing) { now in
+        self.init(windowDays: windowDays, calendar: calendar, provider: provider, pricingCatalog: pricing,
+                  pricingClock: pricingClock) { now in
             await Task.detached(priority: .utility) {
                 let sig = pricing.signature()
                 let timeZoneID = calendar.timeZone.identifier
@@ -75,12 +78,14 @@ final class CostHistoryStore {
     }
 
     init(windowDays: Int, calendar: Calendar, provider: CostProvider, pricingCatalog: PricingCatalog,
+         pricingClock: PricingRefreshClock = PricingRefreshClock(),
          scanProvider: @escaping @Sendable (Date) async -> DayModelBuckets) {
         self.windowDays = windowDays
         self.calendar = calendar
         self.provider = provider
         self.scanProvider = scanProvider
         self.pricingCatalog = pricingCatalog
+        self.pricingClock = pricingClock
     }
 
     func start() {
@@ -91,13 +96,18 @@ final class CostHistoryStore {
         }
     }
 
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
     func refresh() async {
         let now = Date()
         guard let buckets = await scanAndPublish(),
               let catalog = pricingCatalog, catalog.canRefreshFromNetwork,
               shouldRefreshPricing(after: buckets, now: now) else { return }
         // The fetch runs outside isScanning so a slow models.dev never blocks timer scans.
-        lastPricingRefresh = now
+        pricingClock.lastRefresh = now
         await catalog.refreshFromNetwork()
         await scanAndPublish(rescanIfBusy: true)
     }
@@ -134,7 +144,7 @@ final class CostHistoryStore {
 
     /// Fetches once at launch, then again only when a model released since scans unpriced.
     private func shouldRefreshPricing(after buckets: DayModelBuckets, now: Date) -> Bool {
-        guard let lastPricingRefresh else { return true }
+        guard let lastPricingRefresh = pricingClock.lastRefresh else { return true }
         return Self.hasUnpricedRequests(buckets)
             && now.timeIntervalSince(lastPricingRefresh) >= pricingRetryInterval
     }
@@ -149,17 +159,30 @@ final class CostHistoryStore {
 // MARK: - Shared singletons
 
 extension CostHistoryStore {
+    /// One price list for every Claude account's store.
+    static let claudePricing = pricingCatalog(for: .claude)
+    private static let claudePricingClock = PricingRefreshClock()
+
     static let shared = makeStore(
-        provider: .claude, config: .claude,
+        provider: .claude, pricing: claudePricing, pricingClock: claudePricingClock,
         projectsRoots: [homeURL(".claude/projects")], cacheFile: "claude.json")
 
+    /// The folder the shared Claude store reads, so the account store can reuse it for that account.
+    static let sharedClaudeDirectory = homeURL(".claude")
+
+    /// Another Claude account's spend, read from its own config folder.
+    static func claudeAccountStore(projectsRoot: URL, cacheFile: String) -> CostHistoryStore {
+        makeStore(provider: .claude, pricing: claudePricing, pricingClock: claudePricingClock,
+                  projectsRoots: [projectsRoot], cacheFile: cacheFile)
+    }
+
     static let sharedCodex = makeStore(
-        provider: .codex, config: .codex,
+        provider: .codex, pricing: pricingCatalog(for: .codex),
         projectsRoots: [homeURL(".codex/sessions"), homeURL(".codex/archived_sessions")],
         cacheFile: "codex.json")
 
     static let sharedDevin = makeStore(
-        provider: .devin, config: .devin,
+        provider: .devin, pricing: pricingCatalog(for: .devin),
         projectsRoots: [homeURL(".local/share/devin/cli")],
         cacheFile: "devin.json")
 
@@ -174,11 +197,26 @@ extension CostHistoryStore {
         return URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".notchi/CostUsage/\(file)")
     }
 
-    private static func makeStore(provider: CostProvider, config: ProviderConfig,
-                                  projectsRoots: [URL], cacheFile: String) -> CostHistoryStore {
-        let pricing = PricingCatalog(config: config, fallbackBundle: .main,
-                                     snapshotURL: PricingCatalog.defaultSnapshotURL(for: config))
-        return CostHistoryStore(provider: provider, pricing: pricing,
-                                projectsRoots: projectsRoots, cacheURL: cacheURL(cacheFile))
+    private static func pricingCatalog(for config: ProviderConfig) -> PricingCatalog {
+        PricingCatalog(config: config, fallbackBundle: .main, snapshotURL: PricingCatalog.defaultSnapshotURL(for: config))
     }
+
+    private static func makeStore(provider: CostProvider, pricing: PricingCatalog,
+                                  pricingClock: PricingRefreshClock = PricingRefreshClock(),
+                                  projectsRoots: [URL], cacheFile: String) -> CostHistoryStore {
+        CostHistoryStore(provider: provider, pricing: pricing, pricingClock: pricingClock,
+                         projectsRoots: projectsRoots, cacheURL: cacheURL(cacheFile))
+    }
+}
+
+/// When a price list was last fetched. Stores sharing a price list share one, so it downloads once.
+@MainActor
+final class PricingRefreshClock {
+    var lastRefresh: Date?
+
+    // Default arguments are evaluated outside the main actor.
+    nonisolated init() {}
+
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
 }

@@ -16,7 +16,20 @@ struct UsageDetailView: View {
         let name: String
         let color: Color
         let usage: ClaudeUsageService
+        /// Nil until the account's cost history has been set up.
+        let cost: CostHistoryStore?
+
+        init(id: String, name: String, color: Color, usage: ClaudeUsageService, cost: CostHistoryStore? = nil) {
+            self.id = id
+            self.name = name
+            self.color = color
+            self.usage = usage
+            self.cost = cost
+        }
     }
+
+    /// Picks every Claude account at once: one chart stacked by account, without usage rows.
+    static let allClaudeAccountsId = "notchi.allClaudeAccounts"
 
     enum UsageTab: Hashable {
         case provider(AgentProvider)
@@ -52,11 +65,59 @@ struct UsageDetailView: View {
     }
 
     var claudeHasData: Bool {
-        claudeUsage.hasUsageData || claudeAccounts.contains { $0.usage.hasUsageData } || !costStore.buckets.isEmpty
+        claudeUsage.hasUsageData || claudeAccounts.contains { $0.usage.hasUsageData }
+            || claudeCostStores.contains { !$0.buckets.isEmpty }
     }
 
     var showsClaudeAccountPicker: Bool {
         claudeAccounts.count > 1
+    }
+
+    var isShowingAllClaudeAccounts: Bool {
+        showsClaudeAccountPicker && selectedClaudeAccountId == Self.allClaudeAccountsId
+    }
+
+    /// The Claude spend that counts: every account's running notchi, else the default one's.
+    private var claudeCostStores: [CostHistoryStore] {
+        claudeAccounts.isEmpty ? [costStore] : claudeAccounts.compactMap(\.cost)
+    }
+
+    private var costWindow: (start: Date, today: Date) {
+        let calendar = costStore.calendar
+        let today = Date()
+        let startOfToday = calendar.startOfDay(for: today)
+        let start = calendar.date(byAdding: .day, value: -(costStore.windowDays - 1), to: startOfToday) ?? startOfToday
+        return (start, today)
+    }
+
+    /// Every Claude account's spend, one stack per account; nil while no account has a cost history.
+    var claudeAccountsCostReport: DailyCostReport? {
+        let series = claudeAccounts.compactMap { account in account.cost.map { (key: account.id, buckets: $0.buckets) } }
+        guard !series.isEmpty else { return nil }
+        let window = costWindow
+        return DailyCostReport.combined(
+            series, provider: .claude, windowStart: window.start, today: window.today, calendar: costStore.calendar)
+    }
+
+    private var claudeAccountSeries: [CostSeries] {
+        claudeAccounts.map { CostSeries(key: $0.id, name: $0.name, color: $0.color) }
+    }
+
+    /// The Claude tab's chart: the picked account's spend, or every account's under All.
+    var claudeCostReport: DailyCostReport? {
+        if isShowingAllClaudeAccounts { return claudeAccountsCostReport }
+        guard let selectedClaudeAccount else { return costStore.report }
+        return selectedClaudeAccount.cost?.report
+    }
+
+    /// All Claude spend, for the tab comparing providers.
+    private var claudeTotalCostReport: DailyCostReport? {
+        claudeAccountsCostReport ?? claudeCostStores.first?.report
+    }
+
+    private var claudeCostBuckets: DayModelBuckets {
+        let stores = claudeCostStores
+        return stores.count == 1 ? stores[0].buckets : DailyCostReport.merged(stores.map(\.buckets))
     }
 
     /// The picked account, else the first one listed, which the picker then shows as picked.
@@ -91,8 +152,12 @@ struct UsageDetailView: View {
         devinUsage.hasUsageData || !devinCostStore.buckets.isEmpty
     }
 
-    private var costStoresByProvider: [(provider: AgentProvider, store: CostHistoryStore)] {
-        [(.claude, costStore), (.codex, codexCostStore), (.devin, devinCostStore)]
+    private var costsByProvider: [(provider: AgentProvider, buckets: DayModelBuckets, report: DailyCostReport?)] {
+        [
+            (.claude, claudeCostBuckets, claudeTotalCostReport),
+            (.codex, codexCostStore.buckets, codexCostStore.report),
+            (.devin, devinCostStore.buckets, devinCostStore.report),
+        ]
     }
 
     private var providersWithData: [AgentProvider] {
@@ -104,7 +169,7 @@ struct UsageDetailView: View {
     }
 
     private var showsAllTab: Bool {
-        costStoresByProvider.filter { !$0.store.buckets.isEmpty }.count > 1
+        costsByProvider.filter { !$0.buckets.isEmpty }.count > 1
     }
 
     var tabs: [UsageTab] {
@@ -189,14 +254,10 @@ struct UsageDetailView: View {
 
     private var combinedReport: DailyCostReport? {
         guard showsAllTab else { return nil }
-        let calendar = costStore.calendar
-        let today = Date()
-        let windowStart = calendar.date(
-            byAdding: .day, value: -(costStore.windowDays - 1),
-            to: calendar.startOfDay(for: today))!
+        let window = costWindow
         return DailyCostReport.combinedAcrossProviders(
-            [(.claude, costStore.buckets), (.codex, codexCostStore.buckets), (.devin, devinCostStore.buckets)],
-            windowStart: windowStart, today: today, calendar: calendar)
+            [(.claude, claudeCostBuckets), (.codex, codexCostStore.buckets), (.devin, devinCostStore.buckets)],
+            windowStart: window.start, today: window.today, calendar: costStore.calendar)
     }
 
     static func chartHeight(showGrassIsland: Bool) -> CGFloat {
@@ -212,15 +273,16 @@ struct UsageDetailView: View {
         switch resolvedTab {
         case .provider(let provider):
             CostDashboardView(
-                report: costStore(for: provider).report,
-                sizingPeerReports: (costStoresByProvider.filter { $0.provider != provider }.map(\.store.report)
+                report: costReport(for: provider),
+                sizingPeerReports: (costsByProvider.filter { $0.provider != provider }.map(\.report)
                     + [combinedReport]).compactMap { $0 },
+                series: provider == .claude && isShowingAllClaudeAccounts ? claudeAccountSeries : [],
                 chartHeight: chartHeight)
         case .all:
             CostDashboardView(
                 report: combinedReport,
-                sizingPeerReports: costStoresByProvider.compactMap(\.store.report),
-                combinesProviders: true,
+                sizingPeerReports: costsByProvider.compactMap(\.report),
+                series: CostSeries.providers,
                 chartHeight: chartHeight)
         }
     }
@@ -286,9 +348,12 @@ struct UsageDetailView: View {
             costDashboard
                 .padding(.bottom, showGrassIsland ? -4 : 2)
 
-            if case .provider = resolvedTab {
+            switch resolvedTab {
+            case .provider(.claude) where isShowingAllClaudeAccounts:
+                claudeAccountBreakdown
+            case .provider:
                 usageGrid(rowCount: usageRowCount) { usageRows }
-            } else {
+            case .all:
                 providerBreakdown
             }
         }
@@ -320,15 +385,30 @@ struct UsageDetailView: View {
     /// Sits on the header line, so switching accounts never changes the page's height.
     private var claudeAccountPicker: some View {
         HStack(spacing: 6) {
-            if let selected = selectedClaudeAccount {
+            // The highlighted All chip already says it, so no label then.
+            if !isShowingAllClaudeAccounts, let selected = selectedClaudeAccount {
                 Text(selected.name)
                     .panelFont(size: 11, weight: .semibold)
                     .foregroundColor(TerminalColors.secondaryText)
                     .lineLimit(1)
             }
             HStack(spacing: 2) {
+                Button(action: { selectedClaudeAccountId = Self.allClaudeAccountsId }) {
+                    Text("All")
+                        .panelFont(size: 10, weight: .semibold)
+                        .foregroundColor(isShowingAllClaudeAccounts ? TerminalColors.primaryText : TerminalColors.dimmedText)
+                        .padding(.horizontal, 4)
+                        .frame(height: Self.accountDotHitSize * panelScale)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isShowingAllClaudeAccounts ? TerminalColors.hoverBackground : .clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "All accounts"))
                 ForEach(claudeAccounts) { account in
-                    let isSelected = account.id == selectedClaudeAccount?.id
+                    let isSelected = !isShowingAllClaudeAccounts && account.id == selectedClaudeAccount?.id
                     Button(action: { selectedClaudeAccountId = account.id }) {
                         Circle()
                             .fill(account.color)
@@ -370,21 +450,34 @@ struct UsageDetailView: View {
 
     @ViewBuilder private var providerBreakdown: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(costStoresByProvider.filter { !$0.store.buckets.isEmpty }, id: \.provider) { entry in
+            ForEach(costsByProvider.filter { !$0.buckets.isEmpty }, id: \.provider) { entry in
                 providerBreakdownRow(
                     name: entry.provider.displayName,
                     color: entry.provider == .claude ? TerminalColors.claudeOrangeDeep : entry.provider.accentColor,
-                    report: entry.store.report)
+                    report: entry.report)
             }
         }
         .padding(.top, 5)
     }
 
-    private func costStore(for provider: AgentProvider) -> CostHistoryStore {
+    /// Scrolls within the panel's fixed height, which only fits a handful of accounts.
+    @ViewBuilder private var claudeAccountBreakdown: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(claudeAccounts) { account in
+                    providerBreakdownRow(name: account.name, color: account.color, report: account.cost?.report)
+                }
+            }
+            .padding(.top, 5)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private func costReport(for provider: AgentProvider) -> DailyCostReport? {
         switch provider {
-        case .claude: costStore
-        case .codex: codexCostStore
-        case .devin: devinCostStore
+        case .claude: claudeCostReport
+        case .codex: codexCostStore.report
+        case .devin: devinCostStore.report
         }
     }
 

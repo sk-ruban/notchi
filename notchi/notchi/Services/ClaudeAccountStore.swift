@@ -32,6 +32,7 @@ final class ClaudeAccountStore {
     private let addHooks: (URL) -> Bool
     private let removeHooks: (URL) -> Void
     private let accountsDidChange: @MainActor ([ClaudeUsageAccount]) -> Void
+    private let costAccountsDidChange: @MainActor ([ClaudeAccount]) -> Void
     private var sessionDirectories: Set<String> = []
     private var accountsByKey: [String: ClaudeAccount] = [:]
     private var keysBySessionPath: [String: String] = [:]
@@ -49,7 +50,8 @@ final class ClaudeAccountStore {
         hasNotchiHooks: @escaping (URL) -> Bool = { HookInstaller.isHookInstalled(inAccount: $0) },
         addHooks: @escaping (URL) -> Bool = { HookInstaller.addHooks(toAccount: $0) },
         removeHooks: @escaping (URL) -> Void = { HookInstaller.removeHooks(fromAccount: $0) },
-        accountsDidChange: @escaping @MainActor ([ClaudeUsageAccount]) -> Void = { ClaudeUsageServices.shared.sync(with: $0) }
+        accountsDidChange: @escaping @MainActor ([ClaudeUsageAccount]) -> Void = { ClaudeUsageServices.shared.sync(with: $0) },
+        costAccountsDidChange: @escaping @MainActor ([ClaudeAccount]) -> Void = { ClaudeCostStores.shared.sync(with: $0) }
     ) {
         self.home = home
         self.defaultDirectory = defaultDirectory
@@ -60,6 +62,7 @@ final class ClaudeAccountStore {
         self.addHooks = addHooks
         self.removeHooks = removeHooks
         self.accountsDidChange = accountsDidChange
+        self.costAccountsDidChange = costAccountsDidChange
     }
 
     // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
@@ -108,7 +111,9 @@ final class ClaudeAccountStore {
             )
         }
         accountsByKey = Dictionary(uniqueKeysWithValues: accounts.map { ($0.key, $0) })
-        accountsDidChange(accounts.filter(\.isNotchiEnabled).map(usageAccount(for:)))
+        let accountsOn = accounts.filter(\.isNotchiEnabled)
+        accountsDidChange(accountsOn.map(usageAccount(for:)))
+        costAccountsDidChange(accountsOn)
     }
 
     var mostRecentlyActiveAccount: ClaudeAccount? {
@@ -249,7 +254,7 @@ final class ClaudeAccountStore {
 
     // MARK: - Private
 
-    nonisolated private static func key(for directory: URL) -> String {
+    nonisolated static func key(for directory: URL) -> String {
         directory.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
@@ -266,7 +271,7 @@ final class ClaudeAccountStore {
 
     nonisolated private static let storageSuffixLength = 8
 
-    nonisolated private static func storageSuffix(for key: String) -> String {
+    nonisolated static func storageSuffix(for key: String) -> String {
         let digest = SHA256.hash(data: Data(key.utf8))
         return digest.map { String(format: "%02x", $0) }.joined().prefix(storageSuffixLength).description
     }

@@ -59,7 +59,8 @@ enum CostStatFormatter {
 struct CostDashboardView: View {
     let report: DailyCostReport?
     var sizingPeerReports: [DailyCostReport] = []
-    var combinesProviders = false
+    /// When set, each bar segment is one of these series (a provider, a Claude account, …) instead of a model.
+    var series: [CostSeries] = []
     var chartHeight: CGFloat = Self.defaultChartHeight
 
     @Environment(\.panelScale) private var panelScale
@@ -192,19 +193,13 @@ struct CostDashboardView: View {
         return shades[min(rank, shades.count - 1)]
     }
 
-    private func segmentProvider(_ s: DailyCostReport.Segment) -> CostProvider? {
-        combinesProviders ? s.models.first.flatMap(CostProvider.init(rawValue:)) : nil
+    private func segmentSeries(_ s: DailyCostReport.Segment) -> CostSeries? {
+        guard let key = s.models.first else { return nil }
+        return series.first { $0.key == key }
     }
 
     private func segmentColor(_ s: DailyCostReport.Segment, reportProvider: CostProvider) -> Color {
-        guard let provider = segmentProvider(s) else {
-            return shade(rank: s.rank, provider: reportProvider)
-        }
-        return switch provider {
-        case .claude: TerminalColors.claudeOrangeDeep
-        case .codex: TerminalColors.codexAccent
-        case .devin: TerminalColors.devinAccent
-        }
+        segmentSeries(s)?.color ?? shade(rank: s.rank, provider: reportProvider)
     }
 
     nonisolated static func dayTokensTitle(dayLabel: String, bundle: Bundle = .main) -> String {
@@ -279,12 +274,8 @@ struct CostDashboardView: View {
     {
         e.segments.map { s in
             let name: String
-            if let provider = segmentProvider(s) {
-                name = switch provider {
-                case .claude: AgentProvider.claude.displayName
-                case .codex: AgentProvider.codex.displayName
-                case .devin: AgentProvider.devin.displayName
-                }
+            if let series = segmentSeries(s) {
+                name = series.name
             } else if s.models.count == 1 {
                 name = CostStatFormatter.modelName(s.models[0])
             } else {
@@ -373,4 +364,17 @@ struct CostDashboardView: View {
             }
         }
     }
+}
+
+/// A stack in a combined cost chart, keyed like the segments `DailyCostReport.combined` makes.
+struct CostSeries: Equatable {
+    let key: String
+    let name: String
+    let color: Color
+
+    static let providers: [CostSeries] = [
+        CostSeries(key: CostProvider.claude.rawValue, name: AgentProvider.claude.displayName, color: TerminalColors.claudeOrangeDeep),
+        CostSeries(key: CostProvider.codex.rawValue, name: AgentProvider.codex.displayName, color: TerminalColors.codexAccent),
+        CostSeries(key: CostProvider.devin.rawValue, name: AgentProvider.devin.displayName, color: TerminalColors.devinAccent),
+    ]
 }

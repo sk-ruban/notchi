@@ -136,20 +136,35 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
         _ perProvider: [(provider: CostProvider, buckets: DayModelBuckets)],
         windowStart: Date, today: Date, calendar: Calendar) -> DailyCostReport
     {
-        var providerBuckets: DayModelBuckets = [:]
+        combined(
+            CostProvider.allCases.compactMap { provider in
+                perProvider.first { $0.provider == provider }.map { (provider.rawValue, $0.buckets) }
+            },
+            provider: perProvider.first?.provider ?? .claude,
+            windowStart: windowStart, today: today, calendar: calendar)
+    }
+
+    /// One bar segment per series (a provider, a Claude account, …), stacked in the given order;
+    /// each segment's `models` holds just its series key.
+    static func combined(
+        _ series: [(key: String, buckets: DayModelBuckets)], provider: CostProvider,
+        windowStart: Date, today: Date, calendar: Calendar) -> DailyCostReport
+    {
+        var seriesBuckets: DayModelBuckets = [:]
         var modelBuckets: DayModelBuckets = [:]
-        for (provider, buckets) in perProvider {
+        for (key, buckets) in series {
             for (day, models) in buckets {
                 for (model, totals) in models {
-                    providerBuckets[day, default: [:]][provider.rawValue, default: ModelTokenTotals()] += totals
+                    seriesBuckets[day, default: [:]][key, default: ModelTokenTotals()] += totals
                     modelBuckets[day, default: [:]][model, default: ModelTokenTotals()] += totals
                 }
             }
         }
         let base = make(
-            provider: perProvider.first?.provider ?? .claude, buckets: providerBuckets,
+            provider: provider, buckets: seriesBuckets,
             windowStart: windowStart, today: today, calendar: calendar,
-            shadedModelCount: CostProvider.allCases.count)
+            shadedModelCount: series.count)
+        let order = Dictionary(series.enumerated().map { ($0.element.key, $0.offset) }, uniquingKeysWith: { first, _ in first })
         var windowTotalsByModel: [String: ModelTokenTotals] = [:]
         for entry in base.entries {
             for (model, totals) in modelBuckets[entry.day] ?? [:] {
@@ -162,7 +177,7 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
                 totalTokens: e.totalTokens, requestCount: e.requestCount,
                 pricedFraction: e.pricedFraction,
                 topModel: topModel(in: modelBuckets[e.day] ?? [:]),
-                segments: e.segments.sorted { providerOrder($0) < providerOrder($1) })
+                segments: e.segments.sorted { seriesOrder($0, order) < seriesOrder($1, order) })
         }
         return DailyCostReport(
             provider: base.provider, entries: entries,
@@ -170,10 +185,21 @@ nonisolated struct DailyCostReport: Equatable, Sendable {
             shadedModels: base.shadedModels)
     }
 
-    private static func providerOrder(_ segment: Segment) -> Int {
-        segment.models.first
-            .flatMap(CostProvider.init(rawValue:))
-            .flatMap(CostProvider.allCases.firstIndex(of:)) ?? CostProvider.allCases.count
+    private static func seriesOrder(_ segment: Segment, _ order: [String: Int]) -> Int {
+        segment.models.first.flatMap { order[$0] } ?? order.count
+    }
+
+    /// Adds up several sources' buckets, e.g. every Claude account's.
+    static func merged(_ sources: [DayModelBuckets]) -> DayModelBuckets {
+        var result: DayModelBuckets = [:]
+        for buckets in sources {
+            for (day, models) in buckets {
+                for (model, totals) in models {
+                    result[day, default: [:]][model, default: ModelTokenTotals()] += totals
+                }
+            }
+        }
+        return result
     }
 
     static func rankedModels(in totalsByModel: [String: ModelTokenTotals]) -> [String] {

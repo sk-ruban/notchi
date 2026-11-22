@@ -19,6 +19,25 @@ final class CostHistoryStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testStoresSharingAPriceListDownloadItOnce() async {
+        let fetchCount = OSAllocatedUnfairLock(initialState: 0)
+        let catalog = PricingCatalog(config: .claude, fallbackBundle: .main, snapshotURL: nil, fetchCatalog: {
+            fetchCount.withLock { $0 += 1 }
+            return nil
+        })
+        let clock = PricingRefreshClock()
+        let work = CostHistoryStore(windowDays: 30, calendar: .current, provider: .claude,
+                                    pricingCatalog: catalog, pricingClock: clock) { _ in [:] }
+        let personal = CostHistoryStore(windowDays: 30, calendar: .current, provider: .claude,
+                                        pricingCatalog: catalog, pricingClock: clock) { _ in [:] }
+
+        await work.refresh()
+        await personal.refresh()
+
+        XCTAssertEqual(fetchCount.withLock { $0 }, 1)
+    }
+
+    @MainActor
     func testStorePublishesReportFromInjectedScan() async {
         var buckets: DayModelBuckets = [:]
         buckets[DailyCostReport.dayKey(Date(), calendar: .current)] =
@@ -462,6 +481,49 @@ final class DailyCostReportTests: XCTestCase {
         XCTAssertEqual(entry.segments.map(\.models), [["claude"], ["codex"], ["devin"]])
         XCTAssertEqual(try XCTUnwrap(entry.segments.last).costUSD, 1.0, accuracy: 1e-9)
         XCTAssertEqual(report.windowCostUSD, 6.0, accuracy: 1e-9)
+    }
+
+    func testCombinedReportStacksSeriesInTheGivenOrder() throws {
+        let dayKey = "2026-06-24"
+        let work: DayModelBuckets = [dayKey: ["claude-opus-4": ModelTokenTotals(
+            input: 100, output: 50, costNanos: 2_000_000_000, requestCount: 1, pricedCount: 1)]]
+        let personal: DayModelBuckets = [dayKey: ["claude-opus-4": ModelTokenTotals(
+            input: 100, output: 50, costNanos: 5_000_000_000, requestCount: 1, pricedCount: 1)]]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.combined(
+            [(key: "/Users/someone/.claude", buckets: work), (key: "/Users/someone/.claude-personal", buckets: personal)],
+            provider: .claude, windowStart: day(dayKey), today: day(dayKey), calendar: cal)
+
+        let entry = try XCTUnwrap(report.entries.last)
+        XCTAssertEqual(entry.segments.map(\.models), [["/Users/someone/.claude"], ["/Users/someone/.claude-personal"]])
+    }
+
+    func testCombinedReportTotalsEverySeriesSpend() {
+        let dayKey = "2026-06-24"
+        let work: DayModelBuckets = [dayKey: ["claude-opus-4": ModelTokenTotals(
+            input: 100, output: 50, costNanos: 2_000_000_000, requestCount: 1, pricedCount: 1)]]
+        let personal: DayModelBuckets = [dayKey: ["claude-sonnet-4": ModelTokenTotals(
+            input: 100, output: 50, costNanos: 5_000_000_000, requestCount: 1, pricedCount: 1)]]
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let report = DailyCostReport.combined(
+            [(key: "work", buckets: work), (key: "personal", buckets: personal)],
+            provider: .claude, windowStart: day(dayKey), today: day(dayKey), calendar: cal)
+
+        XCTAssertEqual(report.windowCostUSD, 7.0, accuracy: 1e-9)
+    }
+
+    func testMergedBucketsAddUpTheSameModelOnTheSameDay() {
+        let dayKey = "2026-06-24"
+        let work: DayModelBuckets = [dayKey: ["claude-opus-4": ModelTokenTotals(input: 100, costNanos: 2_000, requestCount: 1)]]
+        let personal: DayModelBuckets = [dayKey: ["claude-opus-4": ModelTokenTotals(input: 40, costNanos: 5_000, requestCount: 2)]]
+
+        let merged = DailyCostReport.merged([work, personal])
+
+        XCTAssertEqual(merged, [dayKey: ["claude-opus-4": ModelTokenTotals(input: 140, costNanos: 7_000, requestCount: 3)]])
     }
 
     func testTodayTokensAreZeroWhenTodayHasNoActivity() {

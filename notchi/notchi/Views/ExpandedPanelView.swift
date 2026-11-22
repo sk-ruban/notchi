@@ -261,7 +261,8 @@ struct ExpandedPanelView: View {
                 id: account.id,
                 name: account.name,
                 color: account.color.color,
-                usage: usageAccount == .default ? usageService : ClaudeUsageServices.shared.service(for: usageAccount)
+                usage: usageAccount == .default ? usageService : ClaudeUsageServices.shared.service(for: usageAccount),
+                cost: ClaudeCostStores.shared.store(for: account)
             )
         }
     }
@@ -278,10 +279,18 @@ struct ExpandedPanelView: View {
         )
     }
 
+    /// Counted like the usage page does: accounts running notchi, else the default store.
+    private var hasClaudeCostData: Bool {
+        let accounts = claudeAccountUsages
+        return accounts.isEmpty
+            ? !CostHistoryStore.shared.buckets.isEmpty
+            : accounts.contains { $0.cost?.buckets.isEmpty == false }
+    }
+
     private var hasUsageDetailData: Bool {
         usageService.hasUsageData || claudeUsageService.hasUsageData
             || codexUsageService.hasUsageData || devinUsageService.hasUsageData
-            || !CostHistoryStore.shared.buckets.isEmpty || !CostHistoryStore.sharedCodex.buckets.isEmpty
+            || hasClaudeCostData || !CostHistoryStore.sharedCodex.buckets.isEmpty
             || !CostHistoryStore.sharedDevin.buckets.isEmpty
     }
 
