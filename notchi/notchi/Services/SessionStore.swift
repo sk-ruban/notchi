@@ -41,6 +41,9 @@ final class SessionStore {
     private var gitBranchGenerations: [ProviderSessionKey: Int] = [:]
     private var codexPermissionModeGenerations: [ProviderSessionKey: Int] = [:]
     private var claudeSessionNameGenerations: [ProviderSessionKey: Int] = [:]
+    // T3 Code names a thread about a second after its first reply; reading again after a reply catches that.
+    private static let defaultClaudeSessionNameRecheckDelay: Duration = .seconds(3)
+    private var claudeSessionNameRecheckDelay = SessionStore.defaultClaudeSessionNameRecheckDelay
     private var armedPullRequestInvalidations: [ProviderSessionKey: Set<String>] = [:]
     private static let anyToolUseArm = ""
     private var gitRefreshTask: Task<Void, Never>?
@@ -184,6 +187,13 @@ final class SessionStore {
         session.updateDevinRuntime(processId: event.devinProcessId)
         if event.claudeProcessId != nil, let processId = session.claudeProcessId {
             refreshClaudeSessionName(for: session, sessionKey: event.sessionKey, processId: processId)
+        } else if event.event == .stop, let processId = session.claudeProcessId {
+            refreshClaudeSessionName(
+                for: session,
+                sessionKey: event.sessionKey,
+                processId: processId,
+                after: claudeSessionNameRecheckDelay
+            )
         }
         if let hostProcessId = session.hostProcessId,
            hostProcessId != previousHostProcessId,
@@ -380,13 +390,21 @@ final class SessionStore {
         }
     }
 
-    private func refreshClaudeSessionName(for session: SessionData, sessionKey: ProviderSessionKey, processId: Int) {
+    private func refreshClaudeSessionName(
+        for session: SessionData,
+        sessionKey: ProviderSessionKey,
+        processId: Int,
+        after delay: Duration = .zero
+    ) {
         let generation = (claudeSessionNameGenerations[sessionKey] ?? 0) + 1
         claudeSessionNameGenerations[sessionKey] = generation
         let resolve = resolveClaudeSessionName
         let sessionId = session.rawSessionId
         let configDirectory = session.claudeConfigDirectory
         Task.detached(priority: .utility) {
+            if delay > .zero {
+                try? await Task.sleep(for: delay)
+            }
             let name = resolve(processId, sessionId, configDirectory)
             await MainActor.run {
                 guard self.sessions[sessionKey] === session,
@@ -762,6 +780,10 @@ final class SessionStore {
         invalidateGitPullRequestCache = invalidator
     }
 
+    func setClaudeSessionNameRecheckDelayForTesting(_ delay: Duration) {
+        claudeSessionNameRecheckDelay = delay
+    }
+
     func setClaudeSessionNameResolverForTesting(_ resolver: @escaping @Sendable (Int, String, URL?) -> String?) {
         resolveClaudeSessionName = resolver
     }
@@ -807,6 +829,7 @@ final class SessionStore {
         resolveClaudeSessionName = { processId, sessionId, directory in
             ClaudeSessionNameReader.name(forProcessId: processId, sessionId: sessionId, in: directory)
         }
+        claudeSessionNameRecheckDelay = Self.defaultClaudeSessionNameRecheckDelay
     }
 #endif
 

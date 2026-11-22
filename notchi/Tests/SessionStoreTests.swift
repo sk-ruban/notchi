@@ -568,6 +568,34 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(readDirectories.values, [personalAccount])
     }
 
+    // T3 Code names the thread shortly after the reply ends; the re-check must wait for that.
+    private static let threadNamedAfterReplyEnd: Duration = .milliseconds(100)
+    private static let testNameRecheckDelay: Duration = .milliseconds(300)
+
+    func testClaudeSessionNameSetShortlyAfterAReplyShowsOnceTheRecheckRuns() async {
+        let store = SessionStore.shared
+        store.setClaudeSessionNameRecheckDelayForTesting(Self.testNameRecheckDelay)
+        let threadNamed = Counter()
+        store.setClaudeSessionNameResolverForTesting { _, _, _ in
+            threadNamed.value > 0 ? "Test Thread" : nil
+        }
+        let sessionId = "claude-late-name-\(UUID().uuidString)"
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hey test",
+            claudeProcessId: 4245
+        ))
+
+        let session = store.process(makeEvent(sessionId: sessionId, event: .stop, status: "waiting_for_input"))
+        try? await Task.sleep(for: Self.threadNamedAfterReplyEnd)
+        threadNamed.increment()
+
+        _ = await waitUntil(timeout: 2) { session.claudeSessionName != nil }
+        XCTAssertEqual(session.claudeSessionName, "Test Thread")
+    }
+
     func testNamingASessionRenumbersTheRestOfItsProject() async {
         let store = SessionStore.shared
         store.setClaudeSessionNameResolverForTesting { processId, _, _ in

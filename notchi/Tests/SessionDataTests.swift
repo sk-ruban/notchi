@@ -441,4 +441,69 @@ final class SessionDataTests: XCTestCase {
 
         XCTAssertFalse(session.usesDefaultClaudeAccount)
     }
+
+    // MARK: - T3 Code scratch folders
+
+    func testT3ScratchFolderShowsItsPromptWords() {
+        XCTAssertEqual(
+            SessionData.projectName(forDirectory: "/Users/someone/.t3/scratch/2026-11-22-hey-test-2437ec67"),
+            "hey test"
+        )
+    }
+
+    func testT3ScratchFolderWithTheFullThreadIdShowsItsPromptWords() {
+        XCTAssertEqual(
+            SessionData.projectName(
+                forDirectory: "/Users/someone/.t3/scratch/2026-11-22-fix-login-bug-0f3a9c2e7b1d4e5f8a6b9c0d1e2f3a4b"
+            ),
+            "fix login bug"
+        )
+    }
+
+    func testT3ScratchFolderWithACollisionSuffixShowsItsPromptWords() {
+        XCTAssertEqual(
+            SessionData.projectName(
+                forDirectory: "/Users/someone/.t3/scratch/2026-11-22-fix-login-bug-0f3a9c2e7b1d4e5f8a6b9c0d1e2f3a4b-9e8d7c6b"
+            ),
+            "fix login bug"
+        )
+    }
+
+    func testT3ScratchFolderKeepsALongLastPromptWord() {
+        XCTAssertEqual(
+            SessionData.projectName(forDirectory: "/Users/someone/.t3/scratch/2026-11-22-fix-authentication-2437ec67"),
+            "fix authentication"
+        )
+    }
+
+    func testT3ScratchFolderKeepsAnEightLetterLastPromptWord() {
+        XCTAssertEqual(
+            SessionData.projectName(forDirectory: "/Users/someone/.t3/scratch/2026-11-22-fix-database-2437ec67"),
+            "fix database"
+        )
+    }
+
+    func testT3ScratchFolderWithoutPromptWordsKeepsItsFolderName() {
+        XCTAssertEqual(
+            SessionData.projectName(forDirectory: "/Users/someone/.t3/scratch/2026-11-22-2437ec67"),
+            "2026-11-22-2437ec67"
+        )
+    }
+
+    func testT3ScratchFolderWithoutPromptWordsButWithACollisionSuffixKeepsItsFolderName() {
+        let folder = "2026-11-22-0f3a9c2e7b1d4e5f8a6b9c0d1e2f3a4b-9e8d7c6b"
+
+        XCTAssertEqual(SessionData.projectName(forDirectory: "/Users/someone/.t3/scratch/\(folder)"), folder)
+    }
+
+    func testDatedFolderOutsideAScratchFolderKeepsItsName() {
+        XCTAssertEqual(
+            SessionData.projectName(forDirectory: "/Users/someone/notes/2026-11-22-hey-test-2437ec67"),
+            "2026-11-22-hey-test-2437ec67"
+        )
+    }
+
+    func testProjectFolderKeepsItsName() {
+        XCTAssertEqual(SessionData.projectName(forDirectory: "/Users/someone/Developer/notchi"), "notchi")
+    }
 }

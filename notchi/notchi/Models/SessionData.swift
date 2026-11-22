@@ -79,7 +79,28 @@ final class SessionData: Identifiable {
     private static let sleepDelay: Duration = .seconds(300)
 
     var projectName: String {
-        (cwd as NSString).lastPathComponent
+        Self.projectName(forDirectory: cwd)
+    }
+
+    // T3 Code runs project-less threads in `<base>/scratch/<date>-<prompt words>-<id>`, where <id> is the
+    // thread UUID's last 8 characters, or, when that folder is taken, all 32 plus an optional random 8.
+    // Exact lengths keep a long last prompt word from being read as the id.
+    nonisolated private static let t3ScratchParentName = "scratch"
+    nonisolated private static let t3FullThreadId = #/[a-z0-9]{32}/#
+    nonisolated private static let t3ScratchFolder =
+        #/^\d{4}-\d{2}-\d{2}-(?<words>[a-z0-9-]+?)-(?:[a-z0-9]{8}|[a-z0-9]{32}(?:-[a-z0-9]{8})?)$/#
+
+    /// The folder's name, or for a T3 Code scratch folder the prompt words it was named after.
+    nonisolated static func projectName(forDirectory directory: String) -> String {
+        let folder = (directory as NSString).lastPathComponent
+        let parent = ((directory as NSString).deletingLastPathComponent as NSString).lastPathComponent
+        guard parent == t3ScratchParentName,
+              let match = folder.wholeMatch(of: t3ScratchFolder),
+              // A word-less `<date>-<full id>-<random>` folder would otherwise read its id as the words.
+              match.words.wholeMatch(of: t3FullThreadId) == nil else {
+            return folder
+        }
+        return match.words.replacingOccurrences(of: "-", with: " ")
     }
 
     var currentModeDisplay: String? {
