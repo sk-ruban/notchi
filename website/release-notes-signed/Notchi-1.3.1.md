@@ -1,0 +1,32 @@
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
+-->
+# Notchi 1.3.1
+
+This release supports more than one Claude Code account, each with its own usage and cost, shows how full each Claude session's context is, and flags Claude sessions running in fast mode.
+
+## Claude Accounts
+
+- Lists every Claude Code config folder on the Mac (`~/.claude`, `~/.claude-personal`, …) under Providers, next to Codex and Devin, each with its own switch, name and color
+- Tags sessions with their account's name and color once two or more accounts are on
+- Shows each account's own usage. The usage bar and ring follow the account of the session in view, and the usage page's Claude tab switches accounts from its header
+- Tracks each account's spend separately, with an All accounts view that stacks the chart by account
+- Keeps notchi's Claude hook working in every account, including settings copied from one account to another
+
+## Sessions
+
+- Shows how full each Claude session's context is, as a bar in the session list and a ring in the session header, turning amber from 80%
+- Shows a Fast label in the usage bar while a Claude session is in fast mode
+- Labels T3 Code scratch threads by their prompt words, and picks up T3 Code thread names right after they're set
+
+## Prompt Bubble
+
+- Shows T3 Code image references as inline chips with a preview on click
+- Makes links readable against the bubble and underlines the one under the pointer
+- Stops assistant rows flickering when expanded
+
+## Usage and Cost
+
+- Prices fast mode and 1-hour cache writes correctly
+- Keeps long model names from shrinking every stat value
+- Stops asking for keychain access after each update: the Claude token is no longer cached in notchi's own keychain item
