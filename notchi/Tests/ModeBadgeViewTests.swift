@@ -1,8 +1,21 @@
+import SwiftUI
 import XCTest
 @testable import notchi
 
 @MainActor
 final class ModeBadgeViewTests: XCTestCase {
+    /// Narrower than "Bypass" at the panel's 11pt font, like a header row squeezed by a hovered context ring.
+    private static let squeezedWidth: CGFloat = 10
+
+    func testModeBadgeKeepsItsFullSizeWhenTheHeaderRowIsSqueezed() {
+        let badge = NSHostingController(rootView: ModeBadgeView(mode: "Bypass", rawMode: "bypassPermissions"))
+        let fullSize = badge.sizeThatFits(in: CGSize(width: CGFloat.infinity, height: .infinity))
+
+        let squeezedSize = badge.sizeThatFits(in: CGSize(width: Self.squeezedWidth, height: .infinity))
+
+        XCTAssertEqual(squeezedSize, fullSize)
+    }
+
     func testPlanBadgeColorComesFromRawModeNotDisplayText() {
         let badge = ModeBadgeView(mode: "플랜 모드", rawMode: "plan")
         XCTAssertEqual(badge.color, TerminalColors.planMode)
