@@ -660,6 +660,34 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertFalse(stateMachine.hasFileWatcherForTesting(sessionKey: event.sessionKey))
     }
 
+    func testSessionRevivedAfterDismissalWatchesItsTranscriptAgain() throws {
+        let stateMachine = NotchiStateMachine.shared
+        let transcriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dismiss-rewatch-\(UUID().uuidString).jsonl")
+        try Data().write(to: transcriptURL)
+        defer { try? FileManager.default.removeItem(at: transcriptURL) }
+        let prompt = makeEvent(
+            sessionId: "dismiss-rewatch-\(UUID().uuidString)",
+            transcriptPath: transcriptURL.path,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        )
+        stateMachine.handleEvent(prompt)
+        let session = try XCTUnwrap(SessionStore.shared.session(for: prompt.sessionKey))
+        stateMachine.dismissSession(matchingStableId: session.id)
+        XCTAssertFalse(stateMachine.hasFileWatcherForTesting(sessionKey: prompt.sessionKey), "precondition: dismissal stops the watcher")
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: prompt.sessionKey.rawSessionId,
+            transcriptPath: transcriptURL.path,
+            event: .postToolUse,
+            status: "processing"
+        ))
+
+        XCTAssertTrue(stateMachine.hasFileWatcherForTesting(sessionKey: prompt.sessionKey))
+    }
+
     func testSessionRevivedAfterDismissalShowsOnlyRepliesWrittenSince() async throws {
         let stateMachine = NotchiStateMachine.shared
         let transcriptURL = FileManager.default.temporaryDirectory

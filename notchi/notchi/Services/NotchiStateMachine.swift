@@ -82,7 +82,14 @@ final class NotchiStateMachine {
         }
 
         let sessionStartTimeOverride = pendingSessionStartTimeOverride(for: event)
+        let isNewSession = sessionStore.session(for: event.sessionKey) == nil
         let session = sessionStore.process(event, sessionStartTimeOverride: sessionStartTimeOverride)
+        // A session that first appears mid-turn (revived after a dismissal, or seen after launch)
+        // has no prompt event to start its transcript watcher.
+        if isNewSession, session.isInteractive, let transcriptPath,
+           ![.userPromptSubmitted, .stop, .sessionEnded].contains(event.event) {
+            startFileWatcher(sessionKey: event.sessionKey, transcriptPath: transcriptPath)
+        }
         refreshProcessMonitoring()
         refreshCodexThreadMetadataMonitoring()
         scheduleInitialCodexThreadMetadataRefreshIfNeeded(for: event)
