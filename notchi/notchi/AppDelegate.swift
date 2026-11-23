@@ -268,7 +268,7 @@ extension AppDelegate {
 
     func updater(
         _ updater: SPUUpdater,
-        userDidMakeChoice choice: SPUUserUpdateChoice,
+        userDidMake choice: SPUUserUpdateChoice,
         forUpdate updateItem: SUAppcastItem,
         state: SPUUserUpdateState
     ) {
