@@ -375,17 +375,21 @@ final class NotchiStateMachine {
     func dismissSession(matchingStableId stableId: String) {
         guard let sessionKey = ProviderSessionKey(stableId: stableId) else { return }
         sessionStore.dismissSession(sessionKey)
-        stopTrackingSession(sessionKey)
+        // A dismissed agent may still be working; its next event revives the card, which should
+        // continue from here rather than replay the transcript.
+        stopTrackingSession(sessionKey, keepingTranscriptPosition: true)
     }
 
-    private func stopTrackingSession(_ sessionKey: ProviderSessionKey) {
+    private func stopTrackingSession(_ sessionKey: ProviderSessionKey, keepingTranscriptPosition: Bool = false) {
         pendingSessionStartTimes.removeValue(forKey: sessionKey)
         codexThreadMetadataImmediateRefreshKeys.remove(sessionKey)
         stopFileWatcher(sessionKey: sessionKey)
         pendingSyncTasks.removeValue(forKey: sessionKey)?.cancel()
         pendingPositionMarks.removeValue(forKey: sessionKey)?.cancel()
         SoundService.shared.clearCooldown(for: sessionKey)
-        Task { await ConversationParser.shared.resetState(for: sessionKey) }
+        if !keepingTranscriptPosition {
+            Task { await ConversationParser.shared.resetState(for: sessionKey) }
+        }
         refreshProcessMonitoring()
         refreshCodexThreadMetadataMonitoring()
     }
