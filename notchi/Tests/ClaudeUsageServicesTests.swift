@@ -181,6 +181,32 @@ final class ClaudeUsageServicesTests: XCTestCase {
 
         XCTAssertEqual(createdAccounts, [Self.workAccount])
     }
+
+    func testUsageIsConnectedWhenOnlyAnotherAccountWithNotchiOnIsConnected() {
+        let registry = makeRegistry()
+        registry.sync(with: [.default, Self.workAccount])
+
+        registry.service(for: Self.workAccount).isConnected = true
+
+        XCTAssertTrue(registry.isAnyAccountConnected)
+    }
+
+    func testUsageIsConnectedWhenOnlyTheDefaultAccountIsConnected() {
+        let registry = makeRegistry()
+        registry.sync(with: [.default, Self.workAccount])
+
+        defaultService.isConnected = true
+
+        XCTAssertTrue(registry.isAnyAccountConnected)
+    }
+
+    func testUsageIsNotConnectedWhenOnlyASwitchedOffAccountIsConnected() {
+        let registry = makeRegistry()
+
+        registry.service(for: Self.workAccount).isConnected = true
+
+        XCTAssertFalse(registry.isAnyAccountConnected)
+    }
 }
 
 private struct InertPollTimer: ClaudeUsagePollTimer {

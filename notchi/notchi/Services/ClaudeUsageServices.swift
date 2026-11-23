@@ -93,6 +93,11 @@ final class ClaudeUsageServices {
         pollingServices.forEach { $0.connectAndStartPolling() }
     }
 
+    /// Whether the default account or any account with notchi on has connected usage.
+    var isAnyAccountConnected: Bool {
+        defaultService.isConnected || pollingServices.contains { $0.isConnected }
+    }
+
     private var pollingServices: [ClaudeUsageService] {
         services.compactMap { accountsWithNotchi.contains($0.key) ? $0.value : nil }
     }

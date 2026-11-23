@@ -70,7 +70,7 @@ struct PanelSettingsView: View {
     @State private var codexCheckRevision = 0
     @State private var codexCheckTask: Task<CodexHookSetup, Never>?
     @ObservedObject private var updateManager = UpdateManager.shared
-    private var usageConnected: Bool { ClaudeUsageService.shared.isConnected }
+    private var usageConnected: Bool { ClaudeUsageServices.shared.isAnyAccountConnected }
 
     init(
         path: Binding<[SettingsScreen]> = .constant([]),
