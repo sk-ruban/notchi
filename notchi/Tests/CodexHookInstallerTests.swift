@@ -3,6 +3,68 @@ import XCTest
 @testable import notchi
 
 final class CodexHookInstallerTests: XCTestCase {
+    private static let hookCommand = "/tmp/notchi-codex-hook.sh"
+    // Truncated mid-object, like a hand edit saved halfway.
+    private static let invalidHooksJSON = Data(#"{"hooks": {"Stop": ["#.utf8)
+
+    private static func makeTemporaryDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    func testUpsertHooksJSONReturnsNilForInvalidExistingJSON() {
+        XCTAssertNil(CodexHookInstaller.upsertHooksJSON(from: Self.invalidHooksJSON, command: Self.hookCommand))
+    }
+
+    func testUpdateHooksJSONLeavesAnInvalidFileUntouched() throws {
+        let directory = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("hooks.json")
+        try Self.invalidHooksJSON.write(to: url)
+
+        _ = CodexHookInstaller.updateHooksJSON(at: url, command: Self.hookCommand)
+
+        XCTAssertEqual(try Data(contentsOf: url), Self.invalidHooksJSON)
+    }
+
+    func testUpdateHooksJSONKeepsASymlinkedFileLinked() throws {
+        let targetDirectory = try Self.makeTemporaryDirectory()
+        let linkDirectory = try Self.makeTemporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: targetDirectory)
+            try? FileManager.default.removeItem(at: linkDirectory)
+        }
+        let target = targetDirectory.appendingPathComponent("hooks.json")
+        try Data("{}".utf8).write(to: target)
+        let link = linkDirectory.appendingPathComponent("hooks.json")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertTrue(CodexHookInstaller.updateHooksJSON(at: link, command: Self.hookCommand))
+
+        XCTAssertTrue(CodexHookInstaller.isHookInstalled(in: try Data(contentsOf: target)))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path)
+    }
+
+    func testUpdateConfigKeepsASymlinkedConfigLinked() throws {
+        let targetDirectory = try Self.makeTemporaryDirectory()
+        let linkDirectory = try Self.makeTemporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: targetDirectory)
+            try? FileManager.default.removeItem(at: linkDirectory)
+        }
+        let target = targetDirectory.appendingPathComponent("config.toml")
+        try Data("model = \"gpt-5\"\n".utf8).write(to: target)
+        let link = linkDirectory.appendingPathComponent("config.toml")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertTrue(CodexHookInstaller.updateConfig(at: link))
+
+        XCTAssertTrue(CodexHookInstaller.isFeatureEnabled(in: try String(contentsOf: target, encoding: .utf8)))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path)
+    }
+
     func testCodexDirectoryExistsReturnsFalseWhenConfigDirectoryIsMissing() {
         let tempRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

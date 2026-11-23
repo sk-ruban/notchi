@@ -77,7 +77,7 @@ struct CodexHookInstaller {
         }
 
         do {
-            try data.write(to: hooksJSONURL)
+            try HookFile.writeConfig(data, to: hooksJSONURL)
         } catch {
             codexHookLogger.error("Failed to write Codex hooks.json on uninstall: \(error.localizedDescription)")
         }
@@ -117,8 +117,10 @@ struct CodexHookInstaller {
 
     nonisolated static func upsertHooksJSON(from existingData: Data?, command: String) -> Data? {
         var json: [String: Any] = [:]
-        if let existingData,
-           let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+        if let existingData, !existingData.isEmpty {
+            guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
+                return nil
+            }
             json = existing
         }
 
@@ -267,18 +269,18 @@ struct CodexHookInstaller {
         return group
     }
 
-    nonisolated private static func updateHooksJSON(at url: URL, command: String) -> Bool {
+    nonisolated static func updateHooksJSON(at url: URL, command: String) -> Bool {
         let existingData = try? Data(contentsOf: url)
 
         guard let data = upsertHooksJSON(from: existingData, command: command) else {
-            codexHookLogger.error("Failed to serialize Codex hooks.json")
+            codexHookLogger.error("Skipped updating Codex hooks.json: existing file is not valid JSON")
             return false
         }
 
         guard data != existingData else { return true }
 
         do {
-            try data.write(to: url)
+            try HookFile.writeConfig(data, to: url)
             return true
         } catch {
             codexHookLogger.error("Failed to write Codex hooks.json: \(error.localizedDescription)")
@@ -286,14 +288,14 @@ struct CodexHookInstaller {
         }
     }
 
-    nonisolated private static func updateConfig(at url: URL) -> Bool {
+    nonisolated static func updateConfig(at url: URL) -> Bool {
         let existingContents = try? String(contentsOf: url, encoding: .utf8)
         let updatedContents = upsertFeatureFlag(in: existingContents)
 
         guard updatedContents != existingContents else { return true }
 
         do {
-            try updatedContents.write(to: url, atomically: true, encoding: .utf8)
+            try HookFile.writeConfig(Data(updatedContents.utf8), to: url)
             return true
         } catch {
             codexHookLogger.error("Failed to write Codex config.toml: \(error.localizedDescription)")
