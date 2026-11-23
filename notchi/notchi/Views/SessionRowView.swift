@@ -52,6 +52,7 @@ struct SessionRowView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Remove session"))
                 .onHover { isTrashHovered = $0 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

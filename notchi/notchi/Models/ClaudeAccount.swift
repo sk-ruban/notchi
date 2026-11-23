@@ -13,6 +13,17 @@ enum ClaudeAccountColor: String, CaseIterable, Codable, Sendable {
         case .teal: TerminalColors.gitBranch
         }
     }
+
+    var displayName: String {
+        switch self {
+        case .orange: String(localized: "Orange", comment: "A Claude account's badge color.")
+        case .blue: String(localized: "Blue", comment: "A Claude account's badge color.")
+        case .green: String(localized: "Green", comment: "A Claude account's badge color.")
+        case .purple: String(localized: "Purple", comment: "A Claude account's badge color.")
+        case .pink: String(localized: "Pink", comment: "A Claude account's badge color.")
+        case .teal: String(localized: "Teal", comment: "A Claude account's badge color.")
+        }
+    }
 }
 
 /// One Claude Code config directory (`~/.claude`, `~/.claude-personal`, …), each a separate login.

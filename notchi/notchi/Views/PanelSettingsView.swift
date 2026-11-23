@@ -300,6 +300,7 @@ struct PanelSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .help(String(localized: "Account settings"))
+                    .accessibilityLabel(String(localized: "Account settings"))
                 } else {
                     Color.clear
                 }

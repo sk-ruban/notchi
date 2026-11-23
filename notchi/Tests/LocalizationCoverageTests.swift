@@ -17,6 +17,11 @@ final class LocalizationCoverageTests: XCTestCase {
         "Reading %@", "Writing %@", "Editing %@", "Searching: %@", "Finding: %@",
         "Type a custom answer", "Try again", "Custom Sound", "Claude Usage", "Space", "Key %lld",
         "Neutral", "Happy", "Elated", "Sad", "Sob", "%@ API returned HTTP %lld: %@", "Token expired.",
+        // VoiceOver labels and tooltips for icon-only buttons and color swatches:
+        "Orange", "Blue", "Green", "Purple", "Pink", "Teal",
+        "Pin panel", "Unpin panel", "Mute", "Unmute", "Settings", "Close", "Show activity", "Hide activity",
+        "Remove session", "Rename", "Delete", "Save API key", "Use custom model",
+        "Previous question", "Next question", "Submit answer",
     ]
     private let targetLocales = ["ja", "zh-Hans", "zh-Hant", "ko", "vi"]
 

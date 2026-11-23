@@ -189,6 +189,7 @@ struct SoundPickerView: View {
                     .frame(width: 16, height: 16)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Rename"))
 
             Button(action: {
                 deleteCustomSound(sound)
@@ -199,6 +200,7 @@ struct SoundPickerView: View {
                     .frame(width: 16, height: 16)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Delete"))
         }
         .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
         .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)

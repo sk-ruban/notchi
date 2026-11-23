@@ -658,6 +658,7 @@ struct NotchContentView: View {
                         .padding(8 * panelScale)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isActivityCollapsed ? String(localized: "Show activity") : String(localized: "Hide activity"))
                 .offset(y: grassHeight - 30)
                 .padding(.trailing, 30)
             }
@@ -769,10 +770,12 @@ struct NotchContentView: View {
                         HStack(spacing: 8 * panelScale) {
                             PanelHeaderButton(
                                 sfSymbol: panelManager.isPinned ? "pin.fill" : "pin",
+                                label: pinButtonLabel,
                                 action: { panelManager.togglePin() }
                             )
                             PanelHeaderButton(
                                 sfSymbol: isMuted ? "bell.slash" : "bell",
+                                label: isMuted ? String(localized: "Unmute") : String(localized: "Mute"),
                                 action: toggleMute
                             )
                         }
@@ -794,11 +797,16 @@ struct NotchContentView: View {
         }
     }
 
+    private var pinButtonLabel: String {
+        panelManager.isPinned ? String(localized: "Unpin panel") : String(localized: "Pin panel")
+    }
+
     private var headerButtons: some View {
         HStack(spacing: 8 * panelScale) {
             if !showingPanelSettings {
                 PanelHeaderButton(
                     sfSymbol: "gearshape",
+                    label: String(localized: "Settings"),
                     showsIndicator: updateManager.hasPendingUpdate,
                     action: {
                         haptics.playNavigationTap()
@@ -809,10 +817,11 @@ struct NotchContentView: View {
             } else {
                 PanelHeaderButton(
                     sfSymbol: panelManager.isPinned ? "pin.fill" : "pin",
+                    label: pinButtonLabel,
                     action: { panelManager.togglePin() }
                 )
             }
-            PanelHeaderButton(sfSymbol: "xmark", action: { panelManager.collapse() })
+            PanelHeaderButton(sfSymbol: "xmark", label: String(localized: "Close"), action: { panelManager.collapse() })
         }
         .padding(.trailing, 8)
     }

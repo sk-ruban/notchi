@@ -82,6 +82,9 @@ struct ClaudeAccountSettingsView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .help(color.displayName)
+        .accessibilityLabel(color.displayName)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func saveName() {
