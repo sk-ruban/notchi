@@ -8,7 +8,6 @@ struct HookInstaller {
     nonisolated private static let sharedHookScriptRelativePath = "Library/Application Support/Notchi/hooks/notchi-hook.sh"
     nonisolated private static let claudeAccountDirectoryPrefix = ".claude"
     nonisolated private static let settingsFileName = "settings.json"
-    nonisolated private static let newSettingsPermissions: Int16 = 0o600
 
     /// Exits quietly when the script is gone (notchi uninstalled, settings synced to another Mac),
     /// and `exec` keeps the script's stdout and exit status for Claude Code.
@@ -256,14 +255,7 @@ struct HookInstaller {
 
     /// Writes atomically through symlinks (dotfiles), keeping the file's permissions.
     nonisolated static func writeSettings(_ data: Data, to url: URL, fileManager: FileManager = .default) throws {
-        let target = url.resolvingSymlinksInPath()
-        let existingPermissions = (try? fileManager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber)?
-            .int16Value
-        try data.write(to: target, options: .atomic)
-        try fileManager.setAttributes(
-            [.posixPermissions: existingPermissions ?? newSettingsPermissions],
-            ofItemAtPath: target.path
-        )
+        try HookFile.writeConfig(data, to: url, fileManager: fileManager)
     }
 
     nonisolated static func isHookInstalled(in settingsData: Data?) -> Bool {

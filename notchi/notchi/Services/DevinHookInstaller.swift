@@ -6,7 +6,6 @@ nonisolated private let devinHookLogger = Logger(subsystem: "com.ruban.notchi", 
 struct DevinHookInstaller {
     nonisolated private static let hookScriptName = "notchi-devin-hook.sh"
     nonisolated private static let legacyClaudeHookScriptName = "notchi-hook.sh"
-    nonisolated private static let newConfigPermissions: Int16 = 0o600
 
     nonisolated static let supportedEvents = [
         "SessionStart",
@@ -180,14 +179,7 @@ struct DevinHookInstaller {
     }
 
     nonisolated static func writeConfig(_ data: Data, to url: URL, fileManager: FileManager = .default) throws {
-        let target = url.resolvingSymlinksInPath()
-        let existingPermissions = (try? fileManager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber)?
-            .int16Value
-        try data.write(to: target, options: .atomic)
-        try fileManager.setAttributes(
-            [.posixPermissions: existingPermissions ?? newConfigPermissions],
-            ofItemAtPath: target.path
-        )
+        try HookFile.writeConfig(data, to: url, fileManager: fileManager)
     }
 
     nonisolated private static func pruneManagedHooks(from entries: [[String: Any]]) -> [[String: Any]] {

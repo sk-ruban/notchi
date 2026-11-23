@@ -2,6 +2,8 @@ import Foundation
 
 nonisolated enum HookFile {
     static let executablePermissions: Int16 = 0o755
+    // Agent configs can hold credentials, so files notchi creates are owner-only.
+    private static let newConfigPermissions: Int16 = 0o600
     private static let bundledSocketAssignment = #"SOCKET_PATH="$HOME/Library/Application Support/Notchi/notchi.sock""#
 
     static func installableScript(from bundled: Data, socketPath: String = SocketServer.socketPath) -> Data {
@@ -30,6 +32,18 @@ nonisolated enum HookFile {
         try fileManager.setAttributes(
             [.posixPermissions: executablePermissions],
             ofItemAtPath: url.path
+        )
+    }
+
+    /// Writes atomically through symlinks (dotfiles), keeping the file's permissions.
+    static func writeConfig(_ data: Data, to url: URL, fileManager: FileManager = .default) throws {
+        let target = url.resolvingSymlinksInPath()
+        let existingPermissions = (try? fileManager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber)?
+            .int16Value
+        try data.write(to: target, options: .atomic)
+        try fileManager.setAttributes(
+            [.posixPermissions: existingPermissions ?? newConfigPermissions],
+            ofItemAtPath: target.path
         )
     }
 
