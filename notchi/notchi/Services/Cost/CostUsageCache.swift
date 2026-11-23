@@ -16,13 +16,17 @@ nonisolated struct CostUsageCache: Codable, Equatable {
         /// Dedup keys from the end of the last read, so a duplicate line written after a scan is still skipped.
         var recentDedupKeys: [String]? = nil
 
-        // One reply's duplicate lines are written back to back, so a scan can only split the last few.
-        static let retainedDedupKeyCount = 32
+        // One reply's duplicate lines share a key and are written back to back, so a scan can only
+        // split the last reply or two; a few distinct keys per file keep the cache small.
+        static let retainedDedupKeyCount = 4
 
-        /// Keys to remember after a read that started at `startOffset` and saw `newKeys`.
+        /// Distinct keys to remember after a read that started at `startOffset` and saw `newKeys`.
         func dedupKeys(afterReadingFrom startOffset: Int64, adding newKeys: [String]) -> [String] {
-            let carried = startOffset > 0 ? (recentDedupKeys ?? []) : []
-            return Array((carried + newKeys).suffix(Self.retainedDedupKeyCount))
+            var keys = startOffset > 0 ? (recentDedupKeys ?? []) : []
+            for key in newKeys where keys.last != key {
+                keys.append(key)
+            }
+            return Array(keys.suffix(Self.retainedDedupKeyCount))
         }
     }
 
