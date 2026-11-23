@@ -131,6 +131,18 @@ final class SessionData: Identifiable {
         provider == .codex && codexProcessId != nil && (codexOrigin == .cli || hostBundleIdentifier != nil)
     }
 
+    /// The agent process whose exit ends this session, when notchi knows it.
+    var monitoredProcessId: Int? {
+        switch provider {
+        case .claude:
+            claudeProcessId
+        case .codex:
+            isCodexProcessMonitored ? codexProcessId : nil
+        case .devin:
+            devinProcessId
+        }
+    }
+
     var isCodexThreadBacked: Bool {
         provider == .codex && codexTranscriptPath != nil
     }

@@ -15,7 +15,7 @@ final class NotchiStateMachine {
     private var pendingSyncTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingPositionMarks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingSessionStartTimes: [ProviderSessionKey: Date] = [:]
-    private var codexProcessMonitorTask: Task<Void, Never>?
+    private var processMonitorTask: Task<Void, Never>?
     private var codexThreadMetadataMonitorTask: Task<Void, Never>?
     private var codexThreadMetadataRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshTask: Task<Void, Never>?
@@ -23,27 +23,27 @@ final class NotchiStateMachine {
     private var lastCodexCompactionSignalRefreshAt: ContinuousClock.Instant?
     private var codexThreadMetadataImmediateRefreshKeys: Set<ProviderSessionKey> = []
     private var codexThreadMetadataAutoRefreshEnabled = true
-    private var codexProcessMissCounts: [ProviderSessionKey: Int] = [:]
+    private var processMissCounts: [ProviderSessionKey: Int] = [:]
     private var fileWatchers: [ProviderSessionKey: (source: DispatchSourceFileSystemObject, fd: Int32)] = [:]
     var handleClaudeUsageResumeTrigger: (ClaudeUsageResumeTrigger) -> Void = { trigger in
         ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
     }
-    var isCodexProcessAlive: (Int) -> Bool
+    var isProcessAlive: (Int) -> Bool
     var onCodexSessionsEnded: () -> Void = {
         Task { await CodexUsageService.shared.refreshFromAPI() }
     }
 
     private static let syncDebounce: Duration = .milliseconds(100)
     private static let waitingClearGuard: TimeInterval = 2.0
-    private static let codexProcessMonitorInterval: Duration = .seconds(2)
+    private static let processMonitorInterval: Duration = .seconds(2)
     private static let codexThreadMetadataMonitorInterval: Duration = .seconds(5)
     private nonisolated static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
     private nonisolated static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
-    private static let codexProcessMissLimit = 2
+    private static let processMissLimit = 2
     private static let pendingSessionStartMaxAge: TimeInterval = 10 * 60
 
     private init() {
-        isCodexProcessAlive = Self.defaultCodexProcessAlive
+        isProcessAlive = Self.defaultProcessAlive
         startEmotionDecayTimer()
     }
 
@@ -83,7 +83,7 @@ final class NotchiStateMachine {
 
         let sessionStartTimeOverride = pendingSessionStartTimeOverride(for: event)
         let session = sessionStore.process(event, sessionStartTimeOverride: sessionStartTimeOverride)
-        refreshCodexProcessMonitoring()
+        refreshProcessMonitoring()
         refreshCodexThreadMetadataMonitoring()
         scheduleInitialCodexThreadMetadataRefreshIfNeeded(for: event)
 
@@ -305,34 +305,34 @@ final class NotchiStateMachine {
         }
     }
 
-    private func reconcileCodexProcessLiveness() {
-        let trackedSessions = sessionStore.sessions.values.filter { $0.isCodexProcessMonitored }
+    private func reconcileProcessLiveness() {
+        let trackedSessions = sessionStore.sessions.values.filter { $0.monitoredProcessId != nil }
         let trackedKeys = Set(trackedSessions.map(\.sessionKey))
-        codexProcessMissCounts = codexProcessMissCounts.filter { trackedKeys.contains($0.key) }
+        processMissCounts = processMissCounts.filter { trackedKeys.contains($0.key) }
 
         var endedSessions: [SessionData] = []
 
         for session in trackedSessions {
-            guard let processId = session.codexProcessId else { continue }
+            guard let processId = session.monitoredProcessId else { continue }
 
-            if isCodexProcessAlive(processId) {
-                codexProcessMissCounts.removeValue(forKey: session.sessionKey)
+            if isProcessAlive(processId) {
+                processMissCounts.removeValue(forKey: session.sessionKey)
                 continue
             }
 
-            let missCount = (codexProcessMissCounts[session.sessionKey] ?? 0) + 1
-            codexProcessMissCounts[session.sessionKey] = missCount
+            let missCount = (processMissCounts[session.sessionKey] ?? 0) + 1
+            processMissCounts[session.sessionKey] = missCount
 
-            if missCount >= Self.codexProcessMissLimit {
+            if missCount >= Self.processMissLimit {
                 endedSessions.append(session)
             }
         }
 
         for session in endedSessions {
-            codexProcessMissCounts.removeValue(forKey: session.sessionKey)
+            processMissCounts.removeValue(forKey: session.sessionKey)
             handleEvent(
                 HookEvent(
-                    provider: .codex,
+                    provider: session.provider,
                     rawSessionId: session.rawSessionId,
                     transcriptPath: nil,
                     cwd: session.cwd,
@@ -345,7 +345,7 @@ final class NotchiStateMachine {
             )
         }
 
-        refreshCodexProcessMonitoring()
+        refreshProcessMonitoring()
     }
 
     private func reconcileCodexThreadMetadata() {
@@ -386,7 +386,7 @@ final class NotchiStateMachine {
         pendingPositionMarks.removeValue(forKey: sessionKey)?.cancel()
         SoundService.shared.clearCooldown(for: sessionKey)
         Task { await ConversationParser.shared.resetState(for: sessionKey) }
-        refreshCodexProcessMonitoring()
+        refreshProcessMonitoring()
         refreshCodexThreadMetadataMonitoring()
     }
 
@@ -438,22 +438,22 @@ final class NotchiStateMachine {
         }
     }
 
-    private func refreshCodexProcessMonitoring() {
-        let shouldMonitor = sessionStore.sessions.values.contains { $0.isCodexProcessMonitored }
+    private func refreshProcessMonitoring() {
+        let shouldMonitor = sessionStore.sessions.values.contains { $0.monitoredProcessId != nil }
 
         if shouldMonitor {
-            guard codexProcessMonitorTask == nil else { return }
-            codexProcessMonitorTask = Task { [weak self] in
+            guard processMonitorTask == nil else { return }
+            processMonitorTask = Task { [weak self] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: Self.codexProcessMonitorInterval)
+                    try? await Task.sleep(for: Self.processMonitorInterval)
                     guard !Task.isCancelled else { return }
-                    self?.reconcileCodexProcessLiveness()
+                    self?.reconcileProcessLiveness()
                 }
             }
         } else {
-            codexProcessMonitorTask?.cancel()
-            codexProcessMonitorTask = nil
-            codexProcessMissCounts.removeAll()
+            processMonitorTask?.cancel()
+            processMonitorTask = nil
+            processMissCounts.removeAll()
         }
     }
 
@@ -591,7 +591,7 @@ final class NotchiStateMachine {
         codexCompactionSignalRefreshTask = nil
     }
 
-    private nonisolated static func defaultCodexProcessAlive(_ processId: Int) -> Bool {
+    private nonisolated static func defaultProcessAlive(_ processId: Int) -> Bool {
         guard processId > 0, processId <= Int(Int32.max) else { return false }
 
         errno = 0
@@ -603,12 +603,12 @@ final class NotchiStateMachine {
         handleClaudeUsageResumeTrigger = { trigger in
             ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
         }
-        isCodexProcessAlive = Self.defaultCodexProcessAlive
+        isProcessAlive = Self.defaultProcessAlive
         onCodexSessionsEnded = {
             Task { await CodexUsageService.shared.refreshFromAPI() }
         }
-        codexProcessMonitorTask?.cancel()
-        codexProcessMonitorTask = nil
+        processMonitorTask?.cancel()
+        processMonitorTask = nil
         codexThreadMetadataMonitorTask?.cancel()
         codexThreadMetadataMonitorTask = nil
         codexThreadMetadataRefreshTask?.cancel()
@@ -617,13 +617,13 @@ final class NotchiStateMachine {
         lastCodexCompactionSignalRefreshAt = nil
         codexThreadMetadataImmediateRefreshKeys.removeAll()
         codexThreadMetadataAutoRefreshEnabled = true
-        codexProcessMissCounts.removeAll()
+        processMissCounts.removeAll()
         pendingSessionStartTimes.removeAll()
     }
 
 #if DEBUG
-    func reconcileCodexProcessLivenessForTesting() {
-        reconcileCodexProcessLiveness()
+    func reconcileProcessLivenessForTesting() {
+        reconcileProcessLiveness()
     }
 
     func reconcileCodexThreadMetadataForTesting() {
