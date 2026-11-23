@@ -85,7 +85,7 @@ struct DevinHookInstaller {
 
         let existingData = try? Data(contentsOf: configURL)
         guard let data = removeManagedHooks(from: existingData) else {
-            if let existingData, !existingData.isEmpty,
+            if let existingData, !HookFile.isBlank(existingData),
                (try? JSONSerialization.jsonObject(with: existingData)) == nil {
                 devinHookLogger.error("Skipped pruning Devin config.json on uninstall: file is not valid JSON; stale hook references may remain")
             }
@@ -112,7 +112,7 @@ struct DevinHookInstaller {
 
     nonisolated static func upsertConfig(from existingData: Data?, command: String) -> Data? {
         var json: [String: Any] = [:]
-        if let existingData, !existingData.isEmpty {
+        if let existingData, !HookFile.isBlank(existingData) {
             guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
                 return nil
             }

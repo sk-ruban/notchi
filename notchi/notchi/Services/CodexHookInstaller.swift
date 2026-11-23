@@ -59,9 +59,13 @@ struct CodexHookInstaller {
             return false
         }
 
-        let hooksWritten = updateHooksJSON(at: hooksJSONURL, command: hookCommand)
-        let featureEnabled = updateConfig(at: configURL)
-        return hooksWritten && featureEnabled
+        return updateHookConfigs(hooksJSONAt: hooksJSONURL, configAt: configURL, command: hookCommand)
+    }
+
+    nonisolated static func updateHookConfigs(hooksJSONAt hooksURL: URL, configAt configURL: URL, command: String) -> Bool {
+        // Enabling hooks while hooks.json is unreadable would have Codex load the broken file.
+        guard updateHooksJSON(at: hooksURL, command: command) else { return false }
+        return updateConfig(at: configURL)
     }
 
     nonisolated static func uninstall() {
@@ -69,7 +73,7 @@ struct CodexHookInstaller {
 
         let existingData = try? Data(contentsOf: hooksJSONURL)
         guard let data = removeManagedHooksJSON(from: existingData) else {
-            if let existingData, !existingData.isEmpty,
+            if let existingData, !HookFile.isBlank(existingData),
                (try? JSONSerialization.jsonObject(with: existingData)) == nil {
                 codexHookLogger.error("Skipped pruning Codex hooks.json on uninstall: file is not valid JSON; stale hook references may remain")
             }
@@ -117,7 +121,7 @@ struct CodexHookInstaller {
 
     nonisolated static func upsertHooksJSON(from existingData: Data?, command: String) -> Data? {
         var json: [String: Any] = [:]
-        if let existingData, !existingData.isEmpty {
+        if let existingData, !HookFile.isBlank(existingData) {
             guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
                 return nil
             }

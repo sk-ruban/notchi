@@ -18,6 +18,28 @@ final class CodexHookInstallerTests: XCTestCase {
         XCTAssertNil(CodexHookInstaller.upsertHooksJSON(from: Self.invalidHooksJSON, command: Self.hookCommand))
     }
 
+    func testUpsertHooksJSONTreatsAWhitespaceOnlyFileAsEmpty() {
+        let whitespaceOnly = Data("\n  \n".utf8)
+
+        let data = CodexHookInstaller.upsertHooksJSON(from: whitespaceOnly, command: Self.hookCommand)
+
+        XCTAssertTrue(CodexHookInstaller.isHookInstalled(in: data))
+    }
+
+    func testUpdateHookConfigsLeavesConfigUntouchedWhenHooksJSONIsInvalid() throws {
+        let directory = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let hooksURL = directory.appendingPathComponent("hooks.json")
+        let configURL = directory.appendingPathComponent("config.toml")
+        let originalConfig = Data("model = \"gpt-5\"\n".utf8)
+        try Self.invalidHooksJSON.write(to: hooksURL)
+        try originalConfig.write(to: configURL)
+
+        XCTAssertFalse(CodexHookInstaller.updateHookConfigs(hooksJSONAt: hooksURL, configAt: configURL, command: Self.hookCommand))
+
+        XCTAssertEqual(try Data(contentsOf: configURL), originalConfig)
+    }
+
     func testUpdateHooksJSONLeavesAnInvalidFileUntouched() throws {
         let directory = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

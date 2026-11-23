@@ -158,7 +158,7 @@ struct HookInstaller {
     /// Nil when existing settings can't be parsed, so a hand-edited file is never replaced wholesale.
     nonisolated static func upsertHookSettings(from existingData: Data?, command: String) -> Data? {
         var json: [String: Any] = [:]
-        if let existingData, !existingData.isEmpty {
+        if let existingData, !HookFile.isBlank(existingData) {
             guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
                 return nil
             }
@@ -313,7 +313,7 @@ struct HookInstaller {
     nonisolated private static func pruneManagedHooks(inSettingsAt settings: URL) {
         let existingData = try? Data(contentsOf: settings)
         guard let data = removeManagedHookSettings(from: existingData) else {
-            if let existingData, !existingData.isEmpty,
+            if let existingData, !HookFile.isBlank(existingData),
                (try? JSONSerialization.jsonObject(with: existingData)) == nil {
                 logger.error("Skipped pruning Claude settings.json on uninstall: file is not valid JSON; stale hook references may remain")
             }
