@@ -927,6 +927,69 @@ final class SessionStoreTests: XCTestCase {
         )
     }
 
+    func testAgentMovingOnReleasesTheUnansweredPermissionWait() async throws {
+        let store = SessionStore.shared
+        let sessionId = "permission-answered-in-terminal-\(UUID().uuidString)"
+        let requestId = HookInteractionRequest.id(
+            provider: .claude,
+            rawSessionId: sessionId,
+            hookEventName: NormalizedAgentEvent.permissionRequest.rawValue,
+            toolUseId: "tool-bash"
+        )
+        let hookWaitTimeout: TimeInterval = 5
+        let releaseDeadline: TimeInterval = 1
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .permissionRequest,
+            status: "waiting_for_input",
+            tool: "Bash",
+            toolUseId: "tool-bash",
+            toolInput: ["command": AnyCodable("ls")],
+            interactionRequestId: requestId
+        ))
+        let responseTask = Task.detached {
+            HookInteractionResponseBroker.shared.waitForResponse(requestId: requestId, timeout: hookWaitTimeout)
+        }
+        let responseWaiterRegistered = await waitUntil(timeout: 1) {
+            HookInteractionResponseBroker.shared.isWaitingForResponse(requestId: requestId)
+        }
+        XCTAssertTrue(responseWaiterRegistered, "precondition: the hook is waiting for an answer")
+
+        // The user answered in the terminal, so Claude ran the tool without notchi's reply.
+        _ = store.process(makeEvent(
+            sessionId: sessionId,
+            event: .postToolUse,
+            status: "processing",
+            tool: "Bash",
+            toolUseId: "tool-bash"
+        ))
+        let released = await waitUntil(timeout: releaseDeadline) {
+            !HookInteractionResponseBroker.shared.isWaitingForResponse(requestId: requestId)
+        }
+        _ = await responseTask.value
+
+        XCTAssertTrue(released)
+    }
+
+    func testAbandoningAWaitAfterItWasAnsweredStillDeliversTheAnswer() async {
+        let broker = HookInteractionResponseBroker.shared
+        let requestId = "abandon-after-answer-\(UUID().uuidString)"
+        let answer = Data(#"{"decision":"allow"}"#.utf8)
+        let responseTask = Task.detached {
+            broker.waitForResponse(requestId: requestId, timeout: 1)
+        }
+        let responseWaiterRegistered = await waitUntil(timeout: 1) {
+            broker.isWaitingForResponse(requestId: requestId)
+        }
+        XCTAssertTrue(responseWaiterRegistered, "precondition: the hook is waiting for an answer")
+
+        broker.submitResponse(answer, for: requestId)
+        broker.abandonWait(requestId: requestId)
+        let delivered = await responseTask.value
+
+        XCTAssertEqual(delivered, answer)
+    }
+
     func testAnswerPendingQuestionSubmitsClaudePreToolUseResponse() async throws {
         let store = SessionStore.shared
         let sessionId = "ask-user-question-answer-\(UUID().uuidString)"

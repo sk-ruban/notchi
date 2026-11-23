@@ -213,6 +213,7 @@ final class SessionStore {
             )
         }
 
+        let previousRequestId = session.pendingQuestionResponseContext?.requestId
         switch event.event {
         case .userPromptSubmitted:
             if event.userPrompt != nil || event.userPromptHasAttachments {
@@ -288,6 +289,12 @@ final class SessionStore {
         case .sessionEnded:
             session.endSession()
             removeSession(event.sessionKey)
+        }
+
+        // Once its card is cleared or replaced, nothing can answer that request, so free its waiting hook.
+        if let previousRequestId,
+           event.event == .sessionEnded || session.pendingQuestionResponseContext?.requestId != previousRequestId {
+            HookInteractionResponseBroker.shared.abandonWait(requestId: previousRequestId)
         }
 
         return session
@@ -464,6 +471,9 @@ final class SessionStore {
     }
 
     func dismissSession(_ sessionKey: ProviderSessionKey) {
+        if let requestId = sessions[sessionKey]?.pendingQuestionResponseContext?.requestId {
+            HookInteractionResponseBroker.shared.abandonWait(requestId: requestId)
+        }
         sessions[sessionKey]?.endSession()
         removeSession(sessionKey)
     }
@@ -1165,6 +1175,7 @@ nonisolated final class HookInteractionResponseBroker: @unchecked Sendable {
     private let condition = NSCondition()
     private var pendingRequestIds: Set<String> = []
     private var responsesByRequestId: [String: Data] = [:]
+    private var abandonedRequestIds: Set<String> = []
 
     func waitForResponse(requestId: String, timeout: TimeInterval) -> Data? {
         let deadline = Date().addingTimeInterval(timeout)
@@ -1174,14 +1185,25 @@ nonisolated final class HookInteractionResponseBroker: @unchecked Sendable {
         defer {
             pendingRequestIds.remove(requestId)
             responsesByRequestId.removeValue(forKey: requestId)
+            abandonedRequestIds.remove(requestId)
             condition.unlock()
         }
 
-        while responsesByRequestId[requestId] == nil, Date() < deadline {
+        while responsesByRequestId[requestId] == nil, !abandonedRequestIds.contains(requestId), Date() < deadline {
             condition.wait(until: deadline)
         }
 
         return responsesByRequestId[requestId]
+    }
+
+    /// Stops waiting on a request the agent resolved without notchi; an answer already submitted still wins.
+    func abandonWait(requestId: String) {
+        condition.lock()
+        defer { condition.unlock() }
+
+        guard pendingRequestIds.contains(requestId), responsesByRequestId[requestId] == nil else { return }
+        abandonedRequestIds.insert(requestId)
+        condition.broadcast()
     }
 
     @discardableResult
@@ -1189,7 +1211,7 @@ nonisolated final class HookInteractionResponseBroker: @unchecked Sendable {
         condition.lock()
         defer { condition.unlock() }
 
-        guard pendingRequestIds.contains(requestId) else { return false }
+        guard pendingRequestIds.contains(requestId), !abandonedRequestIds.contains(requestId) else { return false }
         responsesByRequestId[requestId] = response
         condition.broadcast()
         return true
