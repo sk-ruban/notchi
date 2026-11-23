@@ -13,6 +13,17 @@ nonisolated struct CostUsageCache: Codable, Equatable {
         var mtime: Double
         var offset: Int64
         var codexResume: CodexResume? = nil
+        /// Dedup keys from the end of the last read, so a duplicate line written after a scan is still skipped.
+        var recentDedupKeys: [String]? = nil
+
+        // One reply's duplicate lines are written back to back, so a scan can only split the last few.
+        static let retainedDedupKeyCount = 32
+
+        /// Keys to remember after a read that started at `startOffset` and saw `newKeys`.
+        func dedupKeys(afterReadingFrom startOffset: Int64, adding newKeys: [String]) -> [String] {
+            let carried = startOffset > 0 ? (recentDedupKeys ?? []) : []
+            return Array((carried + newKeys).suffix(Self.retainedDedupKeyCount))
+        }
     }
 
     static let currentVersion = 3

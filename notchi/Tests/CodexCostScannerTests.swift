@@ -128,6 +128,21 @@ final class CodexCostScannerTests: XCTestCase {
         XCTAssertEqual(out.buckets["2026-06-24"]?["gpt-5"]?.requestCount, 2)
     }
 
+    func testDuplicateEventAppendedInALaterScanCountedOnce() throws {
+        let duplicated = tokenCountLine(lastUsage: (input: 300, cached: 0, output: 100))
+        let url = try writeFile([duplicated])
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let first = s.scan(cache: emptyCache(), now: now())
+
+        let fh = try FileHandle(forWritingTo: url); fh.seekToEndOfFile()
+        fh.write((duplicated + "\n").data(using: .utf8)!)
+        try fh.close()
+        let second = s.scan(cache: first, now: now())
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["gpt-5"]?.input, 300)
+        XCTAssertEqual(second.buckets["2026-06-24"]?["gpt-5"]?.requestCount, 1)
+    }
+
     func testDuplicateEventTupleCountedOnce() throws {
         let sameLine = tokenCountLine(lastUsage: (input: 300, cached: 50, output: 100))
         let url = try writeFile([sameLine, sameLine])
