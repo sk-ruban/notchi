@@ -47,13 +47,18 @@ nonisolated enum HookFile {
         )
     }
 
+    // Bounds a symlink cycle; real dotfile chains are one or two links deep.
+    private static let maxSymlinkHops = 32
+
+    /// Follows every link to the final file, even a missing one, so an atomic write keeps the links.
+    /// resolvingSymlinksInPath() stops at a link whose target doesn't exist yet.
     private static func writeTarget(for url: URL, fileManager: FileManager) -> URL {
-        // resolvingSymlinksInPath() leaves a link to a missing file unresolved, and an atomic write would replace it.
-        if !fileManager.fileExists(atPath: url.path),
-           let destination = try? fileManager.destinationOfSymbolicLink(atPath: url.path) {
-            return URL(fileURLWithPath: destination, relativeTo: url.deletingLastPathComponent()).standardizedFileURL
+        var target = url
+        for _ in 0..<maxSymlinkHops {
+            guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: target.path) else { break }
+            target = URL(fileURLWithPath: destination, relativeTo: target.deletingLastPathComponent()).standardizedFileURL
         }
-        return url.resolvingSymlinksInPath()
+        return target
     }
 
     /// Empty or whitespace-only content, which is safe to treat as a new file.
