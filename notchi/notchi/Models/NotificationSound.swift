@@ -118,7 +118,8 @@ enum NotificationSoundSelection: Codable, Hashable {
         case .system(let sound):
             sound.displayName
         case .custom(let id):
-            customSounds.first { $0.id == id }?.displayName ?? "Custom Sound"
+            customSounds.first { $0.id == id }?.displayName
+                ?? String(localized: "Custom Sound", comment: "Name shown for a custom notification sound whose file is missing.")
         }
     }
 

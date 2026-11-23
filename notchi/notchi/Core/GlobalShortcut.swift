@@ -96,7 +96,7 @@ nonisolated struct GlobalShortcut: Equatable, Sendable {
     }
 
     private nonisolated static func keyDisplayName(for keyCode: UInt32) -> String {
-        keyDisplayNames[keyCode] ?? "Key \(keyCode)"
+        keyDisplayNames[keyCode] ?? String(localized: "Key \(Int(keyCode))", comment: "A shortcut key notchi has no name for; the argument is its key code.")
     }
 
     private nonisolated static let keyDisplayNames: [UInt32: String] = [
@@ -147,10 +147,11 @@ nonisolated struct GlobalShortcut: Equatable, Sendable {
         UInt32(kVK_ANSI_Grave): "`",
         UInt32(kVK_ANSI_Minus): "-",
         UInt32(kVK_ANSI_Equal): "=",
-        UInt32(kVK_Space): "Space",
-        UInt32(kVK_Return): "Return",
-        UInt32(kVK_Tab): "Tab",
-        UInt32(kVK_Delete): "Delete",
-        UInt32(kVK_Escape): "Esc"
+        // The glyphs macOS menus use, so these read the same in every language.
+        UInt32(kVK_Space): String(localized: "Space", comment: "The space bar in a keyboard shortcut."),
+        UInt32(kVK_Return): "↩",
+        UInt32(kVK_Tab): "⇥",
+        UInt32(kVK_Delete): "⌫",
+        UInt32(kVK_Escape): "⎋"
     ]
 }

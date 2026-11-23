@@ -40,22 +40,22 @@ extension SessionEvent {
 
         switch tool {
         case "Read":
-            if let path = input["file_path"] as? String { return "Reading \(path)" }
+            if let path = input["file_path"] as? String { return String(localized: "Reading \(path)", comment: "Tool activity; the argument is a file path.") }
         case "Write":
-            if let path = input["file_path"] as? String { return "Writing \(path)" }
+            if let path = input["file_path"] as? String { return String(localized: "Writing \(path)", comment: "Tool activity; the argument is a file path.") }
         case "Edit":
-            if let path = input["file_path"] as? String { return "Editing \(path)" }
+            if let path = input["file_path"] as? String { return String(localized: "Editing \(path)", comment: "Tool activity; the argument is a file path.") }
         case "Bash":
             if let command = input["command"] as? String {
                 return command
             }
         case "Grep":
             if let pattern = input["pattern"] as? String {
-                return "Searching: \(pattern)"
+                return String(localized: "Searching: \(pattern)", comment: "Tool activity searching file contents; the argument is the search pattern.")
             }
         case "Glob":
             if let pattern = input["pattern"] as? String {
-                return "Finding: \(pattern)"
+                return String(localized: "Finding: \(pattern)", comment: "Tool activity finding files by name; the argument is a glob pattern.")
             }
         case "Task":
             if let desc = input["description"] as? String {

@@ -492,7 +492,7 @@ struct QuestionPromptView: View {
 
     private func freeTextDescription(for questionIndex: Int) -> String {
         let answer = customAnswersByQuestion[questionIndex]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return answer.isEmpty ? "Type a custom answer" : answer
+        return answer.isEmpty ? String(localized: "Type a custom answer") : answer
     }
 
     private func highlightedOptionStyle(isHovered: Bool, isSelected: Bool, isPressed: Bool) -> (

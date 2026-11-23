@@ -19,7 +19,7 @@ nonisolated struct UsageResponse: Decodable {
 
     var modelWeekly: (name: String, period: QuotaPeriod)? {
         if let entry = limits?.first(where: { $0.kind == "weekly_scoped" && $0.scope?.model != nil }) {
-            let name = entry.scope?.model?.displayName ?? "Model"
+            let name = entry.scope?.model?.displayName ?? String(localized: "Model")
             return (name, QuotaPeriod(utilization: entry.percent, resetsAt: entry.resetsAt))
         }
         if let sevenDayOpus {

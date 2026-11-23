@@ -12,6 +12,11 @@ final class LocalizationCoverageTests: XCTestCase {
         "Report an Issue", "Sponsor", "Auto", "Devin Mascot", "Daily",
         "Start Claude Code, Codex or Devin to begin tracking",
         "%@ plan", "No daily or weekly quota",
+        // Shown in code paths that used to bypass the catalog:
+        "Permission Request", "Yes", "Yes, and don't ask again", "No", "%@ wants to proceed", "Tool",
+        "Reading %@", "Writing %@", "Editing %@", "Searching: %@", "Finding: %@",
+        "Type a custom answer", "Try again", "Custom Sound", "Claude Usage", "Space", "Key %lld",
+        "Neutral", "Happy", "Elated", "Sad", "Sob", "%@ API returned HTTP %lld: %@", "Token expired.",
     ]
     private let targetLocales = ["ja", "zh-Hans", "zh-Hant", "ko", "vi"]
 
@@ -26,6 +31,74 @@ final class LocalizationCoverageTests: XCTestCase {
                 let value = bundle.localizedString(forKey: key, value: key, table: nil)
                 XCTAssertNotEqual(value, key, "\(locale) is missing a translation for \"\(key)\"")
             }
+        }
+    }
+
+    // The day title drops its date in translations on purpose; see its catalog comment.
+    private static let keysAllowedToDropPlaceholders: Set<String> = ["cost.dayTokensTitle"]
+
+    func testEveryCatalogKeyIsTranslatedInEachLocaleWithTheSamePlaceholders() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("notchi/Localizable.xcstrings")
+        let catalog = try JSONDecoder().decode(StringCatalog.self, from: Data(contentsOf: catalogURL))
+        var problems: [String] = []
+
+        for (key, entry) in catalog.strings where entry.shouldTranslate != false {
+            let sourceValue = entry.localizations?["en"]?.stringUnit?.value ?? key
+            for locale in targetLocales {
+                let units = entry.localizations?[locale]?.allStringUnits ?? []
+                guard !units.isEmpty, units.allSatisfy({ $0.state == "translated" }) else {
+                    problems.append("\(locale) has no translation for \"\(key)\"")
+                    continue
+                }
+                for unit in units where !Self.keysAllowedToDropPlaceholders.contains(key)
+                    && Self.placeholders(in: unit.value) != Self.placeholders(in: sourceValue) {
+                    problems.append("\(locale) changes the placeholders of \"\(key)\": \"\(unit.value)\"")
+                }
+            }
+        }
+
+        XCTAssertEqual(problems.sorted(), [])
+    }
+
+    func testEnglishModelCountUsesTheSingularForOneModel() throws {
+        let english = try localeBundle("en")
+
+        XCTAssertEqual(String(localized: "Found \(1) models at this endpoint.", bundle: english), "Found 1 model at this endpoint.")
+    }
+
+    /// The argument kinds in argument order: a translation may reorder numbered placeholders like `%2$@`.
+    private static func placeholders(in value: String) -> [String] {
+        let matches = value.matches(of: /%(?:(\d+)\$)?(lld|llu|ld|lu|lf|d|u|@|\.\d+f|f)/)
+        let isNumbered = matches.contains { $0.output.1 != nil }
+        let ordered = isNumbered ? matches.sorted { Int($0.output.1 ?? "") ?? 0 < Int($1.output.1 ?? "") ?? 0 } : matches
+        return ordered.map { String($0.output.2) }
+    }
+
+    private struct StringCatalog: Decodable {
+        let strings: [String: Entry]
+
+        struct Entry: Decodable {
+            let shouldTranslate: Bool?
+            let localizations: [String: Localization]?
+        }
+
+        struct Localization: Decodable {
+            let stringUnit: StringUnit?
+            /// Plural and device variations, e.g. `["plural": ["one": …, "other": …]]`.
+            let variations: [String: [String: Localization]]?
+
+            var allStringUnits: [StringUnit] {
+                (stringUnit.map { [$0] } ?? [])
+                    + (variations ?? [:]).values.flatMap { $0.values.flatMap(\.allStringUnits) }
+            }
+        }
+
+        struct StringUnit: Decodable {
+            let state: String
+            let value: String
         }
     }
 

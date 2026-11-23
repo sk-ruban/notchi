@@ -338,8 +338,11 @@ enum EmotionAnalysisRequestError: LocalizedError, Equatable {
         case .invalidBaseURL:
             String(localized: "Invalid API base URL")
         case .httpStatus(let provider, let statusCode, let message):
-            String(localized: "\(provider) API returned HTTP \(statusCode)")
-                + (message.map { ": \($0)" } ?? "")
+            if let message {
+                String(localized: "\(provider) API returned HTTP \(statusCode): \(message)", comment: "The last argument is the error message the endpoint sent.")
+            } else {
+                String(localized: "\(provider) API returned HTTP \(statusCode)")
+            }
         case .invalidResponse:
             String(localized: "Invalid emotion analysis response")
         case .emptyModelCatalog:

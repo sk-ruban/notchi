@@ -657,8 +657,12 @@ struct EmotionAnalysisSettingsView: View {
         isAPIKeyFocused = false
     }
 
+    private static let intensityFractionDigits = 2
+
     private func testResultText(_ result: EmotionAnalysisTestResult) -> String {
-        "\(result.emotion.capitalized) \(String(format: "%.2f", result.intensity)) - \(result.latencyMilliseconds)ms"
+        let emotion = NotchiEmotion(rawValue: result.emotion.lowercased())?.displayName ?? result.emotion.capitalized
+        let intensity = result.intensity.formatted(.number.precision(.fractionLength(Self.intensityFractionDigits)))
+        return "\(emotion) \(intensity) - \(result.latencyMilliseconds)ms"
     }
 
     /// The badge stays terse; the line under it carries whatever the endpoint actually said, which
