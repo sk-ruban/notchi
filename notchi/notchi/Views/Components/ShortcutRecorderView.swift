@@ -26,6 +26,7 @@ struct ShortcutRecorderView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Reset shortcut")
+                .accessibilityLabel(Text("Reset shortcut"))
             }
 
             Button(action: beginRecording) {

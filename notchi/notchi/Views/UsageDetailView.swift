@@ -407,6 +407,8 @@ struct UsageDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .help(String(localized: "All accounts"))
+                .accessibilityLabel(String(localized: "All accounts"))
+                .accessibilityAddTraits(isShowingAllClaudeAccounts ? .isSelected : [])
                 ForEach(claudeAccounts) { account in
                     let isSelected = !isShowingAllClaudeAccounts && account.id == selectedClaudeAccount?.id
                     Button(action: { selectedClaudeAccountId = account.id }) {
@@ -425,6 +427,8 @@ struct UsageDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .help(account.name)
+                    .accessibilityLabel(account.name)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
         }

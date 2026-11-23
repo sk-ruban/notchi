@@ -222,6 +222,7 @@ struct EmotionAnalysisSettingsView: View {
                     .foregroundColor(hasApiKey ? TerminalColors.green : TerminalColors.dimmedText)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Save API key"))
         }
     }
 
@@ -408,6 +409,7 @@ struct EmotionAnalysisSettingsView: View {
         .buttonStyle(.plain)
         .disabled(isFetchingModels || !hasApiKey)
         .help("Fetch the models this endpoint serves")
+        .accessibilityLabel(Text("Fetch the models this endpoint serves"))
     }
 
     @ViewBuilder
@@ -461,6 +463,7 @@ struct EmotionAnalysisSettingsView: View {
                     .foregroundColor(hasCustomModelInput ? TerminalColors.green : TerminalColors.dimmedText)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Use custom model"))
             .disabled(!hasCustomModelInput)
         }
         .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)

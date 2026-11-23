@@ -995,6 +995,7 @@ struct PanelHeaderButton: View {
     static let baseSize: CGFloat = 32
 
     let sfSymbol: String
+    let label: String
     var showsIndicator: Bool = false
     let action: () -> Void
     @Environment(\.panelScale) private var panelScale
@@ -1019,6 +1020,7 @@ struct PanelHeaderButton: View {
                 }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
         .onHover { hovering in
             isHovered = hovering
         }

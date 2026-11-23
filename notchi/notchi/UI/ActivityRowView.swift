@@ -278,6 +278,7 @@ struct QuestionPromptView: View {
                     .foregroundColor(currentIndex > 0 ? TerminalColors.primaryText : TerminalColors.dimmedText)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Previous question"))
             .disabled(isSubmitting || currentIndex == 0)
 
             Button(action: { showQuestion(at: currentIndex + 1) }) {
@@ -286,6 +287,7 @@ struct QuestionPromptView: View {
                     .foregroundColor(currentIndex < questions.count - 1 ? TerminalColors.primaryText : TerminalColors.dimmedText)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Next question"))
             .disabled(isSubmitting || currentIndex == questions.count - 1)
         }
     }
@@ -404,6 +406,7 @@ struct QuestionPromptView: View {
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Submit answer"))
             .disabled(!isSelected || isSubmitting)
         }
         .padding(.horizontal, 7)
