@@ -262,3 +262,12 @@ final class KeychainManagerTests: XCTestCase {
         XCTAssertEqual(work?.accessToken, "work-token")
     }
 }
+
+extension KeychainManager {
+    static func decodeClaudeOAuthCredentials(from data: Data) -> ClaudeOAuthCredentials? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return decodeClaudeOAuthCredentials(from: json)
+    }
+}

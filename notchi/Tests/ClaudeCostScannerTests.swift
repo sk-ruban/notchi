@@ -3,7 +3,7 @@ import XCTest
 
 final class ClaudeCostScannerTests: XCTestCase {
     private struct FlatPrice: ClaudePricingProviding {
-        nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+        nonisolated func pricing(model: String) -> ClaudeModelPricing? {
             ClaudeModelPricing(inputPerToken: 1e-6, outputPerToken: 1e-6,
                 cacheCreationPerToken: 0, cacheReadPerToken: 0, cacheCreation1hPerToken: nil,
                 thresholdTokens: nil, inputPerTokenAboveThreshold: nil,
@@ -119,7 +119,7 @@ final class ClaudeCostScannerTests: XCTestCase {
     }
 
     private struct DistinctPrices: ClaudePricingProviding {
-        nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+        nonisolated func pricing(model: String) -> ClaudeModelPricing? {
             ClaudeModelPricing(inputPerToken: 1e-6, outputPerToken: 5e-6,
                 cacheCreationPerToken: 1.25e-6, cacheReadPerToken: 0.1e-6, cacheCreation1hPerToken: nil,
                 thresholdTokens: nil, inputPerTokenAboveThreshold: nil,

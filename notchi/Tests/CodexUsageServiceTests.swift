@@ -15,7 +15,6 @@ final class CodexUsageServiceTests: XCTestCase {
         XCTAssertTrue(service.hasUnlimitedCredits)
         XCTAssertTrue(service.hasUsageData)
         XCTAssertNil(service.displayUsage)
-        XCTAssertEqual(service.lastObservedAt, Date(timeIntervalSince1970: 1_010))
 
         service.clear()
         XCTAssertFalse(service.hasUnlimitedCredits)
@@ -144,6 +143,5 @@ final class CodexUsageServiceTests: XCTestCase {
 
         XCTAssertNil(service.currentUsage)
         XCTAssertFalse(service.isUsageStale)
-        XCTAssertNil(service.lastObservedAt)
     }
 }

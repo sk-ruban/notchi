@@ -3,7 +3,7 @@ import XCTest
 
 final class CodexCostScannerTests: XCTestCase {
     private struct FlatPrice: ClaudePricingProviding {
-        nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+        nonisolated func pricing(model: String) -> ClaudeModelPricing? {
             ClaudeModelPricing(inputPerToken: 1e-6, outputPerToken: 1e-6,
                 cacheCreationPerToken: 0, cacheReadPerToken: 0, cacheCreation1hPerToken: nil,
                 thresholdTokens: nil, inputPerTokenAboveThreshold: nil,
@@ -13,7 +13,7 @@ final class CodexCostScannerTests: XCTestCase {
     }
 
     private struct Gpt55Price: ClaudePricingProviding {
-        nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+        nonisolated func pricing(model: String) -> ClaudeModelPricing? {
             ClaudeModelPricing(inputPerToken: 5e-6, outputPerToken: 3e-5,
                 cacheCreationPerToken: 0, cacheReadPerToken: 5e-7, cacheCreation1hPerToken: nil,
                 thresholdTokens: 272000, inputPerTokenAboveThreshold: 1e-5,

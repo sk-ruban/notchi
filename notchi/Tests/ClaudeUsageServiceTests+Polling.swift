@@ -304,7 +304,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             loadRecoverySnapshot: { snapshot },
             now: { now },
             fetchUsage: { _ in
@@ -338,7 +338,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             loadRecoverySnapshot: { snapshot },
             now: { now },
             fetchUsage: { _ in
@@ -367,7 +367,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             fetchUsage: { request in
                 recorder.record(request)
                 return (self.makeSuccessPayload(utilization: 42), self.makeResponse(statusCode: 200))
@@ -400,7 +400,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             loadRecoverySnapshot: { snapshot },
             clearRecoverySnapshot: { clearCalls += 1 },
             now: { now },
@@ -432,7 +432,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             loadRecoverySnapshot: { storedSnapshot },
             saveRecoverySnapshot: { storedSnapshot = $0 },
             clearRecoverySnapshot: { storedSnapshot = nil },
@@ -467,7 +467,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             clearRecoverySnapshot: { clearCalls += 1 },
             fetchUsage: { _ in
                 (self.makeSuccessPayload(utilization: 27), self.makeResponse(statusCode: 200))
@@ -883,7 +883,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "token" },
+            getCachedOAuthToken: { "token" },
             now: { now },
             fetchUsage: { request in
                 let path = request.url?.path ?? ""

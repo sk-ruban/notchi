@@ -40,7 +40,7 @@ final class ClaudeUsageServicesTests: XCTestCase {
         ClaudeUsageServiceDependencies(
             fetchUsage: { _ in throw URLError(.notConnectedToInternet) },
             getOAuthTokenFromEnvironment: { nil },
-            getCachedOAuthToken: { _ in nil },
+            getCachedOAuthToken: { nil },
             getOAuthCredentials: { _ in onCredentialRead(); return nil },
             cacheOAuthToken: { _ in },
             refreshAccessTokenSilently: { nil },

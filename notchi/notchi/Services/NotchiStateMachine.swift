@@ -42,10 +42,6 @@ final class NotchiStateMachine {
     private static let codexProcessMissLimit = 2
     private static let pendingSessionStartMaxAge: TimeInterval = 10 * 60
 
-    var currentState: NotchiState {
-        sessionStore.effectiveSession?.state ?? .idle
-    }
-
     private init() {
         isCodexProcessAlive = Self.defaultCodexProcessAlive
         startEmotionDecayTimer()

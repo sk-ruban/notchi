@@ -120,7 +120,7 @@ final class CostHistoryStoreTests: XCTestCase {
         }}}
         """.data(using: .utf8)!
         let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { modelsDev })
-        XCTAssertNil(catalog.pricing(model: newModel, on: Date()), "precondition: launch-time pricing lacks the new model")
+        XCTAssertNil(catalog.pricing(model: newModel), "precondition: launch-time pricing lacks the new model")
 
         let store = try storeScanningSession(model: newModel, inputTokens: inputTokens,
                                              outputTokens: outputTokens, catalog: catalog)
@@ -155,7 +155,7 @@ final class CostHistoryStoreTests: XCTestCase {
         })
         let store = try storeScanningSession(model: "claude-sonnet-4-6",
                                              inputTokens: 10, outputTokens: 5, catalog: catalog)
-        XCTAssertNotNil(catalog.pricing(model: "claude-sonnet-4-6", on: Date()), "precondition: fallback prices the model")
+        XCTAssertNotNil(catalog.pricing(model: "claude-sonnet-4-6"), "precondition: fallback prices the model")
         await store.refresh()
 
         let fetches = await counter.count

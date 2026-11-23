@@ -227,7 +227,6 @@ final class CodexUsageAPITests: XCTestCase {
         let retainedCredits = try XCTUnwrap(service.currentExtraCreditsUSD)
         XCTAssertEqual(retainedCredits, 100 * CodexUsageAPI.creditUSDRate, accuracy: 0.0001)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 55)
-        XCTAssertEqual(service.lastObservedAt, Date(timeIntervalSince1970: 1_000))
         XCTAssertTrue(service.isUsageStale)
 
         state.result = CodexAPIUsage(session: QuotaPeriod(
@@ -238,7 +237,6 @@ final class CodexUsageAPITests: XCTestCase {
         XCTAssertEqual(fetchCount, 2)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 55)
         XCTAssertTrue(service.isUsageStale)
-        XCTAssertEqual(service.lastObservedAt, Date(timeIntervalSince1970: 1_000))
     }
 
     @MainActor
@@ -320,7 +318,6 @@ final class CodexUsageAPITests: XCTestCase {
         XCTAssertNil(service.currentUsage)
         XCTAssertNil(service.currentWeeklyUsage)
         XCTAssertNil(service.currentExtraCreditsUSD)
-        XCTAssertNil(service.lastObservedAt)
     }
 
     @MainActor
@@ -345,7 +342,6 @@ final class CodexUsageAPITests: XCTestCase {
         state.missingAuth = .signedOut
         await service.refreshFromAPI()
         XCTAssertFalse(service.hasUsageData)
-        XCTAssertNil(service.lastObservedAt)
     }
 
     @MainActor
@@ -407,10 +403,8 @@ final class CodexUsageAPITests: XCTestCase {
         XCTAssertNil(service.currentWeeklyUsage)
         XCTAssertNil(service.currentReviewsUsage)
         XCTAssertNil(service.currentExtraCreditsUSD)
-        XCTAssertNil(service.lastObservedAt)
         await service.refreshFromAPI()
         XCTAssertEqual(service.currentUsage?.usagePercentage, 12)
-        XCTAssertEqual(service.lastObservedAt, state.now)
     }
 
     func testAuthReadDistinguishesIncompleteDataFromExplicitSignOut() {
@@ -462,7 +456,6 @@ final class CodexUsageAPITests: XCTestCase {
         XCTAssertEqual(service.currentWeeklyUsage?.usagePercentage, 65)
         XCTAssertEqual(service.currentReviewsUsage?.usagePercentage, 75)
         XCTAssertEqual(service.currentExtraCreditsUSD, 4)
-        XCTAssertEqual(service.lastObservedAt, Date(timeIntervalSince1970: 1_000))
         XCTAssertTrue(service.isUsageStale)
     }
 
@@ -483,7 +476,6 @@ final class CodexUsageAPITests: XCTestCase {
             ))
             await service.refreshFromAPI()
             XCTAssertEqual(service.currentUsage?.usagePercentage, 55)
-            XCTAssertEqual(service.lastObservedAt, state.now)
         }
     }
 

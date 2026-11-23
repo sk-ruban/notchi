@@ -632,7 +632,6 @@ struct NotchContentView: View {
             if shouldShowGrassIsland {
                 GrassTapOverlay(
                     sessions: sessionStore.sortedSessions,
-                    selectedSessionId: sessionStore.selectedSessionId,
                     hoveredSessionId: $hoveredSessionId,
                     handoffSessionId: spriteHandoff?.sessionId,
                     handoffProgress: spriteHandoffProgress,

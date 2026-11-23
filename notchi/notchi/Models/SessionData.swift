@@ -131,10 +131,6 @@ final class SessionData: Identifiable {
         provider == .codex && codexProcessId != nil && (codexOrigin == .cli || hostBundleIdentifier != nil)
     }
 
-    var isClaudeProcessBacked: Bool {
-        provider == .claude && claudeProcessId != nil
-    }
-
     var isCodexThreadBacked: Bool {
         provider == .codex && codexTranscriptPath != nil
     }
@@ -487,7 +483,6 @@ final class SessionData: Identifiable {
             type: "PreToolUse",
             tool: tool,
             status: .running,
-            toolInput: toolInput,
             toolUseId: toolUseId,
             description: description
         )
@@ -506,7 +501,6 @@ final class SessionData: Identifiable {
                 type: "PostToolUse",
                 tool: tool,
                 status: success ? .success : .error,
-                toolInput: nil,
                 toolUseId: toolUseId,
                 description: nil
             )

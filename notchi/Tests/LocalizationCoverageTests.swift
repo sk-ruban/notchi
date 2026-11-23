@@ -2,9 +2,9 @@ import XCTest
 @testable import notchi
 
 final class LocalizationCoverageTests: XCTestCase {
-    // Keys copied verbatim from Localizable.xcstrings — note the ASCII "..." in "Working...".
+    // Keys copied verbatim from Localizable.xcstrings — note the ASCII "..." in "Downloading...".
     private let sampleKeys = [
-        "Launch at Login", "Working...", "Check for Updates", "Sessions", "Plan Mode",
+        "Launch at Login", "Downloading...", "Check for Updates", "Sessions", "Plan Mode",
         // Clusters found during render-check that auto-extraction missed (empty-state, cost, services):
         "Waiting for activity", "Today", "Top model", "Stale data", "Network error, retrying in %llds",
         "Expand on Hover",

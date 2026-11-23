@@ -111,7 +111,6 @@ nonisolated struct SharedUsageBarState {
     let statusMessage: String?
     let isStale: Bool
     let recoveryAction: ClaudeUsageRecoveryAction
-    let lastObservedAt: Date?
     let labelOverride: String?
     /// Which Claude account the usage is for, when there's more than one.
     let accountName: String?
@@ -128,7 +127,6 @@ nonisolated struct SharedUsageBarState {
         statusMessage: String?,
         isStale: Bool,
         recoveryAction: ClaudeUsageRecoveryAction,
-        lastObservedAt: Date?,
         labelOverride: String? = nil,
         accountName: String? = nil,
         isProviderSpecific: Bool = true,
@@ -143,7 +141,6 @@ nonisolated struct SharedUsageBarState {
         self.statusMessage = statusMessage
         self.isStale = isStale
         self.recoveryAction = recoveryAction
-        self.lastObservedAt = lastObservedAt
         self.labelOverride = labelOverride
         self.accountName = accountName
         self.isProviderSpecific = isProviderSpecific
@@ -167,7 +164,6 @@ nonisolated struct SharedUsageBarState {
         statusMessage: nil,
         isStale: false,
         recoveryAction: .none,
-        lastObservedAt: nil,
         labelOverride: String(localized: "Start a session to track usage"),
         isProviderSpecific: false
     )
@@ -381,7 +377,6 @@ struct ExpandedPanelView: View {
                 isWeeklyUsageHeldOver: claudeService.isWeeklyUsageHeldOver
             ),
             recoveryAction: claudeService.recoveryAction,
-            lastObservedAt: claudeService.lastObservedAt,
             accountName: claudeUsageAccountName,
             period: claudePeriod
         ) : nil
@@ -405,7 +400,6 @@ struct ExpandedPanelView: View {
                 ? String(localized: "No spending cap") : nil,
             isStale: codexUsageService.isUsageStale,
             recoveryAction: .none,
-            lastObservedAt: codexUsageService.lastObservedAt,
             period: codexPeriod
         ) : nil
 
@@ -427,7 +421,6 @@ struct ExpandedPanelView: View {
             statusMessage: nil,
             isStale: devinUsageService.isUsageStale,
             recoveryAction: .none,
-            lastObservedAt: devinUsageService.lastObservedAt,
             period: devinPeriod
         ) : nil
 

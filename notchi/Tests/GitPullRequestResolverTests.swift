@@ -308,3 +308,12 @@ private nonisolated final class ResolverBox: @unchecked Sendable {
         set { lock.withLock { stored = newValue } }
     }
 }
+
+extension GitPullRequestResolver {
+    func pullRequest(forBranch branch: String, repositoryAt cwd: String) -> GitPullRequest? {
+        if case .resolved(let pullRequest) = lookup(forBranch: branch, repositoryAt: cwd) {
+            return pullRequest
+        }
+        return nil
+    }
+}

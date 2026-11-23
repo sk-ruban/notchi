@@ -29,7 +29,6 @@ enum KeychainManager {
     private struct ClaudeCredentialCacheEntry {
         let credentials: ClaudeOAuthCredentials
         let resolvedAt: Date
-        let source: String
     }
 
     #if DEBUG
@@ -98,7 +97,7 @@ enum KeychainManager {
     private static let cachedTokenLock = NSLock()
     private nonisolated(unsafe) static var cachedTokens: [String: String] = [:]
 
-    static func getCachedOAuthToken(service: String = claudeCodeService, allowInteraction: Bool = false) -> String? {
+    static func getCachedOAuthToken(service: String = claudeCodeService) -> String? {
         cachedTokenLock.withLock { cachedTokens[service] }
     }
 
@@ -125,7 +124,7 @@ enum KeychainManager {
         if shouldAttemptSecurityCLI(service: service, at: now) {
             if let json = readClaudeCodeKeychainViaCLI(service: service),
                let credentials = decodeClaudeOAuthCredentials(from: json) {
-                cacheRecentCredential(credentials, for: service, source: "/usr/bin/security CLI", at: now)
+                cacheRecentCredential(credentials, for: service, at: now)
                 clearSecurityCLIBackoff(service: service)
                 return credentials
             }
@@ -137,7 +136,7 @@ enum KeychainManager {
               let credentials = decodeClaudeOAuthCredentials(from: json) else {
             return nil
         }
-        cacheRecentCredential(credentials, for: service, source: "Security.framework", at: now)
+        cacheRecentCredential(credentials, for: service, at: now)
         return credentials
     }
 
@@ -226,14 +225,12 @@ enum KeychainManager {
     private static func cacheRecentCredential(
         _ credentials: ClaudeOAuthCredentials,
         for service: String,
-        source: String,
         at now: Date
     ) {
         credentialReadLock.lock()
         recentCredentialCacheEntries[service] = ClaudeCredentialCacheEntry(
             credentials: credentials,
-            resolvedAt: now,
-            source: source
+            resolvedAt: now
         )
         credentialReadLock.unlock()
     }
@@ -303,13 +300,6 @@ enum KeychainManager {
         taskNowOverride = nil
     }
     #endif
-
-    static func decodeClaudeOAuthCredentials(from data: Data) -> ClaudeOAuthCredentials? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return decodeClaudeOAuthCredentials(from: json)
-    }
 
     static func decodeClaudeOAuthCredentials(from json: [String: Any]) -> ClaudeOAuthCredentials? {
         guard let oauth = json["claudeAiOauth"] as? [String: Any],

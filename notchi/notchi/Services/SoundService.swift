@@ -45,10 +45,6 @@ final class SoundService {
         lastSoundTimes.removeValue(forKey: sessionKey)
     }
 
-    func previewSound(_ sound: NotificationSound) {
-        playSound(.system(sound))
-    }
-
     func previewSound(_ selection: NotificationSoundSelection) {
         playSound(selection)
     }
@@ -64,7 +60,7 @@ final class SoundService {
                 return
             }
             let url = AppSettings.customNotificationSoundURL(for: customSound)
-            playCustomSound(id: id, url: url)
+            playCustomSound(url: url)
         }
     }
 
@@ -76,7 +72,7 @@ final class SoundService {
         nsSound.play()
     }
 
-    private func playCustomSound(id: UUID, url: URL) {
+    private func playCustomSound(url: URL) {
         do {
             let player = try AVAudioPlayer(contentsOf: url)
             player.prepareToPlay()

@@ -26,11 +26,12 @@ final class ConversationParserTests: XCTestCase {
         let cwd = "/tmp/notchi"
         let parser = ConversationParser.shared
 
-        let sessionFilePath = ConversationParser.resolvedTranscriptPath(
+        let sessionFilePath = try XCTUnwrap(ConversationParser.resolvedTranscriptPath(
+            for: .claude,
             sessionId: sessionId,
             cwd: cwd,
             transcriptPath: nil
-        )
+        ))
         let sessionDirectory = URL(fileURLWithPath: sessionFilePath).deletingLastPathComponent()
         try FileManager.default.createDirectory(at: sessionDirectory, withIntermediateDirectories: true)
 
@@ -86,6 +87,7 @@ final class ConversationParserTests: XCTestCase {
         ConversationParser.configureClaudeProjectsRootPath(using: resolution)
 
         let path = ConversationParser.resolvedTranscriptPath(
+            for: .claude,
             sessionId: "session-123",
             cwd: "/Users/ruban/Developer/GitHub/notchi",
             transcriptPath: nil
@@ -101,11 +103,13 @@ final class ConversationParserTests: XCTestCase {
         ConversationParser.claudeProjectsRootPath = "/tmp/config-projects"
 
         let missing = ConversationParser.resolvedTranscriptPath(
+            for: .claude,
             sessionId: "session-123",
             cwd: "/Users/ruban/Developer/GitHub/notchi",
             transcriptPath: nil
         )
         let empty = ConversationParser.resolvedTranscriptPath(
+            for: .claude,
             sessionId: "session-123",
             cwd: "/Users/ruban/Developer/GitHub/notchi",
             transcriptPath: "   "
@@ -458,5 +462,27 @@ final class ConversationParserTests: XCTestCase {
         return """
         {"type":"assistant","uuid":"\(uuid)","timestamp":"\(timestamp)","message":{"model":"\(model)","role":"assistant","content":[{"type":"text","text":"\(text)"}]}}
         """
+    }
+}
+
+// Claude-default conveniences so tests can address sessions by raw id.
+extension ConversationParser {
+    func parseIncremental(sessionId: String, transcriptPath: String) -> ParseResult {
+        parseIncremental(
+            sessionKey: ProviderSessionKey(provider: .claude, rawSessionId: sessionId),
+            transcriptPath: transcriptPath
+        )
+    }
+
+    func resetState(for sessionId: String) {
+        resetState(for: ProviderSessionKey(provider: .claude, rawSessionId: sessionId))
+    }
+
+    @discardableResult
+    func markCurrentPosition(sessionId: String, transcriptPath: String) -> ParseResult {
+        markCurrentPosition(
+            sessionKey: ProviderSessionKey(provider: .claude, rawSessionId: sessionId),
+            transcriptPath: transcriptPath
+        )
     }
 }

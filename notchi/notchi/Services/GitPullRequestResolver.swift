@@ -67,13 +67,6 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         }
     }
 
-    func pullRequest(forBranch branch: String, repositoryAt cwd: String) -> GitPullRequest? {
-        if case .resolved(let pullRequest) = lookup(forBranch: branch, repositoryAt: cwd) {
-            return pullRequest
-        }
-        return nil
-    }
-
     func lookup(forBranch branch: String, repositoryAt cwd: String) -> GitPullRequestLookup {
         let key = "\(cwd)\u{0}\(branch)"
         let current = now()

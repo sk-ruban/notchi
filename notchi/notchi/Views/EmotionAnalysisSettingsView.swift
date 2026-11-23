@@ -498,17 +498,6 @@ struct EmotionAnalysisSettingsView: View {
     }
 
 
-    private var fallbackStatusText: String {
-        if provider == .claude, hasClaudeCodeFallback {
-            return "Claude Code"
-        }
-        return String(localized: "Missing")
-    }
-
-    private var fallbackStatusColor: Color {
-        provider == .claude && hasClaudeCodeFallback ? TerminalColors.green : TerminalColors.red
-    }
-
     private var hasClaudeCodeFallback: Bool {
         ClaudeSettingsConfig.existsAtDefaultLocation()
     }

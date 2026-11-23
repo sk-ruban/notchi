@@ -14,7 +14,7 @@ nonisolated struct ClaudeModelPricing: Equatable, Sendable {
 }
 
 protocol ClaudePricingProviding: Sendable {
-    nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing?
+    nonisolated func pricing(model: String) -> ClaudeModelPricing?
 }
 
 nonisolated enum CostPricing {
@@ -39,7 +39,7 @@ nonisolated enum CostPricing {
     }
 
     static func claudeCostUSD(
-        model: String, input: Int, cacheRead: Int, cacheCreation: Int,
+        input: Int, cacheRead: Int, cacheCreation: Int,
         cacheCreation1h: Int, output: Int, pricing: ClaudeModelPricing) -> Double?
     {
         let contextTokens = input + cacheRead + cacheCreation

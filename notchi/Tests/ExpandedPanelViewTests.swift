@@ -59,10 +59,10 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertTrue(ExpandedPanelView.includesCodexUsage(activeSessions: [codex]))
     }
 
-    func testSelectedCodexSessionShowsCodexUsageEvenWhenClaudeUsageIsNewer() {
+    func testSelectedCodexSessionShowsCodexUsage() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 200))
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100))
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: codexSession,
@@ -74,10 +74,10 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertEqual(state?.usage?.usagePercentage, 11)
     }
 
-    func testSelectedClaudeSessionShowsClaudeUsageEvenWhenCodexUsageIsNewer() {
+    func testSelectedClaudeSessionShowsClaudeUsage() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: claudeSession,
@@ -91,8 +91,8 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testSelectedDevinSessionShowsDevinUsage() {
         let devinSession = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 200))
-        let devin = makeUsageState(provider: .devin, usage: 7, observedAt: Date(timeIntervalSince1970: 100))
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let devin = makeUsageState(provider: .devin, usage: 7)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: devinSession,
@@ -106,15 +106,15 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertEqual(state?.usage?.usagePercentage, 7)
     }
 
-    func testNoSelectedSessionIgnoresDevinsMoreFrequentRefresh() {
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
-        let devinRefreshedLater = makeUsageState(provider: .devin, usage: 7, observedAt: Date(timeIntervalSince1970: 200))
+    func testNoSelectedSessionPrefersLastUsedClaudeOverDevin() {
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let devin = makeUsageState(provider: .devin, usage: 7)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: nil,
             claude: claude,
             codex: nil,
-            devin: devinRefreshedLater,
+            devin: devin,
             lastUsedProvider: .claude
         )
 
@@ -122,9 +122,9 @@ final class ExpandedPanelViewTests: XCTestCase {
         XCTAssertEqual(state?.usage?.usagePercentage, 42)
     }
 
-    func testNoSelectedSessionUsesLastUsedProviderEvenWhenAnotherIsNewer() {
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+    func testNoSelectedSessionUsesLastUsedProvider() {
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: nil,
@@ -139,8 +139,8 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testContextSessionProviderIsNeverSwappedEvenWhenItHasNoData() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
-        let codexWithoutData = makeUsageState(provider: .codex, usage: nil, observedAt: Date(timeIntervalSince1970: 200))
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let codexWithoutData = makeUsageState(provider: .codex, usage: nil)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: codexSession,
@@ -154,8 +154,8 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testContextSessionProviderWinsWhenNeitherProviderHasDataForSelectedPeriod() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let claude = makeUsageState(provider: .claude, usage: nil, observedAt: Date(timeIntervalSince1970: 100))
-        let codex = makeUsageState(provider: .codex, usage: nil, observedAt: Date(timeIntervalSince1970: 200))
+        let claude = makeUsageState(provider: .claude, usage: nil)
+        let codex = makeUsageState(provider: .codex, usage: nil)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: codexSession,
@@ -168,9 +168,9 @@ final class ExpandedPanelViewTests: XCTestCase {
     }
 
     func testLastUsedProviderFallsBackWhenItHasNoDataForSelectedPeriod() {
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 100))
+        let claude = makeUsageState(provider: .claude, usage: 42)
         let codexLastUsedButWithoutDataForPeriod = makeUsageState(
-            provider: .codex, usage: nil, observedAt: Date(timeIntervalSince1970: 200)
+            provider: .codex, usage: nil
         )
 
         let state = ExpandedPanelView.sharedUsageBarState(
@@ -186,8 +186,8 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testFallbackDoesNotOverrideAPreferredProviderThatIsStillLoading() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
-        let claudeLoading = makeUsageState(provider: .claude, usage: nil, observedAt: Date(timeIntervalSince1970: 100), isLoading: true)
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+        let claudeLoading = makeUsageState(provider: .claude, usage: nil, isLoading: true)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: claudeSession,
@@ -202,9 +202,9 @@ final class ExpandedPanelViewTests: XCTestCase {
     func testFallbackDoesNotOverrideAPreferredProviderShowingAnError() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
         let claudeErrored = makeUsageState(
-            provider: .claude, usage: nil, observedAt: Date(timeIntervalSince1970: 100), error: "Connection failed"
+            provider: .claude, usage: nil, error: "Connection failed"
         )
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: claudeSession,
@@ -218,8 +218,8 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testFallbackDoesNotOverrideADisabledClaudeProvider() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
-        let claudeDisabled = makeUsageState(provider: .claude, usage: nil, observedAt: Date(timeIntervalSince1970: 100))
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+        let claudeDisabled = makeUsageState(provider: .claude, usage: nil)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: claudeSession,
@@ -235,9 +235,9 @@ final class ExpandedPanelViewTests: XCTestCase {
     func testFallbackDoesNotOverrideAPreferredProviderWithAStatusMessage() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
         let claudeUpdating = makeUsageState(
-            provider: .claude, usage: nil, observedAt: Date(timeIntervalSince1970: 100), statusMessage: "Updating in 30s"
+            provider: .claude, usage: nil, statusMessage: "Updating in 30s"
         )
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: claudeSession,
@@ -253,9 +253,9 @@ final class ExpandedPanelViewTests: XCTestCase {
     func testFallbackDoesNotOverrideAPreferredProviderWithARecoveryAction() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
         let claudeNeedsReconnect = makeUsageState(
-            provider: .claude, usage: nil, observedAt: Date(timeIntervalSince1970: 100), recoveryAction: .reconnect
+            provider: .claude, usage: nil, recoveryAction: .reconnect
         )
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 200))
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: claudeSession,
@@ -269,9 +269,8 @@ final class ExpandedPanelViewTests: XCTestCase {
     }
 
     func testFallbackDoesNotOverrideADisabledClaudeProviderWithoutContextSession() {
-        let sharedTimestamp = Date(timeIntervalSince1970: 100)
-        let claudeDisabled = makeUsageState(provider: .claude, usage: nil, observedAt: sharedTimestamp)
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: sharedTimestamp)
+        let claudeDisabled = makeUsageState(provider: .claude, usage: nil)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: nil,
@@ -347,8 +346,8 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testHoveredSessionProviderDrivesUsageState() {
         let hoveredCodexSession = SessionData(sessionId: "hovered-codex-session", provider: .codex, cwd: "/tmp/project")
-        let claude = makeUsageState(provider: .claude, usage: 42, observedAt: Date(timeIntervalSince1970: 200))
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100))
+        let claude = makeUsageState(provider: .claude, usage: 42)
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         let state = ExpandedPanelView.sharedUsageBarState(
             contextSession: hoveredCodexSession,
@@ -374,7 +373,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testDevinSessionPeriodIsLabelledDaily() {
         let devinSession = SessionData(sessionId: "devin-session", provider: .devin, cwd: "/tmp/project")
-        let devin = makeUsageState(provider: .devin, usage: 7, observedAt: Date(timeIntervalSince1970: 100), period: .session)
+        let devin = makeUsageState(provider: .devin, usage: 7, period: .session)
 
         XCTAssertEqual(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -400,7 +399,7 @@ final class ExpandedPanelViewTests: XCTestCase {
     func testMixedProviderSessionsUseSelectedProviderResetLabelPrefix() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100))
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         XCTAssertEqual(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -414,7 +413,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testSingleProviderSessionsDoNotUseResetLabelPrefix() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100))
+        let codex = makeUsageState(provider: .codex, usage: 11)
 
         XCTAssertNil(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -427,7 +426,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testWeeklyStateAddsPrefixEvenForSingleProviderSessions() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100), period: .weekly)
+        let codex = makeUsageState(provider: .codex, usage: 11, period: .weekly)
 
         XCTAssertEqual(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -442,7 +441,7 @@ final class ExpandedPanelViewTests: XCTestCase {
     func testWeeklyStateCombinesWithProviderPrefixForMixedSessions() {
         let claudeSession = SessionData(sessionId: "claude-session", provider: .claude, cwd: "/tmp/project")
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100), period: .weekly)
+        let codex = makeUsageState(provider: .codex, usage: 11, period: .weekly)
 
         XCTAssertEqual(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -456,7 +455,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testWeeklySelectionFallingBackToSessionLabelsThePeriod() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100), period: .session)
+        let codex = makeUsageState(provider: .codex, usage: 11, period: .session)
 
         XCTAssertEqual(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -470,7 +469,7 @@ final class ExpandedPanelViewTests: XCTestCase {
 
     func testSessionSelectionFallingBackToWeeklyStillLabelsWeekly() {
         let codexSession = SessionData(sessionId: "codex-session", provider: .codex, cwd: "/tmp/project")
-        let codex = makeUsageState(provider: .codex, usage: 11, observedAt: Date(timeIntervalSince1970: 100), period: .weekly)
+        let codex = makeUsageState(provider: .codex, usage: 11, period: .weekly)
 
         XCTAssertEqual(
             ExpandedPanelView.sharedUsageResetLabelPrefix(
@@ -563,7 +562,6 @@ final class ExpandedPanelViewTests: XCTestCase {
     private func makeUsageState(
         provider: AgentProvider,
         usage: Double?,
-        observedAt: Date,
         isLoading: Bool = false,
         error: String? = nil,
         statusMessage: String? = nil,
@@ -579,7 +577,6 @@ final class ExpandedPanelViewTests: XCTestCase {
             statusMessage: statusMessage,
             isStale: false,
             recoveryAction: recoveryAction,
-            lastObservedAt: observedAt,
             period: period
         )
     }
@@ -623,7 +620,6 @@ final class ExpandedPanelViewTests: XCTestCase {
             statusMessage: nil,
             isStale: false,
             recoveryAction: .none,
-            lastObservedAt: nil,
             accountName: accountName
         )
     }

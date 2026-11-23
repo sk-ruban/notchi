@@ -221,7 +221,7 @@ final class DevinCostScannerTests: XCTestCase {
     private static let emptyCache = CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:])
 
     private struct SWEPricing: ClaudePricingProviding {
-        nonisolated func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+        nonisolated func pricing(model: String) -> ClaudeModelPricing? {
             guard model == "swe-1-7" else { return nil }
             return ClaudeModelPricing(
                 inputPerToken: DevinCostScannerTests.sweInputPerToken,

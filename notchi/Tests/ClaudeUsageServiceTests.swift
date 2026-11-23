@@ -86,7 +86,6 @@ final class RequestRecorder {
 final class ClaudeUsageServiceTests: XCTestCase {
     override func tearDown() {
         AppSettings.isUsageEnabled = false
-        AppSettings.claudeUsageRecoverySnapshot = nil
         AppSettings.claudeExtraUsageObservation = nil
         ClaudeConfigDirectoryResolver.resetTestingHooks()
         ClaudeCLIResolver.resetTestingHooks()
@@ -97,7 +96,7 @@ final class ClaudeUsageServiceTests: XCTestCase {
         scheduler: PollSchedulerSpy,
         resolveUserAgent: @escaping () -> String?,
         getOAuthTokenFromEnvironment: @escaping () -> String? = { nil },
-        getCachedOAuthToken: @escaping (_ allowInteraction: Bool) -> String? = { _ in nil },
+        getCachedOAuthToken: @escaping () -> String? = { nil },
         getOAuthCredentials: @escaping (_ allowInteraction: Bool) -> ClaudeOAuthCredentials? = { _ in nil },
         cacheOAuthToken: @escaping (_ token: String) -> Void = { _ in },
         refreshAccessTokenSilently: @escaping () -> String? = { nil },
@@ -138,7 +137,7 @@ final class ClaudeUsageServiceTests: XCTestCase {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in cachedToken() },
+            getCachedOAuthToken: { cachedToken() },
             loadRecoverySnapshot: snapshot,
             now: now,
             fetchUsage: fetchUsage

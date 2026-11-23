@@ -104,7 +104,6 @@ final class CodexUsageService {
     var hasUnlimitedCredits = false
     var currentExtraCreditsUSD: Double?
     var isUsageStale = false
-    var lastObservedAt: Date?
     var hasUsageData: Bool {
         hasUnlimitedCredits || UsageMetrics.codexHasData(usage: currentUsage, weeklyUsage: currentWeeklyUsage)
     }
@@ -199,7 +198,6 @@ final class CodexUsageService {
         currentReviewsUsage = unexpiredOnly(fetched.reviews, now: observedAt)
         hasUnlimitedCredits = fetched.hasUnlimitedCredits
         currentExtraCreditsUSD = fetched.creditsBalance.map { $0 * CodexUsageAPI.creditUSDRate }
-        lastObservedAt = hasUsageData ? observedAt : nil
         isUsageStale = false
     }
 
@@ -214,7 +212,6 @@ final class CodexUsageService {
         hasUnlimitedCredits = false
         lastAPIUsageFetchAt = nil
         isUsageStale = false
-        lastObservedAt = nil
     }
 
     private func discardExpiredUsage() {
@@ -223,7 +220,6 @@ final class CodexUsageService {
         currentWeeklyUsage = unexpiredOnly(currentWeeklyUsage, now: now)
         currentReviewsUsage = unexpiredOnly(currentReviewsUsage, now: now)
         if !hasUsageData {
-            lastObservedAt = nil
             isUsageStale = false
         }
     }
