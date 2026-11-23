@@ -261,6 +261,64 @@ final class UsageDetailViewTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(view.claudeCostReport).windowCostUSD, Self.workSpendUSD, accuracy: 1e-9)
     }
 
+    func testAllTabCanExpandClaudeWithTwoAccountsWithSpend() async {
+        let view = await workAndPersonalWithSpend(initialAccountId: nil)
+
+        XCTAssertTrue(view.canExpandClaudeAccounts)
+    }
+
+    func testAllTabCannotExpandClaudeWhenOnlyOneAccountHasSpend() async {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [
+                account("Work", sessionPercent: nil, cost: CostHistoryStore { _ in [:] }),
+                account("Personal", sessionPercent: nil, cost: await costStore(spendingTodayNanos: Self.personalSpendNanos)),
+            ]
+        )
+
+        XCTAssertFalse(view.canExpandClaudeAccounts)
+    }
+
+    func testAllTabExpandedClaudeListsEveryAccountWithSpendInOrder() async {
+        let view = await workAndPersonalWithSpend(initialAccountId: nil)
+
+        XCTAssertEqual(view.claudeAccountsWithSpend.map(\.name), ["Work", "Personal"])
+    }
+
+    func testAllTabChartStacksOneClaudeSegmentWhileCollapsed() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: nil)
+
+        let today = try XCTUnwrap(view.allTabCostReport(splittingClaudeAccounts: false)?.entries.last)
+        XCTAssertEqual(today.segments.map(\.models), [[CostProvider.claude.rawValue]])
+    }
+
+    func testAllTabChartStacksOneSegmentPerClaudeAccountWhileExpanded() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: nil)
+
+        let today = try XCTUnwrap(view.allTabCostReport(splittingClaudeAccounts: true)?.entries.last)
+        XCTAssertEqual(today.segments.map(\.models), [["Work"], ["Personal"]])
+    }
+
+    func testAllTabChartKeepsTheSameTotalWhileExpanded() async throws {
+        let view = await workAndPersonalWithSpend(initialAccountId: nil)
+
+        let report = try XCTUnwrap(view.allTabCostReport(splittingClaudeAccounts: true))
+        XCTAssertEqual(report.windowCostUSD, Self.bothAccountsSpendUSD, accuracy: 1e-9)
+    }
+
+    func testAllTabExpandedClaudeLeavesOutAccountsWithoutSpend() async {
+        let view = usageView(
+            claude: ClaudeUsageService(),
+            accounts: [
+                account("Work", sessionPercent: nil, cost: CostHistoryStore { _ in [:] }),
+                account("Personal", sessionPercent: nil, cost: await costStore(spendingTodayNanos: Self.personalSpendNanos)),
+                account("Side", sessionPercent: nil, cost: nil),
+            ]
+        )
+
+        XCTAssertEqual(view.claudeAccountsWithSpend.map(\.name), ["Personal"])
+    }
+
     func testClaudeHasDataWhenOnlyAnotherAccountHasSpend() async {
         let view = usageView(
             claude: ClaudeUsageService(),

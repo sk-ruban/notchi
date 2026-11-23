@@ -38,6 +38,7 @@ struct UsageDetailView: View {
 
     @State private var selectedTab: UsageTab
     @State private var selectedClaudeAccountId: String?
+    @State private var isClaudeAccountsExpanded = false
     @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
     @Environment(\.panelScale) private var panelScale
 
@@ -97,6 +98,16 @@ struct UsageDetailView: View {
         let window = costWindow
         return DailyCostReport.combined(
             series, provider: .claude, windowStart: window.start, today: window.today, calendar: costStore.calendar)
+    }
+
+    /// The accounts the All tab lists under Claude when expanded, in account order.
+    var claudeAccountsWithSpend: [ClaudeAccountUsage] {
+        claudeAccounts.filter { account in account.cost.map { !$0.buckets.isEmpty } ?? false }
+    }
+
+    /// A single account's row would only repeat the Claude total.
+    var canExpandClaudeAccounts: Bool {
+        claudeAccountsWithSpend.count > 1
     }
 
     private var claudeAccountSeries: [CostSeries] {
@@ -253,11 +264,32 @@ struct UsageDetailView: View {
     }
 
     private var combinedReport: DailyCostReport? {
-        guard showsAllTab else { return nil }
+        showsAllTab ? allTabCostReport(splittingClaudeAccounts: false) : nil
+    }
+
+    private var isSplittingClaudeAccounts: Bool {
+        isClaudeAccountsExpanded && canExpandClaudeAccounts
+    }
+
+    /// The All tab's chart: one stack per provider, with Claude's split by account when asked.
+    func allTabCostReport(splittingClaudeAccounts: Bool) -> DailyCostReport? {
         let window = costWindow
-        return DailyCostReport.combinedAcrossProviders(
-            [(.claude, claudeCostBuckets), (.codex, codexCostStore.buckets), (.devin, devinCostStore.buckets)],
+        let otherProviders: [(key: String, buckets: DayModelBuckets)] = [
+            (CostProvider.codex.rawValue, codexCostStore.buckets),
+            (CostProvider.devin.rawValue, devinCostStore.buckets),
+        ]
+        let claude: [(key: String, buckets: DayModelBuckets)] = splittingClaudeAccounts
+            ? claudeAccountsWithSpend.compactMap { account in account.cost.map { (account.id, $0.buckets) } }
+            : [(CostProvider.claude.rawValue, claudeCostBuckets)]
+        return DailyCostReport.combined(
+            claude + otherProviders, provider: .claude,
             windowStart: window.start, today: window.today, calendar: costStore.calendar)
+    }
+
+    private var allTabSeries: [CostSeries] {
+        guard isSplittingClaudeAccounts else { return CostSeries.providers }
+        let accounts = claudeAccountsWithSpend.map { CostSeries(key: $0.id, name: $0.name, color: $0.color) }
+        return accounts + CostSeries.providers.filter { $0.key != CostProvider.claude.rawValue }
     }
 
     static func chartHeight(showGrassIsland: Bool) -> CGFloat {
@@ -280,16 +312,15 @@ struct UsageDetailView: View {
                 chartHeight: chartHeight)
         case .all:
             CostDashboardView(
-                report: combinedReport,
+                report: showsAllTab ? allTabCostReport(splittingClaudeAccounts: isSplittingClaudeAccounts) : nil,
                 sizingPeerReports: costsByProvider.compactMap(\.report),
-                series: CostSeries.providers,
+                series: allTabSeries,
                 chartHeight: chartHeight)
         }
     }
 
-    static func usesTwoColumnLayout(rowCount: Int, showGrassIsland: Bool, panelScale: CGFloat) -> Bool {
-        guard panelScale <= 1 else { return false }
-        return rowCount >= 3 && showGrassIsland
+    static func usesTwoColumnLayout(rowCount: Int, showGrassIsland: Bool) -> Bool {
+        rowCount >= 3 && showGrassIsland
     }
 
     var showsUnlimitedCredits: Bool {
@@ -362,7 +393,7 @@ struct UsageDetailView: View {
 
     @ViewBuilder
     private func usageGrid<Rows: View>(rowCount: Int, @ViewBuilder rows: () -> Rows) -> some View {
-        if Self.usesTwoColumnLayout(rowCount: rowCount, showGrassIsland: showGrassIsland, panelScale: panelScale) {
+        if Self.usesTwoColumnLayout(rowCount: rowCount, showGrassIsland: showGrassIsland) {
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), spacing: 14, alignment: .topLeading),
@@ -452,16 +483,43 @@ struct UsageDetailView: View {
         }
     }
 
+    private static let breakdownChevronSize: CGFloat = 9
+    private static let accountRowIndent: CGFloat = 12
+
+    /// Scrolls within the panel's fixed height once Claude's accounts are expanded.
     @ViewBuilder private var providerBreakdown: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(costsByProvider.filter { !$0.buckets.isEmpty }, id: \.provider) { entry in
-                providerBreakdownRow(
-                    name: entry.provider.displayName,
-                    color: entry.provider == .claude ? TerminalColors.claudeOrangeDeep : entry.provider.accentColor,
-                    report: entry.report)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(costsByProvider.filter { !$0.buckets.isEmpty }, id: \.provider) { entry in
+                    if entry.provider == .claude, canExpandClaudeAccounts {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) { isClaudeAccountsExpanded.toggle() }
+                        } label: {
+                            providerBreakdownRow(
+                                name: entry.provider.displayName,
+                                color: TerminalColors.claudeOrangeDeep,
+                                report: entry.report,
+                                isExpanded: isClaudeAccountsExpanded)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if isClaudeAccountsExpanded {
+                            ForEach(claudeAccountsWithSpend) { account in
+                                providerBreakdownRow(name: account.name, color: account.color, report: account.cost?.report)
+                                    .padding(.leading, Self.accountRowIndent * panelScale)
+                            }
+                        }
+                    } else {
+                        providerBreakdownRow(
+                            name: entry.provider.displayName,
+                            color: entry.provider == .claude ? TerminalColors.claudeOrangeDeep : entry.provider.accentColor,
+                            report: entry.report)
+                    }
+                }
             }
+            .padding(.top, 5)
         }
-        .padding(.top, 5)
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     /// Scrolls within the panel's fixed height, which only fits a handful of accounts.
@@ -486,7 +544,7 @@ struct UsageDetailView: View {
     }
 
     @ViewBuilder private func providerBreakdownRow(
-        name: String, color: Color, report: DailyCostReport?) -> some View
+        name: String, color: Color, report: DailyCostReport?, isExpanded: Bool? = nil) -> some View
     {
         if let report {
             HStack(spacing: 6) {
@@ -495,6 +553,12 @@ struct UsageDetailView: View {
                     .panelFont(size: 13, weight: .semibold)
                     .foregroundColor(TerminalColors.primaryText)
                     .lineLimit(1)
+                if let isExpanded {
+                    Image(systemName: "chevron.down")
+                        .panelIcon(size: Self.breakdownChevronSize, weight: .semibold)
+                        .foregroundColor(TerminalColors.secondaryText)
+                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                }
                 Spacer(minLength: 8)
                 Text(Self.breakdownDetail(report))
                     .panelFont(size: 11)
