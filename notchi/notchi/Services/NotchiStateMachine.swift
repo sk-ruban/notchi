@@ -173,15 +173,7 @@ final class NotchiStateMachine {
             }
 
         case .sessionEnded:
-            pendingSessionStartTimes.removeValue(forKey: event.sessionKey)
-            codexThreadMetadataImmediateRefreshKeys.remove(event.sessionKey)
-            stopFileWatcher(sessionKey: event.sessionKey)
-            pendingSyncTasks.removeValue(forKey: event.sessionKey)?.cancel()
-            pendingPositionMarks.removeValue(forKey: event.sessionKey)?.cancel()
-            SoundService.shared.clearCooldown(for: event.sessionKey)
-            Task { await ConversationParser.shared.resetState(for: event.sessionKey) }
-            refreshCodexProcessMonitoring()
-            refreshCodexThreadMetadataMonitoring()
+            stopTrackingSession(event.sessionKey)
             return
 
         default:
@@ -378,6 +370,24 @@ final class NotchiStateMachine {
                 )
             )
         }
+    }
+
+    func dismissSession(matchingStableId stableId: String) {
+        guard let sessionKey = ProviderSessionKey(stableId: stableId) else { return }
+        sessionStore.dismissSession(sessionKey)
+        stopTrackingSession(sessionKey)
+    }
+
+    private func stopTrackingSession(_ sessionKey: ProviderSessionKey) {
+        pendingSessionStartTimes.removeValue(forKey: sessionKey)
+        codexThreadMetadataImmediateRefreshKeys.remove(sessionKey)
+        stopFileWatcher(sessionKey: sessionKey)
+        pendingSyncTasks.removeValue(forKey: sessionKey)?.cancel()
+        pendingPositionMarks.removeValue(forKey: sessionKey)?.cancel()
+        SoundService.shared.clearCooldown(for: sessionKey)
+        Task { await ConversationParser.shared.resetState(for: sessionKey) }
+        refreshCodexProcessMonitoring()
+        refreshCodexThreadMetadataMonitoring()
     }
 
     private func startFileWatcher(sessionKey: ProviderSessionKey, transcriptPath: String) {
@@ -637,6 +647,10 @@ final class NotchiStateMachine {
 
     func pendingSessionStartTimeForTesting(sessionKey: ProviderSessionKey) -> Date? {
         pendingSessionStartTimes[sessionKey]
+    }
+
+    func hasFileWatcherForTesting(sessionKey: ProviderSessionKey) -> Bool {
+        fileWatchers[sessionKey] != nil
     }
 #endif
 
