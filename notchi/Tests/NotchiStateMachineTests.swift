@@ -660,6 +660,45 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertFalse(stateMachine.hasFileWatcherForTesting(sessionKey: event.sessionKey))
     }
 
+    func testSessionRevivedAfterDismissalShowsOnlyRepliesWrittenSince() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        let transcriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dismiss-revive-\(UUID().uuidString).jsonl")
+        func replyLine(_ uuid: String, _ text: String) -> String {
+            #"{"type":"assistant","uuid":"\#(uuid)","timestamp":"2026-04-07T09:50:04.954Z","message":{"model":"claude-opus-4-6","role":"assistant","content":[{"type":"text","text":"\#(text)"}]}}"# + "\n"
+        }
+        try Data(replyLine("old", "Old reply").utf8).write(to: transcriptURL)
+        defer { try? FileManager.default.removeItem(at: transcriptURL) }
+        let prompt = makeEvent(
+            sessionId: "dismiss-revive-\(UUID().uuidString)",
+            transcriptPath: transcriptURL.path,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        )
+        stateMachine.handleEvent(prompt)
+        await ConversationParser.shared.markCurrentPosition(sessionKey: prompt.sessionKey, transcriptPath: transcriptURL.path)
+        let session = try XCTUnwrap(SessionStore.shared.session(for: prompt.sessionKey))
+
+        // The agent keeps working after the user dismisses its card, so its next event revives the session.
+        stateMachine.dismissSession(matchingStableId: session.id)
+        try await Task.sleep(for: .milliseconds(100))
+        let handle = try XCTUnwrap(FileHandle(forWritingAtPath: transcriptURL.path))
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(replyLine("new", "New reply").utf8))
+        try handle.close()
+        stateMachine.handleEvent(makeEvent(
+            sessionId: prompt.sessionKey.rawSessionId,
+            transcriptPath: transcriptURL.path,
+            event: .postToolUse,
+            status: "processing"
+        ))
+        let revived = try XCTUnwrap(SessionStore.shared.session(for: prompt.sessionKey))
+        _ = await waitUntil(timeout: 2) { !revived.recentAssistantMessages.isEmpty }
+
+        XCTAssertEqual(revived.recentAssistantMessages.map(\.text), ["New reply"])
+    }
+
     func testClaudeEventsWithoutCodexSessionsNeverTriggerCodexUsageRefresh() {
         let stateMachine = NotchiStateMachine.shared
         var endedHookCalls = 0
