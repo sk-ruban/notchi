@@ -1105,8 +1105,10 @@ struct ModeBadgeView: View {
     }
 
     var body: some View {
+        // The mode is never squeezed; the session title and branch give up width instead.
         Text(mode)
             .panelFont(size: 11, weight: .medium)
             .foregroundColor(color)
+            .fixedSize()
     }
 }
