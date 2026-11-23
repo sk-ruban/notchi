@@ -74,12 +74,26 @@ final class LocalizationCoverageTests: XCTestCase {
         XCTAssertEqual(String(localized: "Found \(1) models at this endpoint.", bundle: english), "Found 1 model at this endpoint.")
     }
 
-    /// The argument kinds in argument order: a translation may reorder numbered placeholders like `%2$@`.
+    func testPlaceholderCheckAcceptsATranslationThatReordersNumberedArguments() {
+        XCTAssertEqual(Self.placeholders(in: "%2$lld 件 %1$@"), Self.placeholders(in: "%@ has %lld"))
+    }
+
+    func testPlaceholderCheckRejectsATranslationThatRepeatsAnArgument() {
+        XCTAssertNotEqual(Self.placeholders(in: "%1$@ / %1$@"), Self.placeholders(in: "%@ / %@"))
+    }
+
+    func testPlaceholderCheckRejectsATranslationThatSkipsToAnOutOfRangeArgument() {
+        XCTAssertNotEqual(Self.placeholders(in: "%1$@ / %3$@"), Self.placeholders(in: "%@ / %@"))
+    }
+
+    /// Each argument's number and kind, in argument order. Unnumbered placeholders count 1, 2, 3…, so a
+    /// translation may reorder arguments with `%2$@` but can't repeat, skip or invent one.
     private static func placeholders(in value: String) -> [String] {
         let matches = value.matches(of: /%(?:(\d+)\$)?(lld|llu|ld|lu|lf|d|u|@|\.\d+f|f)/)
-        let isNumbered = matches.contains { $0.output.1 != nil }
-        let ordered = isNumbered ? matches.sorted { Int($0.output.1 ?? "") ?? 0 < Int($1.output.1 ?? "") ?? 0 } : matches
-        return ordered.map { String($0.output.2) }
+        let arguments = matches.enumerated().map { position, match in
+            (number: match.output.1.flatMap { Int($0) } ?? position + 1, kind: String(match.output.2))
+        }
+        return arguments.sorted { $0.number < $1.number }.map { "\($0.number):\($0.kind)" }
     }
 
     private struct StringCatalog: Decodable {
