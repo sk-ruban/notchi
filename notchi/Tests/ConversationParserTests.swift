@@ -53,6 +53,32 @@ final class ConversationParserTests: XCTestCase {
         XCTAssertEqual(result.messages.map(\.text), ["What's up?"])
     }
 
+    func testParseIncrementalReadsALineThatArrivesInTwoWrites() async throws {
+        let sessionId = "split-line-\(UUID().uuidString)"
+        let transcriptPath = tempDirectoryURL
+            .appendingPathComponent("\(UUID().uuidString).jsonl")
+            .path
+        let parser = ConversationParser.shared
+        let first = assistantLine(uuid: "assistant-first", text: "First reply", model: "claude-opus-4-6")
+        let second = assistantLine(uuid: "assistant-second", text: "Second reply", model: "claude-opus-4-6")
+        let splitIndex = second.index(second.startIndex, offsetBy: second.count / 2)
+        FileManager.default.createFile(
+            atPath: transcriptPath,
+            contents: Data((first + "\n" + second[..<splitIndex]).utf8)
+        )
+
+        let beforeFlush = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        let handle = try XCTUnwrap(FileHandle(forWritingAtPath: transcriptPath))
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data((second[splitIndex...] + "\n").utf8))
+        try handle.close()
+        let afterFlush = await parser.parseIncremental(sessionId: sessionId, transcriptPath: transcriptPath)
+        await parser.resetState(for: sessionId)
+
+        XCTAssertEqual(beforeFlush.messages.map(\.text), ["First reply"])
+        XCTAssertEqual(afterFlush.messages.map(\.text), ["Second reply"])
+    }
+
     func testParseIncrementalReadsAssistantMessagesFromExplicitTranscriptPath() async throws {
         let sessionId = "transcript-\(UUID().uuidString)"
         let transcriptPath = tempDirectoryURL

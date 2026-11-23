@@ -69,6 +69,7 @@ actor ConversationParser {
     private var extendedWindowSearchedStateKeys: Set<String> = []
 
     private static let emptyResult = ParseResult(messages: [], interrupted: false, events: [])
+    private static let newline = UInt8(ascii: "\n")
 
     nonisolated static func configureClaudeProjectsRootPath(using claudeConfig: ClaudeConfigDirectoryResolution) {
         claudeProjectsRootPath = claudeConfig.projectsDirectoryURL.path
@@ -130,8 +131,13 @@ actor ConversationParser {
             return Self.emptyResult
         }
 
+        // Writers can flush one JSONL line across several writes, so leave an unterminated tail for the next read.
         guard let newData = try? fileHandle.readToEnd(),
-              let newContent = String(data: newData, encoding: .utf8) else {
+              let lastNewline = newData.lastIndex(of: Self.newline) else {
+            return Self.emptyResult
+        }
+        let completeData = newData[newData.startIndex...lastNewline]
+        guard let newContent = String(data: completeData, encoding: .utf8) else {
             return Self.emptyResult
         }
 
@@ -196,7 +202,7 @@ actor ConversationParser {
             }
         }
 
-        lastFileOffset[stateKey] = fileSize
+        lastFileOffset[stateKey] = currentOffset + UInt64(completeData.count)
         seenMessageIds[stateKey] = seen
         seenEventIds[stateKey] = seenEvents
         codexToolCallsById[stateKey] = codexToolCalls
