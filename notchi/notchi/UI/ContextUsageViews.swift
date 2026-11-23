@@ -73,7 +73,7 @@ struct ContextUsageRing: View {
         HStack(spacing: 5) {
             if isHovered {
                 Text(usage.usedOfWindowLabel)
-                    .panelFont(size: 10)
+                    .panelFont(size: 11, weight: .medium)
                     .monospacedDigit()
                     .foregroundColor(usage.tint)
                     .lineLimit(1)
