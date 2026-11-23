@@ -661,7 +661,7 @@ struct PanelSettingsView: View {
             HStack(spacing: 4) {
                 ProgressView()
                     .controlSize(.mini)
-                Text("Checking...")
+                Text("Checking…")
                     .panelFont(size: 10)
                     .foregroundColor(TerminalColors.dimmedText)
             }
