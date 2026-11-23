@@ -37,7 +37,7 @@ nonisolated enum HookFile {
 
     /// Writes atomically through symlinks (dotfiles), keeping the file's permissions.
     static func writeConfig(_ data: Data, to url: URL, fileManager: FileManager = .default) throws {
-        let target = url.resolvingSymlinksInPath()
+        let target = writeTarget(for: url, fileManager: fileManager)
         let existingPermissions = (try? fileManager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber)?
             .int16Value
         try data.write(to: target, options: .atomic)
@@ -45,6 +45,15 @@ nonisolated enum HookFile {
             [.posixPermissions: existingPermissions ?? newConfigPermissions],
             ofItemAtPath: target.path
         )
+    }
+
+    private static func writeTarget(for url: URL, fileManager: FileManager) -> URL {
+        // resolvingSymlinksInPath() leaves a link to a missing file unresolved, and an atomic write would replace it.
+        if !fileManager.fileExists(atPath: url.path),
+           let destination = try? fileManager.destinationOfSymbolicLink(atPath: url.path) {
+            return URL(fileURLWithPath: destination, relativeTo: url.deletingLastPathComponent()).standardizedFileURL
+        }
+        return url.resolvingSymlinksInPath()
     }
 
     static func hasExecutablePermissions(at url: URL, fileManager: FileManager = .default) -> Bool {
