@@ -287,9 +287,8 @@ struct UsageDetailView: View {
         }
     }
 
-    static func usesTwoColumnLayout(rowCount: Int, showGrassIsland: Bool, panelScale: CGFloat) -> Bool {
-        guard panelScale <= 1 else { return false }
-        return rowCount >= 3 && showGrassIsland
+    static func usesTwoColumnLayout(rowCount: Int, showGrassIsland: Bool) -> Bool {
+        rowCount >= 3 && showGrassIsland
     }
 
     var showsUnlimitedCredits: Bool {
@@ -362,7 +361,7 @@ struct UsageDetailView: View {
 
     @ViewBuilder
     private func usageGrid<Rows: View>(rowCount: Int, @ViewBuilder rows: () -> Rows) -> some View {
-        if Self.usesTwoColumnLayout(rowCount: rowCount, showGrassIsland: showGrassIsland, panelScale: panelScale) {
+        if Self.usesTwoColumnLayout(rowCount: rowCount, showGrassIsland: showGrassIsland) {
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), spacing: 14, alignment: .topLeading),
