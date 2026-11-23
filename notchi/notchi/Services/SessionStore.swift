@@ -468,11 +468,6 @@ final class SessionStore {
         removeSession(sessionKey)
     }
 
-    func dismissSession(matchingStableId stableId: String) {
-        guard let sessionKey = ProviderSessionKey(stableId: stableId) else { return }
-        dismissSession(sessionKey)
-    }
-
     func codexThreadMetadataRequests() -> [CodexThreadMetadataRequest] {
         sessions.values.compactMap { session in
             guard let transcriptPath = session.codexTranscriptPath else { return nil }

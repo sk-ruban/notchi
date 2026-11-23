@@ -571,6 +571,28 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertEqual(CodexUsageService.shared.currentUsage?.usagePercentage, 15)
     }
 
+    func testDismissingASessionStopsItsTranscriptWatcher() throws {
+        let stateMachine = NotchiStateMachine.shared
+        let transcriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dismiss-\(UUID().uuidString).jsonl")
+        try Data().write(to: transcriptURL)
+        defer { try? FileManager.default.removeItem(at: transcriptURL) }
+        let event = makeEvent(
+            sessionId: "dismiss-\(UUID().uuidString)",
+            transcriptPath: transcriptURL.path,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        )
+        stateMachine.handleEvent(event)
+        let session = try XCTUnwrap(SessionStore.shared.session(for: event.sessionKey))
+        XCTAssertTrue(stateMachine.hasFileWatcherForTesting(sessionKey: event.sessionKey), "precondition: prompt starts a watcher")
+
+        stateMachine.dismissSession(matchingStableId: session.id)
+
+        XCTAssertFalse(stateMachine.hasFileWatcherForTesting(sessionKey: event.sessionKey))
+    }
+
     func testClaudeEventsWithoutCodexSessionsNeverTriggerCodexUsageRefresh() {
         let stateMachine = NotchiStateMachine.shared
         var endedHookCalls = 0

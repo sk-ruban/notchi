@@ -554,7 +554,7 @@ struct ExpandedPanelView: View {
                             showingSessionActivity = true
                         },
                         onDeleteSession: { sessionId in
-                            sessionStore.dismissSession(matchingStableId: sessionId)
+                            NotchiStateMachine.shared.dismissSession(matchingStableId: sessionId)
                         }
                     )
                 }
