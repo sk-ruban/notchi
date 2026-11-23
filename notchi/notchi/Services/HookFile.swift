@@ -56,6 +56,11 @@ nonisolated enum HookFile {
         return url.resolvingSymlinksInPath()
     }
 
+    /// Empty or whitespace-only content, which is safe to treat as a new file.
+    static func isBlank(_ data: Data) -> Bool {
+        data.allSatisfy { $0 == UInt8(ascii: " ") || $0 == UInt8(ascii: "\n") || $0 == UInt8(ascii: "\r") || $0 == UInt8(ascii: "\t") }
+    }
+
     static func hasExecutablePermissions(at url: URL, fileManager: FileManager = .default) -> Bool {
         guard let permissions = try? fileManager.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber else {
             return false
