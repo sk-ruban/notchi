@@ -567,8 +567,25 @@ final class NotchiStateMachineTests: XCTestCase {
             status: "ended"
         ))
 
-        XCTAssertGreaterThan(endedHookCalls, 0)
+        XCTAssertEqual(endedHookCalls, 1)
         XCTAssertEqual(CodexUsageService.shared.currentUsage?.usagePercentage, 15)
+    }
+
+    func testClaudeEventsWithoutCodexSessionsNeverTriggerCodexUsageRefresh() {
+        let stateMachine = NotchiStateMachine.shared
+        var endedHookCalls = 0
+        stateMachine.onCodexSessionsEnded = { endedHookCalls += 1 }
+        let sessionId = "claude-only-\(UUID().uuidString)"
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        stateMachine.handleEvent(makeEvent(sessionId: sessionId, event: .stop, status: "waiting_for_input"))
+
+        XCTAssertEqual(endedHookCalls, 0)
     }
 
     func testCodexCompactionRefreshDelayUsesDebounceWhenNoRecentRefresh() {

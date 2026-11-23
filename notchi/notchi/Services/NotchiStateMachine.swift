@@ -460,13 +460,17 @@ final class NotchiStateMachine {
                 }
             }
         } else {
+            // Only the monitoring-to-idle transition means the last Codex session ended.
+            let wasMonitoring = codexThreadMetadataMonitorTask != nil
             codexThreadMetadataMonitorTask?.cancel()
             codexThreadMetadataMonitorTask = nil
             codexThreadMetadataRefreshTask?.cancel()
             codexThreadMetadataRefreshTask = nil
             cancelCodexCompactionSignalRefresh()
             codexThreadMetadataImmediateRefreshKeys.removeAll()
-            onCodexSessionsEnded()
+            if wasMonitoring {
+                onCodexSessionsEnded()
+            }
         }
     }
 
