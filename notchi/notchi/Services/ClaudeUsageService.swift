@@ -1639,7 +1639,7 @@ final class ClaudeUsageService {
             return .retry(credentialToken)
         }
 
-        return .waitForClaudeCode("Start a Claude Code session to track usage")
+        return .waitForClaudeCode(String(localized: "Start a Claude Code session to track usage"))
     }
 
     private func recoverFromEmptyHeadersFallback(afterOAuth403With currentToken: String, userInitiated: Bool) async {
