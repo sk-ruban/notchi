@@ -25,6 +25,53 @@ final class UpdateManagerTests: XCTestCase {
         super.tearDown()
     }
 
+    // Sparkle looks this callback up by selector, so a near-miss Swift name is silently never called.
+    func testAppDelegateRespondsToSparkleUserDidMakeChoiceSelector() {
+        let selector = #selector(SPUUpdaterDelegate.updater(_:userDidMake:forUpdate:state:))
+
+        XCTAssertTrue(AppDelegate.instancesRespond(to: selector))
+    }
+
+    private static let choiceVersion = "9.9.9"
+
+    func testSkipChoiceClearsPendingUpdateAndReturnsToIdle() {
+        manager.hasPendingUpdate = true
+        manager.state = .updateAvailable(version: Self.choiceVersion)
+
+        manager.userMadeChoice(.skip, stage: .notDownloaded, version: Self.choiceVersion)
+
+        XCTAssertFalse(manager.hasPendingUpdate)
+        XCTAssertEqual(manager.state, .idle)
+    }
+
+    func testDismissBeforeDownloadKeepsUpdateAvailable() {
+        manager.userMadeChoice(.dismiss, stage: .notDownloaded, version: Self.choiceVersion)
+
+        XCTAssertTrue(manager.hasPendingUpdate)
+        XCTAssertEqual(manager.state, .updateAvailable(version: Self.choiceVersion))
+    }
+
+    func testDismissAfterDownloadKeepsReadyToInstall() {
+        manager.userMadeChoice(.dismiss, stage: .downloaded, version: Self.choiceVersion)
+
+        XCTAssertTrue(manager.hasPendingUpdate)
+        XCTAssertEqual(manager.state, .readyToInstall(version: Self.choiceVersion))
+    }
+
+    func testInstallBeforeDownloadStartsDownloading() {
+        manager.userMadeChoice(.install, stage: .notDownloaded, version: Self.choiceVersion)
+
+        XCTAssertTrue(manager.hasPendingUpdate)
+        XCTAssertEqual(manager.state, .downloading(progress: 0))
+    }
+
+    func testInstallAfterDownloadIsReadyToInstall() {
+        manager.userMadeChoice(.install, stage: .downloaded, version: Self.choiceVersion)
+
+        XCTAssertTrue(manager.hasPendingUpdate)
+        XCTAssertEqual(manager.state, .readyToInstall(version: Self.choiceVersion))
+    }
+
     func testNoUpdateAbortErrorIsIgnored() {
         let error = NSError(domain: SUSparkleErrorDomain, code: UpdateManager.noUpdateErrorCode)
 
