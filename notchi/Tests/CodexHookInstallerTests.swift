@@ -87,6 +87,25 @@ final class CodexHookInstallerTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path)
     }
 
+    func testUpdateHooksJSONFollowsAChainOfLinksToAMissingTarget() throws {
+        let targetDirectory = try Self.makeTemporaryDirectory()
+        let linkDirectory = try Self.makeTemporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: targetDirectory)
+            try? FileManager.default.removeItem(at: linkDirectory)
+        }
+        let target = targetDirectory.appendingPathComponent("hooks.json")
+        let sharedLink = targetDirectory.appendingPathComponent("shared.json")
+        let link = linkDirectory.appendingPathComponent("hooks.json")
+        try FileManager.default.createSymbolicLink(at: sharedLink, withDestinationURL: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: sharedLink)
+
+        XCTAssertTrue(CodexHookInstaller.updateHooksJSON(at: link, command: Self.hookCommand))
+
+        XCTAssertTrue(CodexHookInstaller.isHookInstalled(in: try Data(contentsOf: target)))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: sharedLink.path), target.path)
+    }
+
     func testUpdateConfigKeepsASymlinkedConfigLinked() throws {
         let targetDirectory = try Self.makeTemporaryDirectory()
         let linkDirectory = try Self.makeTemporaryDirectory()
