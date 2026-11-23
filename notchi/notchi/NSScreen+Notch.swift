@@ -45,14 +45,6 @@ extension NSScreen {
         return CGSize(width: notchWidth, height: notchHeight)
     }
 
-    /// Calculates the window frame centered at the notch position
-    var notchWindowFrame: CGRect {
-        let size = notchSize
-        let originX = frame.origin.x + (frame.width - size.width) / 2
-        let originY = frame.maxY - size.height
-        return CGRect(x: originX, y: originY, width: size.width, height: size.height)
-    }
-
     /// Extracts the exact notch shape from the system's bezel path in local notch coordinates.
     /// Returns nil if bezelPath is unavailable or the screen has no notch.
     var notchPath: CGPath? {

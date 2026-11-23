@@ -577,7 +577,7 @@ extension ClaudeUsageServiceTests {
         let dependencies = makeDependencies(
             scheduler: scheduler,
             resolveUserAgent: { "claude-code/2.1.77" },
-            getCachedOAuthToken: { _ in "cached-token" },
+            getCachedOAuthToken: { "cached-token" },
             fetchUsage: { request in
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer cached-token")
                 return (

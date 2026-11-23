@@ -245,7 +245,6 @@ struct AppSettings {
     private static let previousSoundKey = "previousNotificationSound"
     private static let previousSoundSelectionKey = "previousNotificationSoundSelection"
     private static let isUsageEnabledKey = "isUsageEnabled"
-    private static let claudeUsageRecoverySnapshotKey = "claudeUsageRecoverySnapshot"
     private static let claudeExtraUsageObservationKey = "claudeExtraUsageObservation"
     private static let emotionAnalysisProviderKey = "emotionAnalysisProvider"
     private static let emotionAnalysisClaudeModelKey = "emotionAnalysisClaudeModel"
@@ -345,11 +344,6 @@ struct AppSettings {
         defaults.object(forKey: showSpriteWhenIdleKey) as? Bool ?? true
     }
 
-    static var showSpriteWhenIdle: Bool {
-        get { showSpriteWhenIdle(in: .standard) }
-        set { UserDefaults.standard.set(newValue, forKey: showSpriteWhenIdleKey) }
-    }
-
     static func islandBackground(in defaults: UserDefaults) -> IslandBackground {
         IslandBackground.resolve(defaults.string(forKey: islandBackgroundKey))
     }
@@ -362,16 +356,6 @@ struct AppSettings {
             }
             UserDefaults.standard.set(newValue.rawValue, forKey: islandBackgroundKey)
         }
-    }
-
-    static var showGrassIsland: Bool {
-        get { UserDefaults.standard.object(forKey: showGrassIslandKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: showGrassIslandKey) }
-    }
-
-    static var showGitBranchAndPullRequest: Bool {
-        get { UserDefaults.standard.object(forKey: showGitBranchAndPullRequestKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: showGitBranchAndPullRequestKey) }
     }
 
     static var expandOnHover: Bool {
@@ -402,22 +386,6 @@ struct AppSettings {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: lastUsedAgentProviderKey)
-        }
-    }
-
-    static var claudeUsageRecoverySnapshot: ClaudeUsageRecoverySnapshot? {
-        get {
-            guard let data = UserDefaults.standard.data(forKey: claudeUsageRecoverySnapshotKey) else {
-                return nil
-            }
-            return try? JSONDecoder().decode(ClaudeUsageRecoverySnapshot.self, from: data)
-        }
-        set {
-            if let newValue, let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: claudeUsageRecoverySnapshotKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: claudeUsageRecoverySnapshotKey)
-            }
         }
     }
 

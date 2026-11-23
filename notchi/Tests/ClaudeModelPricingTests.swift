@@ -28,7 +28,7 @@ final class ClaudeModelPricingTests: XCTestCase {
 
     func testCostBelowThresholdSumsEachTokenClass() {
         let cost = CostPricing.claudeCostUSD(
-            model: "claude-sonnet-4", input: 1_000, cacheRead: 2_000,
+            input: 1_000, cacheRead: 2_000,
             cacheCreation: 500, cacheCreation1h: 0, output: 800, pricing: pricing())
         let inputCost: Double = 1_000 * sonnetInput
         let readCost: Double = 2_000 * sonnetCacheRead
@@ -41,7 +41,7 @@ final class ClaudeModelPricingTests: XCTestCase {
     func testWholeRequestRepricedWhenContextExceedsThreshold() {
         // input context = input + cacheRead + cacheCreation = 250_000 > 200_000 → above-threshold rates apply to ALL classes
         let cost = CostPricing.claudeCostUSD(
-            model: "claude-sonnet-4", input: 50_000, cacheRead: 150_000,
+            input: 50_000, cacheRead: 150_000,
             cacheCreation: 50_000, cacheCreation1h: 0, output: 1_000, pricing: pricing())
         let inputCost: Double = 50_000 * (6.0 / 1_000_000)
         let readCost: Double = 150_000 * (0.60 / 1_000_000)
@@ -53,14 +53,14 @@ final class ClaudeModelPricingTests: XCTestCase {
 
     func testCatalogFallsBackToEmbeddedSnapshotForKnownModel() {
         let catalog = PricingCatalog(fallbackBundle: .main)
-        let p = catalog.pricing(model: "claude-sonnet-4-6", on: Date())
+        let p = catalog.pricing(model: "claude-sonnet-4-6")
         XCTAssertNotNil(p, "embedded fallback must price the current Sonnet model")
         XCTAssertGreaterThan(p!.outputPerToken, p!.inputPerToken)
     }
 
     func testCatalogReturnsNilForUnknownModel() {
         let catalog = PricingCatalog(fallbackBundle: .main)
-        XCTAssertNil(catalog.pricing(model: "totally-made-up-model", on: Date()))
+        XCTAssertNil(catalog.pricing(model: "totally-made-up-model"))
     }
 
     // MARK: - T1: signature() is deterministic
@@ -124,10 +124,10 @@ final class ClaudeModelPricingTests: XCTestCase {
         try snapJSON.data(using: .utf8)!.write(to: snapURL)
 
         let catalog = PricingCatalog(fallbackBundle: .main, snapshotURL: snapURL)
-        let p = catalog.pricing(model: "claude-test-9000", on: Date())
+        let p = catalog.pricing(model: "claude-test-9000")
         XCTAssertNotNil(p)
         XCTAssertEqual(p!.inputPerToken, 0.001, accuracy: 1e-12)
-        XCTAssertNotNil(catalog.pricing(model: "claude-sonnet-4-6", on: Date()))
+        XCTAssertNotNil(catalog.pricing(model: "claude-sonnet-4-6"))
     }
 
     // MARK: - T4: cache with stale pricingSignature is reset
@@ -178,11 +178,11 @@ final class ClaudeModelPricingTests: XCTestCase {
 
         // Versioned anchor keys must still pass (prefix match, not exact key).
         let bothAnchors = ["claude-sonnet-4-5": anyPricing, "claude-opus-4-1": anyPricing]
-        XCTAssertTrue(PricingCatalog.isPlausibleRefresh(bothAnchors))
+        XCTAssertTrue(PricingCatalog.isPlausibleRefresh(bothAnchors, anchors: ProviderConfig.claude.plausibilityAnchors))
 
         let sonnetOnly = ["claude-sonnet-4": anyPricing]
-        XCTAssertFalse(PricingCatalog.isPlausibleRefresh(sonnetOnly))
+        XCTAssertFalse(PricingCatalog.isPlausibleRefresh(sonnetOnly, anchors: ProviderConfig.claude.plausibilityAnchors))
 
-        XCTAssertFalse(PricingCatalog.isPlausibleRefresh([:]))
+        XCTAssertFalse(PricingCatalog.isPlausibleRefresh([:], anchors: ProviderConfig.claude.plausibilityAnchors))
     }
 }

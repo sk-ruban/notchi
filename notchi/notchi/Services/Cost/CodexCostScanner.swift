@@ -175,9 +175,9 @@ nonisolated final class CodexCostScanner {
         let dedupKey = "\(ts)|\(normalizedModel)|\(delta.input)|\(delta.cached)|\(delta.output)"
         if !seen.insert(dedupKey).inserted { return }
 
-        let pricingResult = pricing.pricing(model: rawModel, on: date)
+        let pricingResult = pricing.pricing(model: rawModel)
         let cost = pricingResult.map {
-            CostPricing.claudeCostUSD(model: rawModel, input: mappedInput, cacheRead: mappedCacheRead,
+            CostPricing.claudeCostUSD(input: mappedInput, cacheRead: mappedCacheRead,
                 cacheCreation: 0, cacheCreation1h: 0, output: mappedOutput, pricing: $0)
         } ?? nil
         let nanos = cost.map { Int(($0 * 1_000_000_000).rounded()) } ?? 0

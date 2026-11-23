@@ -64,9 +64,9 @@ nonisolated final class DevinCostScanner {
             let dayKey = DailyCostReport.dayKey(reply.date, calendar: calendar)
             guard dayKey >= sinceKey else { continue }
 
-            let cost = pricing.pricing(model: reply.model, on: reply.date).flatMap {
+            let cost = pricing.pricing(model: reply.model).flatMap {
                 CostPricing.claudeCostUSD(
-                    model: reply.model, input: reply.input, cacheRead: reply.cacheRead,
+                    input: reply.input, cacheRead: reply.cacheRead,
                     cacheCreation: reply.cacheCreation, cacheCreation1h: 0, output: reply.output, pricing: $0)
             }
             let nanos = cost.map { Int(($0 * 1_000_000_000).rounded()) } ?? 0

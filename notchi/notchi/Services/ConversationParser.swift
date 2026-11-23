@@ -92,11 +92,6 @@ actor ConversationParser {
         return derivedClaudeTranscriptPath(sessionId: sessionId, cwd: cwd)
     }
 
-    nonisolated static func resolvedTranscriptPath(sessionId: String, cwd: String, transcriptPath: String?) -> String {
-        resolvedTranscriptPath(for: .claude, sessionId: sessionId, cwd: cwd, transcriptPath: transcriptPath)
-            ?? derivedClaudeTranscriptPath(sessionId: sessionId, cwd: cwd)
-    }
-
     func parseIncremental(sessionKey: ProviderSessionKey, transcriptPath: String) -> ParseResult {
         let stateKey = Self.stateKey(for: sessionKey)
 
@@ -216,13 +211,6 @@ actor ConversationParser {
         )
     }
 
-    func parseIncremental(sessionId: String, transcriptPath: String) -> ParseResult {
-        parseIncremental(
-            sessionKey: ProviderSessionKey(provider: .claude, rawSessionId: sessionId),
-            transcriptPath: transcriptPath
-        )
-    }
-
     func resetState(for sessionKey: ProviderSessionKey) {
         let stateKey = Self.stateKey(for: sessionKey)
         lastFileOffset.removeValue(forKey: stateKey)
@@ -230,10 +218,6 @@ actor ConversationParser {
         seenEventIds.removeValue(forKey: stateKey)
         codexToolCallsById.removeValue(forKey: stateKey)
         extendedWindowSearchedStateKeys.remove(stateKey)
-    }
-
-    func resetState(for sessionId: String) {
-        resetState(for: ProviderSessionKey(provider: .claude, rawSessionId: sessionId))
     }
 
     // Enough to reach the latest reply behind a few large tool results without reading whole transcripts.
@@ -298,14 +282,6 @@ actor ConversationParser {
             isFastMode: isFastMode,
             contextTokens: contextTokens,
             peakContextTokens: peakContextTokens
-        )
-    }
-
-    @discardableResult
-    func markCurrentPosition(sessionId: String, transcriptPath: String) -> ParseResult {
-        markCurrentPosition(
-            sessionKey: ProviderSessionKey(provider: .claude, rawSessionId: sessionId),
-            transcriptPath: transcriptPath
         )
     }
 

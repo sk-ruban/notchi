@@ -12,7 +12,6 @@ final class DevinUsageService {
     var currentWeeklyUsage: QuotaPeriod?
     var planName: String?
     var hasNoQuota = false
-    var lastObservedAt: Date?
     var isUsageStale = false
 
     var hasUsageData: Bool {
@@ -72,7 +71,6 @@ final class DevinUsageService {
         currentWeeklyUsage = usage?.weekly
         planName = usage?.planName
         hasNoQuota = usage?.hasNoQuota ?? false
-        lastObservedAt = hasUsageData ? observedAt : nil
         isUsageStale = hasUsageData && !isDesktopRunning()
     }
 }

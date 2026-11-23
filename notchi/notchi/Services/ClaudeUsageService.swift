@@ -43,7 +43,7 @@ protocol ClaudeUsagePollTimer {
 struct ClaudeUsageServiceDependencies {
     var fetchUsage: (URLRequest) async throws -> (Data, URLResponse)
     var getOAuthTokenFromEnvironment: () -> String?
-    var getCachedOAuthToken: (_ allowInteraction: Bool) -> String?
+    var getCachedOAuthToken: () -> String?
     var getOAuthCredentials: (_ allowInteraction: Bool) -> ClaudeOAuthCredentials?
     var cacheOAuthToken: (_ token: String) -> Void
     var refreshAccessTokenSilently: () -> String?
@@ -147,26 +147,12 @@ struct ClaudeConfigDirectoryResolution: Sendable {
         directoryURL.appendingPathComponent("settings.json")
     }
 
-    nonisolated var hooksDirectoryURL: URL {
-        directoryURL.appendingPathComponent("hooks", isDirectory: true)
-    }
-
-    nonisolated var hookScriptURL: URL {
-        hooksDirectoryURL.appendingPathComponent("notchi-hook.sh")
-    }
-
     nonisolated var projectsDirectoryURL: URL {
         directoryURL.appendingPathComponent("projects", isDirectory: true)
     }
 
     nonisolated var claudeBinaryPath: String {
         directoryURL.appendingPathComponent("bin/claude").path
-    }
-
-    nonisolated var displayPath: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        guard path.hasPrefix(home) else { return path }
-        return "~" + String(path.dropFirst(home.count))
     }
 }
 
@@ -685,8 +671,8 @@ extension ClaudeUsageServiceDependencies {
                 }
                 return rawToken
             },
-            getCachedOAuthToken: { allowInteraction in
-                KeychainManager.getCachedOAuthToken(service: service, allowInteraction: allowInteraction)
+            getCachedOAuthToken: {
+                KeychainManager.getCachedOAuthToken(service: service)
             },
             getOAuthCredentials: { allowInteraction in
                 KeychainManager.getOAuthCredentials(service: service, allowInteraction: allowInteraction)
@@ -794,7 +780,6 @@ final class ClaudeUsageService {
     var statusMessage: String?
     var isConnected = false
     var isUsageStale = false
-    var isUsingHeadersFallback: Bool { isHeadersFallbackActive }
 
     // Headers refreshes only carry session usage, so in either headers mode (backoff-driven or
     // enterprise preferred) weekly data is held over from the last OAuth success.
@@ -807,7 +792,6 @@ final class ClaudeUsageService {
             extraUsage: currentExtraUsage
         )
     }
-    var lastObservedAt: Date?
     var recoveryAction: ClaudeUsageRecoveryAction = .none
 
     private static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
@@ -904,7 +888,7 @@ final class ClaudeUsageService {
 
         pendingResumeReconnectTimer = dependencies.schedulePoll(Self.resumeReconnectDelay) { [weak self] in
             Task { @MainActor [weak self] in
-                self?.performDelayedResumeReconnect(trigger: trigger)
+                self?.performDelayedResumeReconnect()
             }
         }
     }
@@ -994,7 +978,7 @@ final class ClaudeUsageService {
             }
         }
 
-        if let cachedToken = dependencies.getCachedOAuthToken(false) {
+        if let cachedToken = dependencies.getCachedOAuthToken() {
             return ClaudeUsageAccessTokenResolution(token: cachedToken, source: .cached, credentials: nil)
         }
 
@@ -1211,8 +1195,7 @@ final class ClaudeUsageService {
         if await performPreferredEnterpriseHeadersFetchIfNeeded(
             with: effectiveAccessToken,
             userAgent: userAgent,
-            userInitiated: userInitiated,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
+            userInitiated: userInitiated
         ) {
             return
         }
@@ -1220,8 +1203,7 @@ final class ClaudeUsageService {
         let result = await fetchViaOAuth(
             with: effectiveAccessToken,
             userAgent: userAgent,
-            userInitiated: userInitiated,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
+            userInitiated: userInitiated
         )
 
         if case .enterprise403 = result {
@@ -1229,8 +1211,7 @@ final class ClaudeUsageService {
                 with: effectiveAccessToken,
                 userAgent: userAgent,
                 userInitiated: userInitiated,
-                allow403EmptyHeadersRecovery: allow403EmptyHeadersRecovery,
-                allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
+                allow403EmptyHeadersRecovery: allow403EmptyHeadersRecovery
             )
         }
     }
@@ -1238,8 +1219,7 @@ final class ClaudeUsageService {
     private func performPreferredEnterpriseHeadersFetchIfNeeded(
         with accessToken: String,
         userAgent: String,
-        userInitiated: Bool,
-        allowPreflightRefreshRecovery: Bool
+        userInitiated: Bool
     ) async -> Bool {
         guard preferHeadersFallback else {
             return false
@@ -1255,8 +1235,7 @@ final class ClaudeUsageService {
             with: accessToken,
             userAgent: userAgent,
             userInitiated: userInitiated,
-            context: .normalRetrying,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
+            context: .normalRetrying
         )
         return true
     }
@@ -1265,8 +1244,7 @@ final class ClaudeUsageService {
         with accessToken: String,
         userAgent: String,
         userInitiated: Bool,
-        allow403EmptyHeadersRecovery: Bool,
-        allowPreflightRefreshRecovery: Bool
+        allow403EmptyHeadersRecovery: Bool
     ) async {
         preferHeadersFallback = true
         oauthRecheckCounter = 0
@@ -1274,8 +1252,7 @@ final class ClaudeUsageService {
             with: accessToken,
             userAgent: userAgent,
             userInitiated: userInitiated,
-            context: .normalNoRetry,
-            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
+            context: .normalNoRetry
         )
         if case .noHeadersFallback = fallbackResult {
             preferHeadersFallback = false
@@ -1291,8 +1268,7 @@ final class ClaudeUsageService {
     private func fetchViaOAuth(
         with accessToken: String,
         userAgent: String,
-        userInitiated: Bool,
-        allowPreflightRefreshRecovery: Bool
+        userInitiated: Bool
     ) async -> FetchResult {
         var request = URLRequest(url: Self.usageURL)
         request.timeoutInterval = 30
@@ -1348,8 +1324,7 @@ final class ClaudeUsageService {
                             with: accessToken,
                             userAgent: userAgent,
                             userInitiated: userInitiated,
-                            context: .oauthBackoffEntry,
-                            allowPreflightRefreshRecovery: allowPreflightRefreshRecovery
+                            context: .oauthBackoffEntry
                         )
                         if case .success = fallbackResult {
                             logger.info(
@@ -1408,7 +1383,6 @@ final class ClaudeUsageService {
             let modelWeekly = usageResponse.modelWeekly
             currentModelUsage = modelWeekly?.period
             currentModelUsageName = modelWeekly?.name
-            lastObservedAt = usageResponse.fiveHour == nil ? nil : dependencies.now()
             reconcileExtraUsageState(
                 with: usageResponse.extraUsage,
                 usage: usageResponse.fiveHour
@@ -1432,8 +1406,7 @@ final class ClaudeUsageService {
         with accessToken: String,
         userAgent: String,
         userInitiated: Bool,
-        context: HeadersFetchContext = .normalRetrying,
-        allowPreflightRefreshRecovery: Bool = true
+        context: HeadersFetchContext = .normalRetrying
     ) async -> FetchResult {
         var request = URLRequest(url: Self.messagesURL)
         request.httpMethod = "POST"
@@ -1499,7 +1472,6 @@ final class ClaudeUsageService {
             let usage = QuotaPeriod(utilization: (utilization * 100).rounded(), resetDate: resetDate)
             isConnected = true
             currentUsage = usage
-            lastObservedAt = dependencies.now()
             reconcileExtraUsageStateForHeaders(using: usage)
 
             switch context {
@@ -1866,7 +1838,7 @@ final class ClaudeUsageService {
         pendingResumeReconnectTimer = nil
     }
 
-    private func performDelayedResumeReconnect(trigger: ClaudeUsageResumeTrigger) {
+    private func performDelayedResumeReconnect() {
         pendingResumeReconnectTimer = nil
 
         guard dependencies.isUsageEnabled() else {
@@ -2050,7 +2022,6 @@ final class ClaudeUsageService {
         currentWeeklyUsage = isUsageStillValid(snapshot.lastGoodWeeklyUsage, now: now) ? snapshot.lastGoodWeeklyUsage : nil
         currentModelUsage = isUsageStillValid(snapshot.lastGoodModelUsage, now: now) ? snapshot.lastGoodModelUsage : nil
         currentModelUsageName = currentModelUsage == nil ? nil : snapshot.lastGoodModelUsageName
-        lastObservedAt = currentUsage == nil ? nil : now
         currentExtraUsage = snapshot.lastGoodExtraUsage
         lastObservedExtraUsageCredits = snapshot.lastObservedExtraUsageCredits
         extraUsageResetMarker = snapshot.extraUsageResetMarker

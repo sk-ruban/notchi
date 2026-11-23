@@ -31,7 +31,6 @@ final class CodexModelPricingTests: XCTestCase {
 
         let billableInput = inputTokens - cachedInputTokens
         let cost = CostPricing.claudeCostUSD(
-            model: "gpt-5.5",
             input: billableInput,
             cacheRead: cachedInputTokens,
             cacheCreation: 0,
@@ -53,7 +52,6 @@ final class CodexModelPricingTests: XCTestCase {
         let outputTokens = 2_000
 
         let cost = CostPricing.claudeCostUSD(
-            model: "gpt-5.5",
             input: billableInput,
             cacheRead: cachedInput,
             cacheCreation: 0,
@@ -102,7 +100,7 @@ final class CodexModelPricingTests: XCTestCase {
 
     func testCodexCatalogFallbackLoadsFromBundle() {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
-        let p = catalog.pricing(model: "gpt-5.5", on: Date())
+        let p = catalog.pricing(model: "gpt-5.5")
         XCTAssertNotNil(p, "codex fallback must price gpt-5.5")
         XCTAssertEqual(p!.inputPerToken, 5e-6, accuracy: 1e-15)
     }
@@ -128,7 +126,7 @@ final class CodexModelPricingTests: XCTestCase {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
         catalog.processNetworkData(json)
 
-        let p = catalog.pricing(model: "gpt-5.5", on: Date())
+        let p = catalog.pricing(model: "gpt-5.5")
         XCTAssertNotNil(p)
         XCTAssertEqual(p!.inputPerToken, 5.0 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(p!.outputPerToken, 30.0 / 1_000_000, accuracy: 1e-15)
@@ -154,12 +152,12 @@ final class CodexModelPricingTests: XCTestCase {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
         catalog.processNetworkData(json)
 
-        let codexPricing = catalog.pricing(model: "gpt-5-codex", on: Date())
+        let codexPricing = catalog.pricing(model: "gpt-5-codex")
         XCTAssertEqual(codexPricing?.inputPerToken ?? 0, 1.25 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(codexPricing?.cacheReadPerToken ?? -1, 0.125 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(codexPricing?.cacheCreationPerToken ?? -1, 0, accuracy: 1e-15)
 
-        let solPricing = catalog.pricing(model: "gpt-5.6-sol", on: Date())
+        let solPricing = catalog.pricing(model: "gpt-5.6-sol")
         XCTAssertEqual(solPricing?.inputPerToken ?? 0, 7.0 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(solPricing?.outputPerToken ?? 0, 42.0 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(solPricing?.cacheReadPerToken ?? -1, 0, accuracy: 1e-15)
@@ -185,9 +183,9 @@ final class CodexModelPricingTests: XCTestCase {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
         catalog.processNetworkData(json)
 
-        let solPricing = catalog.pricing(model: "gpt-5.6-sol", on: Date())
+        let solPricing = catalog.pricing(model: "gpt-5.6-sol")
         XCTAssertEqual(solPricing?.inputPerToken ?? 0, 7.0 / 1_000_000, accuracy: 1e-15)
-        XCTAssertNil(catalog.pricing(model: "gpt-broken", on: Date()))
+        XCTAssertNil(catalog.pricing(model: "gpt-broken"))
     }
 
     func testBrokenOpenAIEntriesDoNotBreakAnthropicRefresh() {
@@ -216,7 +214,7 @@ final class CodexModelPricingTests: XCTestCase {
         let catalog = PricingCatalog(config: .claude, fallbackBundle: .main)
         catalog.processNetworkData(json)
 
-        let sonnetPricing = catalog.pricing(model: "claude-sonnet-4-5", on: Date())
+        let sonnetPricing = catalog.pricing(model: "claude-sonnet-4-5")
         XCTAssertEqual(sonnetPricing?.inputPerToken ?? 0, 3.5 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(sonnetPricing?.cacheCreationPerToken ?? 0, 4.375 / 1_000_000, accuracy: 1e-15)
     }
@@ -242,7 +240,7 @@ final class CodexModelPricingTests: XCTestCase {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
         catalog.processNetworkData(json)
 
-        let solPricing = catalog.pricing(model: "gpt-5.6-sol", on: Date())
+        let solPricing = catalog.pricing(model: "gpt-5.6-sol")
         XCTAssertEqual(solPricing?.thresholdTokens, 272_000)
         XCTAssertEqual(solPricing?.inputPerTokenAboveThreshold ?? 0, 14.0 / 1_000_000, accuracy: 1e-15)
         XCTAssertEqual(solPricing?.cacheCreationPerTokenAboveThreshold ?? -1, 0, accuracy: 1e-15)
@@ -251,21 +249,21 @@ final class CodexModelPricingTests: XCTestCase {
     func testCodexFallbackPricesGpt56Family() {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
 
-        let sol = catalog.pricing(model: "gpt-5.6-sol", on: Date())
+        let sol = catalog.pricing(model: "gpt-5.6-sol")
         XCTAssertEqual(sol?.inputPerToken ?? 0, 5e-6, accuracy: 1e-15)
         XCTAssertEqual(sol?.outputPerToken ?? 0, 3e-5, accuracy: 1e-15)
         XCTAssertEqual(sol?.cacheReadPerToken ?? 0, 5e-7, accuracy: 1e-15)
         XCTAssertEqual(sol?.cacheCreationPerToken ?? 0, 6.25e-6, accuracy: 1e-15)
         XCTAssertEqual(sol?.thresholdTokens, 272_000)
 
-        XCTAssertNotNil(catalog.pricing(model: "gpt-5.6", on: Date()))
-        XCTAssertNotNil(catalog.pricing(model: "gpt-5.6-luna", on: Date()))
-        XCTAssertNotNil(catalog.pricing(model: "gpt-5.6-terra", on: Date()))
+        XCTAssertNotNil(catalog.pricing(model: "gpt-5.6"))
+        XCTAssertNotNil(catalog.pricing(model: "gpt-5.6-luna"))
+        XCTAssertNotNil(catalog.pricing(model: "gpt-5.6-terra"))
     }
 
     func testCodexGpt55ProCostBillsCachedInputAtInputRate() {
         let catalog = PricingCatalog(config: .codex, fallbackBundle: .main)
-        let p = catalog.pricing(model: "gpt-5.5-pro", on: Date())
+        let p = catalog.pricing(model: "gpt-5.5-pro")
         XCTAssertNotNil(p, "codex fallback must price gpt-5.5-pro")
 
         let gpt55ProInputPerToken: Double = 30.0 / 1_000_000
@@ -275,7 +273,6 @@ final class CodexModelPricingTests: XCTestCase {
         let outputTokens = 2_000
 
         let cost = CostPricing.claudeCostUSD(
-            model: "gpt-5.5-pro",
             input: freshInputTokens,
             cacheRead: cachedInputTokens,
             cacheCreation: 0,

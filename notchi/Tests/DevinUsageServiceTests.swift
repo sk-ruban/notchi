@@ -18,7 +18,6 @@ final class DevinUsageServiceTests: XCTestCase {
 
         XCTAssertEqual(service.currentUsage, Self.dailyUsage)
         XCTAssertEqual(service.currentWeeklyUsage, Self.weeklyUsage)
-        XCTAssertEqual(service.lastObservedAt, Self.observedAt)
     }
 
     func testRefreshPublishesPlanWithoutQuotaAsUsageData() async {
@@ -63,7 +62,6 @@ final class DevinUsageServiceTests: XCTestCase {
 
         XCTAssertNil(service.currentUsage)
         XCTAssertNil(service.currentWeeklyUsage)
-        XCTAssertNil(service.lastObservedAt)
     }
 
     func testUsageIsStaleWhenDevinDesktopIsNotRunning() async {

@@ -29,7 +29,6 @@ nonisolated struct SessionEvent: Identifiable {
     let type: String
     let tool: String?
     var status: ToolStatus
-    let toolInput: [String: Any]?
     let toolUseId: String?
     let description: String?
 }

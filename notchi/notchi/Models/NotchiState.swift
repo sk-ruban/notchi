@@ -35,15 +35,6 @@ enum NotchiTask: String, CaseIterable {
         }
     }
 
-    var canWalk: Bool {
-        switch self {
-        case .sleeping, .compacting, .waiting, .waving:
-            return false
-        case .idle, .working:
-            return true
-        }
-    }
-
     var mirrorPolicy: SpriteMirrorPolicy.Mode {
         switch self {
         case .idle:
@@ -56,27 +47,6 @@ enum NotchiTask: String, CaseIterable {
             return .stateEntry
         case .sleeping, .waving:
             return .never
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .idle:       return String(localized: "Idle")
-        case .working:    return String(localized: "Working...")
-        case .sleeping:   return String(localized: "Sleeping")
-        case .compacting: return String(localized: "Compacting...")
-        case .waiting:    return String(localized: "Waiting...")
-        case .waving:     return String(localized: "Waving")
-        }
-    }
-
-    var walkFrequencyRange: ClosedRange<Double> {
-        switch self {
-        case .sleeping, .waiting: return 30.0...60.0
-        case .idle:               return 8.0...15.0
-        case .working:            return 5.0...12.0
-        case .compacting:         return 15.0...25.0
-        case .waving:             return 30.0...60.0
         }
     }
 
@@ -279,10 +249,7 @@ struct NotchiState: Equatable {
         }
     }
     var swayAmplitude: Double { emotion.swayAmplitude }
-    var canWalk: Bool { emotion == .sob ? false : task.canWalk }
     var mirrorPolicy: SpriteMirrorPolicy.Mode { task.mirrorPolicy }
-    var displayName: String { task.displayName }
-    var walkFrequencyRange: ClosedRange<Double> { task.walkFrequencyRange }
     var frameCount: Int { inferredFrameCount ?? task.frameCount }
     var columns: Int { inferredFrameCount ?? task.columns }
 
@@ -335,9 +302,4 @@ struct NotchiState: Equatable {
     }
 
     static let idle = NotchiState(task: .idle)
-    static let working = NotchiState(task: .working)
-    static let sleeping = NotchiState(task: .sleeping)
-    static let compacting = NotchiState(task: .compacting)
-    static let waiting = NotchiState(task: .waiting)
-    static let waving = NotchiState(task: .waving)
 }

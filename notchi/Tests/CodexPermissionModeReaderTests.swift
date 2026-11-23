@@ -7,7 +7,6 @@ final class CodexPermissionModeReaderTests: XCTestCase {
     private var reader: CodexPermissionModeReader!
 
     private static let readOnlyTurn = #"{"type":"turn_context","payload":{"approval_policy":"on-request","sandbox_policy":{"type":"read-only"}}}"#
-    private static let workspaceTurn = #"{"type":"turn_context","payload":{"approval_policy":"on-request","sandbox_policy":{"type":"workspace-write"}}}"#
     private static let fullAccessTurn = #"{"type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#
     private static let planTurn = #"{"type":"turn_context","payload":{"approval_policy":"on-request","sandbox_policy":{"type":"workspace-write"},"collaboration_mode":{"mode":"plan","settings":{}}}}"#
     private static let sessionMeta = #"{"type":"session_meta","payload":{"id":"abc"}}"#

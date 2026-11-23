@@ -114,8 +114,8 @@ final class ClaudeCostScanner {
         let dedupKey = msgId + "|" + reqId
         if !(msgId.isEmpty && reqId.isEmpty), !seen.insert(dedupKey).inserted { return }
 
-        let cost = pricing.pricing(model: model, on: date).flatMap {
-            CostPricing.claudeCostUSD(model: model, input: input, cacheRead: cacheRead,
+        let cost = pricing.pricing(model: model).flatMap {
+            CostPricing.claudeCostUSD(input: input, cacheRead: cacheRead,
                 cacheCreation: cacheCreate, cacheCreation1h: cacheCreate1h, output: output, pricing: $0)
         }.map { $0 * speedMultiplier }
         let nanos = cost.map { Int(($0 * 1_000_000_000).rounded()) } ?? 0

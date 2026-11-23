@@ -160,11 +160,6 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         return snap.models.mapValues { $0.toPricing() }
     }
 
-    static func defaultSnapshotURL() -> URL? {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("CostUsage/models-dev.json")
-    }
-
     static func defaultSnapshotURL(for config: ProviderConfig) -> URL? {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
             .appendingPathComponent("CostUsage/\(config.snapshotFileName)")
@@ -174,7 +169,7 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         config.modelsDevKey != nil
     }
 
-    func pricing(model: String, on date: Date) -> ClaudeModelPricing? {
+    func pricing(model: String) -> ClaudeModelPricing? {
         let key = config.normalize(model)
         lock.lock(); defer { lock.unlock() }
         if let exact = table[key] {
@@ -272,10 +267,6 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
             hash = hash &* fnvPrime
         }
         return String(hash, radix: 16)
-    }
-
-    static func isPlausibleRefresh(_ candidate: [String: ClaudeModelPricing]) -> Bool {
-        isPlausibleRefresh(candidate, anchors: ProviderConfig.claude.plausibilityAnchors)
     }
 
     static func isPlausibleRefresh(_ candidate: [String: ClaudeModelPricing], anchors: [String]) -> Bool {

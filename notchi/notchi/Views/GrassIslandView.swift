@@ -160,7 +160,6 @@ struct GrassIslandView: View {
 
 struct GrassTapOverlay: View {
     let sessions: [SessionData]
-    var selectedSessionId: String?
     @Binding var hoveredSessionId: String?
     var handoffSessionId: String?
     var handoffProgress: CGFloat = 1
