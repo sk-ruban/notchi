@@ -178,7 +178,8 @@ struct NotchContentView: View {
     @State private var usageDetailProvider: AgentProvider?
     @State private var usageDetailClaudeAccountId: String?
     @State private var showingSessionActivity = false
-    @State private var isMuted = AppSettings.isMuted
+    // Sound pickers also write this key, so read it live rather than caching it at launch.
+    @AppStorage(AppSettings.isMutedKey) private var isMuted = false
     @State private var isActivityCollapsed = false
     @AppStorage(AppSettings.showGrassIslandKey) private var showGrassIsland = true
     @State private var hoveredSessionId: String?
@@ -1063,7 +1064,6 @@ struct NotchContentView: View {
     private func toggleMute() {
         haptics.playToggle()
         AppSettings.toggleMute()
-        isMuted = AppSettings.isMuted
     }
 }
 
