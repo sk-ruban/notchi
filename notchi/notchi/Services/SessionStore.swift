@@ -1177,6 +1177,13 @@ nonisolated final class HookInteractionResponseBroker: @unchecked Sendable {
     private var responsesByRequestId: [String: Data] = [:]
     private var abandonedRequestIds: Set<String> = []
 
+    /// Call before the event reaches the main actor, so an abandon that beats the waiter isn't dropped.
+    func registerRequest(_ requestId: String) {
+        condition.lock()
+        defer { condition.unlock() }
+        pendingRequestIds.insert(requestId)
+    }
+
     func waitForResponse(requestId: String, timeout: TimeInterval) -> Data? {
         let deadline = Date().addingTimeInterval(timeout)
 

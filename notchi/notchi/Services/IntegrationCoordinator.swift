@@ -103,6 +103,9 @@ nonisolated final class IntegrationCoordinator: @unchecked Sendable {
                 return nil
             }
 
+            if let requestId = event.interactionRequestId {
+                HookInteractionResponseBroker.shared.registerRequest(requestId)
+            }
             self.enqueue(event)
             guard let requestId = event.interactionRequestId else { return nil }
             return HookInteractionResponseBroker.shared.waitForResponse(
