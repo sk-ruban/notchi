@@ -371,7 +371,7 @@ final class NotchiStateMachineTests: XCTestCase {
 
     func testCodexCLISessionEndsAfterProcessMisses() {
         let stateMachine = NotchiStateMachine.shared
-        stateMachine.isCodexProcessAlive = { _ in false }
+        stateMachine.isProcessAlive = { _ in false }
         let sessionId = "codex-cli-exit-\(UUID().uuidString)"
         let sessionKey = ProviderSessionKey(provider: .codex, rawSessionId: sessionId)
 
@@ -387,16 +387,83 @@ final class NotchiStateMachineTests: XCTestCase {
 
         XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
 
-        stateMachine.reconcileCodexProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
         XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
 
-        stateMachine.reconcileCodexProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
         XCTAssertNil(SessionStore.shared.session(for: sessionKey))
+    }
+
+    func testClaudeSessionEndsAfterProcessMisses() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.isProcessAlive = { _ in false }
+        let sessionId = "claude-exit-\(UUID().uuidString)"
+        let sessionKey = ProviderSessionKey(provider: .claude, rawSessionId: sessionId)
+
+        stateMachine.handleEvent(HookEvent(
+            rawSessionId: sessionId,
+            transcriptPath: nil,
+            cwd: "/tmp",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello",
+            interactive: true,
+            claudeProcessId: 12345
+        ))
+
+        stateMachine.reconcileProcessLivenessForTesting()
+        XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
+
+        stateMachine.reconcileProcessLivenessForTesting()
+        XCTAssertNil(SessionStore.shared.session(for: sessionKey))
+    }
+
+    func testDevinSessionEndsAfterProcessMisses() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.isProcessAlive = { _ in false }
+        let sessionId = "devin-exit-\(UUID().uuidString)"
+        let sessionKey = ProviderSessionKey(provider: .devin, rawSessionId: sessionId)
+
+        stateMachine.handleEvent(HookEvent(
+            provider: .devin,
+            rawSessionId: sessionId,
+            transcriptPath: nil,
+            cwd: "/tmp",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello",
+            interactive: true,
+            devinProcessId: 12345
+        ))
+
+        stateMachine.reconcileProcessLivenessForTesting()
+        XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
+
+        stateMachine.reconcileProcessLivenessForTesting()
+        XCTAssertNil(SessionStore.shared.session(for: sessionKey))
+    }
+
+    func testClaudeSessionWithoutProcessIdIsNotRemovedByProcessMonitor() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.isProcessAlive = { _ in false }
+        let sessionId = "claude-no-pid-\(UUID().uuidString)"
+        let sessionKey = ProviderSessionKey(provider: .claude, rawSessionId: sessionId)
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        stateMachine.reconcileProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
+
+        XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
     }
 
     func testCodexDesktopSessionIsNotRemovedByProcessMonitor() {
         let stateMachine = NotchiStateMachine.shared
-        stateMachine.isCodexProcessAlive = { _ in false }
+        stateMachine.isProcessAlive = { _ in false }
         let sessionId = "codex-desktop-\(UUID().uuidString)"
         let sessionKey = ProviderSessionKey(provider: .codex, rawSessionId: sessionId)
 
@@ -410,15 +477,15 @@ final class NotchiStateMachineTests: XCTestCase {
             codexOrigin: .desktop
         ))
 
-        stateMachine.reconcileCodexProcessLivenessForTesting()
-        stateMachine.reconcileCodexProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
 
         XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
     }
 
     func testCodexDesktopSessionHostedByKnownAppEndsAfterProcessMisses() {
         let stateMachine = NotchiStateMachine.shared
-        stateMachine.isCodexProcessAlive = { _ in false }
+        stateMachine.isProcessAlive = { _ in false }
         SessionStore.shared.setHostBundleIdentifierResolverForTesting { _ in "com.t3tools.t3code" }
         defer { SessionStore.shared.resetHostBundleIdentifierResolverForTesting() }
         let sessionId = "codex-hosted-exit-\(UUID().uuidString)"
@@ -436,10 +503,10 @@ final class NotchiStateMachineTests: XCTestCase {
 
         XCTAssertEqual(SessionStore.shared.session(for: sessionKey)?.hostBundleIdentifier, "com.t3tools.t3code")
 
-        stateMachine.reconcileCodexProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
         XCTAssertNotNil(SessionStore.shared.session(for: sessionKey))
 
-        stateMachine.reconcileCodexProcessLivenessForTesting()
+        stateMachine.reconcileProcessLivenessForTesting()
         XCTAssertNil(SessionStore.shared.session(for: sessionKey))
     }
 
