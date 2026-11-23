@@ -47,6 +47,24 @@ final class CodexHookInstallerTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path)
     }
 
+    func testUpdateHooksJSONWritesThroughASymlinkWhoseTargetDoesNotExistYet() throws {
+        let targetDirectory = try Self.makeTemporaryDirectory()
+        let linkDirectory = try Self.makeTemporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: targetDirectory)
+            try? FileManager.default.removeItem(at: linkDirectory)
+        }
+        // A dotfiles checkout can link the config before the target file is first created.
+        let target = targetDirectory.appendingPathComponent("hooks.json")
+        let link = linkDirectory.appendingPathComponent("hooks.json")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+
+        XCTAssertTrue(CodexHookInstaller.updateHooksJSON(at: link, command: Self.hookCommand))
+
+        XCTAssertTrue(CodexHookInstaller.isHookInstalled(in: try Data(contentsOf: target)))
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path)
+    }
+
     func testUpdateConfigKeepsASymlinkedConfigLinked() throws {
         let targetDirectory = try Self.makeTemporaryDirectory()
         let linkDirectory = try Self.makeTemporaryDirectory()
