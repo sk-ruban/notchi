@@ -15,6 +15,23 @@ final class CostUsageCacheTests: XCTestCase {
         XCTAssertTrue(loaded.buckets.isEmpty, "stale-version cache must be discarded")
     }
 
+    func testLoadKeepsFileOffsetsFromACacheWrittenBeforeDedupKeys() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("cache.json")
+        let expectedOffset: Int64 = 4096
+        let earlierFormat = """
+        {"version":\(CostUsageCache.currentVersion),"buckets":{},\
+        "files":{"/tmp/a.jsonl":{"size":4096,"mtime":1,"offset":\(expectedOffset)}}}
+        """
+        try Data(earlierFormat.utf8).write(to: url)
+
+        let loaded = CostUsageCacheStore.load(url: url)
+
+        XCTAssertEqual(loaded.files["/tmp/a.jsonl"]?.offset, expectedOffset)
+    }
+
     func testSaveThenLoadRoundTrips() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

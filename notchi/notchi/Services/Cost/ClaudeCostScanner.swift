@@ -46,8 +46,11 @@ final class ClaudeCostScanner {
                 var state = cache.files[path] ?? .init(size: 0, mtime: 0, offset: 0)
                 if state.size == size, state.mtime == mtime { continue }
                 let startOffset = (size >= state.size) ? state.offset : 0
+                if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
 
-                state.offset = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, into: &cache.buckets)
+                let parsed = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, into: &cache.buckets)
+                state.offset = parsed.offset
+                state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: parsed.dedupKeys)
                 state.size = size
                 state.mtime = mtime
                 cache.files[path] = state
@@ -66,12 +69,13 @@ final class ClaudeCostScanner {
     }
 
     nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String,
-                                       into buckets: inout DayModelBuckets) -> Int64 {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return startOffset }
+                                       into buckets: inout DayModelBuckets) -> (offset: Int64, dedupKeys: [String]) {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return (startOffset, []) }
         defer { try? handle.close() }
         if startOffset > 0 { try? handle.seek(toOffset: UInt64(startOffset)) }
-        guard let data = try? handle.readToEnd(), !data.isEmpty else { return startOffset }
+        guard let data = try? handle.readToEnd(), !data.isEmpty else { return (startOffset, []) }
 
+        var dedupKeys: [String] = []
         var consumed = startOffset
         var lineStart = data.startIndex
         let newline = UInt8(ascii: "\n")
@@ -80,26 +84,28 @@ final class ClaudeCostScanner {
             if data[i] == newline {
                 let lineData = data[lineStart..<i]
                 consumed += Int64(lineData.count) + 1
-                handleLine(lineData, sinceKey: sinceKey, into: &buckets)
+                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, into: &buckets) {
+                    dedupKeys.append(dedupKey)
+                }
                 lineStart = data.index(after: i)
             }
             i = data.index(after: i)
         }
-        return consumed
+        return (consumed, dedupKeys)
     }
 
-    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, into buckets: inout DayModelBuckets) {
+    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, into buckets: inout DayModelBuckets) -> String? {
         guard lineData.range(of: Data(#""type":"assistant""#.utf8)) != nil,
-              lineData.range(of: Data(#""usage""#.utf8)) != nil else { return }
+              lineData.range(of: Data(#""usage""#.utf8)) != nil else { return nil }
         guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
               obj["type"] as? String == "assistant",
               let ts = obj["timestamp"] as? String,
-              let date = parseTimestamp(ts) else { return }
+              let date = parseTimestamp(ts) else { return nil }
         let dayKey = DailyCostReport.dayKey(date, calendar: calendar)
-        guard dayKey >= sinceKey else { return }
+        guard dayKey >= sinceKey else { return nil }
         guard let message = obj["message"] as? [String: Any],
               let model = message["model"] as? String,
-              let usage = message["usage"] as? [String: Any] else { return }
+              let usage = message["usage"] as? [String: Any] else { return nil }
 
         let input = intval(usage["input_tokens"])
         let output = intval(usage["output_tokens"])
@@ -107,12 +113,13 @@ final class ClaudeCostScanner {
         let cacheRead = intval(usage["cache_read_input_tokens"])
         let cacheCreate1h = intval((usage["cache_creation"] as? [String: Any])?["ephemeral_1h_input_tokens"])
         let speedMultiplier = usage["speed"] as? String == "fast" ? CostPricing.fastModeMultiplier : 1
-        if input == 0, output == 0, cacheCreate == 0, cacheRead == 0 { return }
+        if input == 0, output == 0, cacheCreate == 0, cacheRead == 0 { return nil }
 
         let msgId = message["id"] as? String ?? ""
         let reqId = obj["requestId"] as? String ?? ""
+        let hasDedupKey = !(msgId.isEmpty && reqId.isEmpty)
         let dedupKey = msgId + "|" + reqId
-        if !(msgId.isEmpty && reqId.isEmpty), !seen.insert(dedupKey).inserted { return }
+        if hasDedupKey, !seen.insert(dedupKey).inserted { return dedupKey }
 
         let cost = pricing.pricing(model: model).flatMap {
             CostPricing.claudeCostUSD(input: input, cacheRead: cacheRead,
@@ -125,6 +132,7 @@ final class ClaudeCostScanner {
             input: input, cacheRead: cacheRead, cacheCreation: cacheCreate, cacheCreation1h: cacheCreate1h,
             output: output, costNanos: nanos, requestCount: 1, pricedCount: cost == nil ? 0 : 1)
         buckets[dayKey] = dayModels
+        return hasDedupKey ? dedupKey : nil
     }
 
     nonisolated private func intval(_ v: Any?) -> Int { (v as? NSNumber)?.intValue ?? 0 }

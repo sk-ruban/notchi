@@ -51,6 +51,22 @@ final class ClaudeCostScannerTests: XCTestCase {
         XCTAssertEqual(out.buckets["2026-06-24"]?["claude-opus-4"]?.requestCount, 1)
     }
 
+    func testDuplicateLineAppendedInALaterScanCountedOnce() throws {
+        let duplicated = line(msgId: "m1", reqId: "r1", input: 100, output: 0)
+        let url = try writeFile([duplicated])
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
+        let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
+
+        let fh = try FileHandle(forWritingTo: url); fh.seekToEndOfFile()
+        fh.write((duplicated + "\n").data(using: .utf8)!)
+        try fh.close()
+        let second = s.scan(cache: first, now: now)
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["claude-opus-4"]?.input, 100)
+        XCTAssertEqual(second.buckets["2026-06-24"]?["claude-opus-4"]?.requestCount, 1)
+    }
+
     func testAppendedLinesAddWithoutRecountingViaOffset() throws {
         let url = try writeFile([line(msgId: "m1", reqId: "r1", input: 100, output: 0)])
         let root = url.deletingLastPathComponent().deletingLastPathComponent()

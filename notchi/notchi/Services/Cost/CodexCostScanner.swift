@@ -42,12 +42,14 @@ nonisolated final class CodexCostScanner {
                 if state.size == size, state.mtime == mtime { continue }
                 let startOffset = (size >= state.size) ? state.offset : 0
                 let resume = startOffset > 0 ? state.codexResume : nil
+                if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
 
                 let result = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, resume: resume,
                                        seen: &seen, isoFractional: isoFractional, isoPlain: isoPlain,
                                        into: &cache.buckets)
                 state.offset = result.offset
                 state.codexResume = result.resume
+                state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: result.dedupKeys)
                 state.size = size
                 state.mtime = mtime
                 cache.files[path] = state
@@ -69,7 +71,8 @@ nonisolated final class CodexCostScanner {
                                        resume: CostUsageCache.CodexResume?,
                                        seen: inout Set<String>,
                                        isoFractional: ISO8601DateFormatter, isoPlain: ISO8601DateFormatter,
-                                       into buckets: inout DayModelBuckets) -> (offset: Int64, resume: CostUsageCache.CodexResume) {
+                                       into buckets: inout DayModelBuckets)
+        -> (offset: Int64, resume: CostUsageCache.CodexResume, dedupKeys: [String]) {
         var currentModel = resume?.model
         var runningBaseline: (input: Int, cached: Int, output: Int)?
         if let i = resume?.baseInput, let c = resume?.baseCached, let o = resume?.baseOutput {
@@ -77,14 +80,15 @@ nonisolated final class CodexCostScanner {
         }
 
         guard let handle = try? FileHandle(forReadingFrom: url) else {
-            return (startOffset, resumeState(currentModel, runningBaseline))
+            return (startOffset, resumeState(currentModel, runningBaseline), [])
         }
         defer { try? handle.close() }
         if startOffset > 0 { try? handle.seek(toOffset: UInt64(startOffset)) }
         guard let data = try? handle.readToEnd(), !data.isEmpty else {
-            return (startOffset, resumeState(currentModel, runningBaseline))
+            return (startOffset, resumeState(currentModel, runningBaseline), [])
         }
 
+        var dedupKeys: [String] = []
         var consumed = startOffset
         var lineStart = data.startIndex
         let newline = UInt8(ascii: "\n")
@@ -93,14 +97,16 @@ nonisolated final class CodexCostScanner {
             if data[i] == newline {
                 let lineData = data[lineStart..<i]
                 consumed += Int64(lineData.count) + 1
-                handleLine(lineData, sinceKey: sinceKey, currentModel: &currentModel,
-                           runningBaseline: &runningBaseline, seen: &seen,
-                           isoFractional: isoFractional, isoPlain: isoPlain, into: &buckets)
+                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, currentModel: &currentModel,
+                                             runningBaseline: &runningBaseline, seen: &seen,
+                                             isoFractional: isoFractional, isoPlain: isoPlain, into: &buckets) {
+                    dedupKeys.append(dedupKey)
+                }
                 lineStart = data.index(after: i)
             }
             i = data.index(after: i)
         }
-        return (consumed, resumeState(currentModel, runningBaseline))
+        return (consumed, resumeState(currentModel, runningBaseline), dedupKeys)
     }
 
     nonisolated private func resumeState(_ model: String?,
@@ -114,30 +120,30 @@ nonisolated final class CodexCostScanner {
                                         runningBaseline: inout (input: Int, cached: Int, output: Int)?,
                                         seen: inout Set<String>,
                                         isoFractional: ISO8601DateFormatter, isoPlain: ISO8601DateFormatter,
-                                        into buckets: inout DayModelBuckets) {
+                                        into buckets: inout DayModelBuckets) -> String? {
         guard lineData.range(of: Data(#""token_count""#.utf8)) != nil
-            || lineData.range(of: Data(#""turn_context""#.utf8)) != nil else { return }
+            || lineData.range(of: Data(#""turn_context""#.utf8)) != nil else { return nil }
         guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
-              let type_ = obj["type"] as? String else { return }
+              let type_ = obj["type"] as? String else { return nil }
 
         if type_ == "turn_context" {
             if let payload = obj["payload"] as? [String: Any],
                let model = payload["model"] as? String {
                 currentModel = model
             }
-            return
+            return nil
         }
 
         guard type_ == "event_msg",
               let payload = obj["payload"] as? [String: Any],
               payload["type"] as? String == "token_count",
               let ts = obj["timestamp"] as? String,
-              let date = parseTimestamp(ts, isoFractional: isoFractional, isoPlain: isoPlain) else { return }
+              let date = parseTimestamp(ts, isoFractional: isoFractional, isoPlain: isoPlain) else { return nil }
 
         let dayKey = DailyCostReport.dayKey(date, calendar: calendar)
-        guard dayKey >= sinceKey else { return }
+        guard dayKey >= sinceKey else { return nil }
 
-        guard let info = payload["info"] as? [String: Any] else { return }
+        guard let info = payload["info"] as? [String: Any] else { return nil }
         let last = info["last_token_usage"] as? [String: Any]
         let total = info["total_token_usage"] as? [String: Any]
 
@@ -156,14 +162,14 @@ nonisolated final class CodexCostScanner {
                 delta = totalTuple
             }
         } else {
-            return
+            return nil
         }
 
         if let total {
             runningBaseline = (intval(total["input_tokens"]), intval(total["cached_input_tokens"]), intval(total["output_tokens"]))
         }
 
-        if delta.input == 0, delta.cached == 0, delta.output == 0 { return }
+        if delta.input == 0, delta.cached == 0, delta.output == 0 { return nil }
 
         let rawModel = currentModel ?? "gpt-5"
         let normalizedModel = CostPricing.normalizeOpenAIModel(rawModel)
@@ -173,7 +179,7 @@ nonisolated final class CodexCostScanner {
         let mappedOutput = delta.output
 
         let dedupKey = "\(ts)|\(normalizedModel)|\(delta.input)|\(delta.cached)|\(delta.output)"
-        if !seen.insert(dedupKey).inserted { return }
+        if !seen.insert(dedupKey).inserted { return dedupKey }
 
         let pricingResult = pricing.pricing(model: rawModel)
         let cost = pricingResult.map {
@@ -187,6 +193,7 @@ nonisolated final class CodexCostScanner {
             input: mappedInput, cacheRead: mappedCacheRead, cacheCreation: 0, cacheCreation1h: 0,
             output: mappedOutput, costNanos: nanos, requestCount: 1, pricedCount: cost == nil ? 0 : 1)
         buckets[dayKey] = dayModels
+        return dedupKey
     }
 
     nonisolated private func intval(_ v: Any?) -> Int { (v as? NSNumber)?.intValue ?? 0 }
