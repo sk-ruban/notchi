@@ -1203,12 +1203,13 @@ nonisolated final class HookInteractionResponseBroker: @unchecked Sendable {
         return responsesByRequestId[requestId]
     }
 
-    /// Stops waiting on a request the agent resolved without notchi; an answer already submitted still wins.
+    /// Stops waiting on a request the agent resolved without notchi. An answer already submitted still
+    /// wins, because the waiter returns a stored response before it checks for an abandon.
     func abandonWait(requestId: String) {
         condition.lock()
         defer { condition.unlock() }
 
-        guard pendingRequestIds.contains(requestId), responsesByRequestId[requestId] == nil else { return }
+        guard pendingRequestIds.contains(requestId) else { return }
         abandonedRequestIds.insert(requestId)
         condition.broadcast()
     }

@@ -988,20 +988,15 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertLessThan(waitDuration, releaseDeadline)
     }
 
-    func testSubmittingAfterAWaitWasAbandonedIsRefused() async {
+    func testSubmittingAfterARequestWasAbandonedIsRefused() async {
         let broker = HookInteractionResponseBroker.shared
         let requestId = "submit-after-abandon-\(UUID().uuidString)"
-        let responseTask = Task.detached {
-            broker.waitForResponse(requestId: requestId, timeout: 1)
-        }
-        let responseWaiterRegistered = await waitUntil(timeout: 1) {
-            broker.isWaitingForResponse(requestId: requestId)
-        }
-        XCTAssertTrue(responseWaiterRegistered, "precondition: the hook is waiting for an answer")
+        // Registered but not yet waited on, so only the abandon can make the submit fail.
+        broker.registerRequest(requestId)
 
         broker.abandonWait(requestId: requestId)
         let accepted = broker.submitResponse(Data("{}".utf8), for: requestId)
-        _ = await responseTask.value
+        _ = await Task.detached { broker.waitForResponse(requestId: requestId, timeout: 1) }.value
 
         XCTAssertFalse(accepted)
     }
