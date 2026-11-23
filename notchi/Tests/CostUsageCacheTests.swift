@@ -32,6 +32,20 @@ final class CostUsageCacheTests: XCTestCase {
         XCTAssertEqual(loaded.files["/tmp/a.jsonl"]?.offset, expectedOffset)
     }
 
+    func testDedupKeysKeepTheLastFewDistinctKeysAcrossReads() {
+        let state = CostUsageCache.FileState(size: 10, mtime: 1, offset: 10, recentDedupKeys: ["m1|r1", "m2|r2"])
+        let newKeys = ["m2|r2", "m2|r2", "m3|r3", "m4|r4", "m5|r5"]
+        let expected = ["m2|r2", "m3|r3", "m4|r4", "m5|r5"]
+
+        XCTAssertEqual(state.dedupKeys(afterReadingFrom: 10, adding: newKeys), expected)
+    }
+
+    func testDedupKeysDropCarriedKeysWhenAReadRestartsFromTheTop() {
+        let state = CostUsageCache.FileState(size: 10, mtime: 1, offset: 10, recentDedupKeys: ["m1|r1"])
+
+        XCTAssertEqual(state.dedupKeys(afterReadingFrom: 0, adding: ["m9|r9"]), ["m9|r9"])
+    }
+
     func testSaveThenLoadRoundTrips() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
