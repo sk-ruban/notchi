@@ -2,6 +2,10 @@ import SwiftUI
 
 /// Name and color for one Claude account, opened from its row in Providers.
 struct ClaudeAccountSettingsView: View {
+    static func displayPath(for directory: URL) -> String {
+        (directory.path as NSString).abbreviatingWithTildeInPath
+    }
+
     let accountId: String
 
     @State private var nameInput = ""
@@ -34,7 +38,7 @@ struct ClaudeAccountSettingsView: View {
                 }
 
                 SettingsRowView(icon: "folder", title: "Folder") {
-                    Text(account.directory.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                    Text(Self.displayPath(for: account.directory))
                         .panelFont(size: 10, design: .monospaced)
                         .foregroundColor(TerminalColors.secondaryText)
                         .lineLimit(1)
