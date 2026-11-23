@@ -100,6 +100,16 @@ enum NotchiTask: String, CaseIterable {
 enum NotchiEmotion: String, CaseIterable {
     case neutral, happy, elated, sad, sob
 
+    var displayName: String {
+        switch self {
+        case .neutral: String(localized: "Neutral", comment: "An emotion the mascot can show.")
+        case .happy: String(localized: "Happy", comment: "An emotion the mascot can show.")
+        case .elated: String(localized: "Elated", comment: "An emotion the mascot can show.")
+        case .sad: String(localized: "Sad", comment: "An emotion the mascot can show.")
+        case .sob: String(localized: "Sob", comment: "An emotion the mascot can show: crying hard.")
+        }
+    }
+
     var swayAmplitude: Double {
         switch self {
         case .neutral: return 0.5

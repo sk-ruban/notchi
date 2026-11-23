@@ -7,7 +7,7 @@ nonisolated private let logger = Logger(subsystem: "com.ruban.notchi", category:
 struct UpdateFailurePresentation: Equatable {
     let label: String
 
-    init(label: String = "Try again") {
+    init(label: String = String(localized: "Try again", comment: "Badge on Check for Updates after a failed check.")) {
         self.label = label
     }
 }

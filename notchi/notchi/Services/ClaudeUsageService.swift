@@ -1653,11 +1653,11 @@ final class ClaudeUsageService {
 
     private func resolveAuthFailureResolution(after401With currentToken: String) -> ClaudeUsageAuthFailureResolution {
         guard let credentials = dependencies.getOAuthCredentials(false) else {
-            return .reconnect("Token expired.")
+            return .reconnect(String(localized: "Token expired."))
         }
 
         if credentialsRequireReconnect(credentials) {
-            return .reconnect("Claude authentication needs attention.")
+            return .reconnect(String(localized: "Claude authentication needs attention."))
         }
 
         let credentialToken = credentials.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)

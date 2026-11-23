@@ -937,7 +937,7 @@ final class SessionStore {
         toolInput: [String: AnyCodable]?,
         permissionSuggestions: [AnyCodable]?
     ) -> PendingQuestion {
-        let toolName = tool ?? "Tool"
+        let toolName = tool ?? String(localized: "Tool", comment: "Stands in for the tool's name in a permission request that doesn't give one.")
         let input = toolInput?.mapValues { $0.value }
         let description = Self.permissionQuestionText(provider: provider, tool: tool, toolInput: input)
         var options: [(label: String, description: String?)] = [
@@ -949,8 +949,8 @@ final class SessionStore {
         options.append((label: PermissionRequestDecision.denyLabel, description: nil))
 
         return PendingQuestion(
-            question: description ?? "\(toolName) wants to proceed",
-            header: "Permission Request",
+            question: description ?? String(localized: "\(toolName) wants to proceed", comment: "A permission request for a tool call; the argument is the tool's name."),
+            header: String(localized: "Permission Request"),
             options: options
         )
     }
@@ -1210,9 +1210,10 @@ nonisolated final class HookInteractionResponseBroker: @unchecked Sendable {
 }
 
 nonisolated enum PermissionRequestDecision {
-    static let allowOnceLabel = "Yes"
-    static let allowAndRememberLabel = "Yes, and don't ask again"
-    static let denyLabel = "No"
+    // Answers are matched by label, which works localized because the card stores these same values.
+    static let allowOnceLabel = String(localized: "Yes", comment: "Allows a tool call once.")
+    static let allowAndRememberLabel = String(localized: "Yes, and don't ask again", comment: "Allows a tool call and remembers the choice.")
+    static let denyLabel = String(localized: "No", comment: "Denies a tool call.")
 
     case allowOnce
     case allowAndRemember

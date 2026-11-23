@@ -32,7 +32,7 @@ struct UsageBarView: View {
         statusMessage: String?,
         isStale: Bool,
         recoveryAction: ClaudeUsageRecoveryAction,
-        label: String = "Claude Usage",
+        label: String = String(localized: "Claude Usage"),
         resetLabelPrefix: String? = nil,
         compact: Bool = false,
         isEnabled: Bool = AppSettings.isUsageEnabled,

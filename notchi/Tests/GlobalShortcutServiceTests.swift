@@ -19,6 +19,18 @@ final class GlobalShortcutServiceTests: XCTestCase {
         XCTAssertEqual(decoded.displayName, "⇧⌘.")
     }
 
+    func testSpecialKeysShowTheirMacOSGlyphs() {
+        let expectedNames: [(keyCode: Int, name: String)] = [
+            (kVK_Return, "⌥⌘↩"), (kVK_Tab, "⌥⌘⇥"), (kVK_Delete, "⌥⌘⌫"), (kVK_Escape, "⌥⌘⎋"),
+        ]
+
+        for (keyCode, name) in expectedNames {
+            let shortcut = GlobalShortcut(keyCode: UInt32(keyCode), modifiers: UInt32(cmdKey | optionKey))
+
+            XCTAssertEqual(shortcut.displayName, name)
+        }
+    }
+
     func testShortcutTranscribesKeyEventWithPrimaryModifier() throws {
         let event = try XCTUnwrap(NSEvent.keyEvent(
             with: .keyDown,
