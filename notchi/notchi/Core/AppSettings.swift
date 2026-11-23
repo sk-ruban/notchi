@@ -241,7 +241,7 @@ struct AppSettings {
     private static let notificationSoundKey = "notificationSound"
     private static let notificationSoundSelectionKey = "notificationSoundSelection"
     private static let customNotificationSoundsKey = "customNotificationSounds"
-    private static let isMutedKey = "isMuted"
+    static let isMutedKey = "isMuted"
     private static let previousSoundKey = "previousNotificationSound"
     private static let previousSoundSelectionKey = "previousNotificationSoundSelection"
     private static let isUsageEnabledKey = "isUsageEnabled"
