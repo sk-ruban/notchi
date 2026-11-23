@@ -971,6 +971,41 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertTrue(released)
     }
 
+    func testAbandoningARegisteredRequestBeforeItsWaitStartsEndsTheWaitPromptly() async {
+        let broker = HookInteractionResponseBroker.shared
+        let requestId = "abandon-before-wait-\(UUID().uuidString)"
+        let hookWaitTimeout: TimeInterval = 5
+        let releaseDeadline: TimeInterval = 1
+
+        broker.registerRequest(requestId)
+        broker.abandonWait(requestId: requestId)
+        let waitStartedAt = Date()
+        _ = await Task.detached {
+            broker.waitForResponse(requestId: requestId, timeout: hookWaitTimeout)
+        }.value
+        let waitDuration = Date().timeIntervalSince(waitStartedAt)
+
+        XCTAssertLessThan(waitDuration, releaseDeadline)
+    }
+
+    func testSubmittingAfterAWaitWasAbandonedIsRefused() async {
+        let broker = HookInteractionResponseBroker.shared
+        let requestId = "submit-after-abandon-\(UUID().uuidString)"
+        let responseTask = Task.detached {
+            broker.waitForResponse(requestId: requestId, timeout: 1)
+        }
+        let responseWaiterRegistered = await waitUntil(timeout: 1) {
+            broker.isWaitingForResponse(requestId: requestId)
+        }
+        XCTAssertTrue(responseWaiterRegistered, "precondition: the hook is waiting for an answer")
+
+        broker.abandonWait(requestId: requestId)
+        let accepted = broker.submitResponse(Data("{}".utf8), for: requestId)
+        _ = await responseTask.value
+
+        XCTAssertFalse(accepted)
+    }
+
     func testAbandoningAWaitAfterItWasAnsweredStillDeliversTheAnswer() async {
         let broker = HookInteractionResponseBroker.shared
         let requestId = "abandon-after-answer-\(UUID().uuidString)"
