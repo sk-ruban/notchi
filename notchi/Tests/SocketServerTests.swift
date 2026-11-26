@@ -330,7 +330,7 @@ final class SocketServerTests: XCTestCase {
 
     func testAnswerToAClientThatAlreadyHungUpDoesNotStopTheServer() async throws {
         let response = Data("{\"ok\":true}".utf8)
-        let hungUpClientCount = 20
+        let hungUpClientCount = 50
         let answerDelay: TimeInterval = 0.05
         let recorder = EventRecorder()
         let path = uniqueSocketPath()
@@ -351,6 +351,8 @@ final class SocketServerTests: XCTestCase {
             let client = try connectClient(to: path)
             try client.send(makeEventPayload(sessionId: "hung-up-\(index)"))
             client.closeConnection()
+            // One at a time, so a slow machine can't overflow the server's listen backlog.
+            _ = await waitUntil(timeout: 1) { await recorder.snapshot().count == index + 1 }
         }
         // The answers are written right after the handler returns; let all of them land before probing.
         let allAnswered = await waitUntil(timeout: 3) { answered.count == hungUpClientCount }
@@ -600,7 +602,7 @@ private final class UnixSocketClient {
     }
 }
 
-private final class AnsweredCounter: @unchecked Sendable {
+private nonisolated final class AnsweredCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var value = 0
 
