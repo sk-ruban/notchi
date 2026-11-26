@@ -469,6 +469,8 @@ final class HookScriptImportIsolationTests: XCTestCase {
 
     // The hook sleeps 50 ms between its five reads of a transcript that hasn't recorded the prompt yet.
     private static let codexTranscriptPollingDelay: TimeInterval = 0.2
+    // Half the polling delay: far above one read of a small transcript, far enough below the wait that noise can't hide it.
+    private static let codexTranscriptLookupWithoutPollingLimit: TimeInterval = codexTranscriptPollingDelay / 2
     // The fastest of a few runs keeps a slow process launch from passing for, or hiding, the polling delay.
     private static let hookTimingSampleCount = 3
 
@@ -495,7 +497,7 @@ final class HookScriptImportIsolationTests: XCTestCase {
         return fastest
     }
 
-    func testCodexHookAddsLessThanItsTranscriptPollingDelayForAPromptAfterAUserMessageItem() async throws {
+    func testCodexHookAddsLessThanHalfItsTranscriptPollingDelayForAPromptAfterAUserMessageItem() async throws {
         try skipUnlessStdlibPythonRuns()
         // Current Codex records a prompt as a UserMessage item only after UserPromptSubmit hooks finish.
         let transcriptLines = [
@@ -510,7 +512,7 @@ final class HookScriptImportIsolationTests: XCTestCase {
         let withoutLookup = try await fastestCodexPromptHookRun("", transcriptLines: transcriptLines, sessionId: "codex-item-baseline")
         let withLookup = try await fastestCodexPromptHookRun("a new prompt", transcriptLines: transcriptLines, sessionId: "codex-item-prompt")
 
-        XCTAssertLessThan(withLookup - withoutLookup, Self.codexTranscriptPollingDelay)
+        XCTAssertLessThan(withLookup - withoutLookup, Self.codexTranscriptLookupWithoutPollingLimit)
     }
 
     func testCodexHookTakesAtLeastItsTranscriptPollingDelayWaitingForAPromptMissingFromAUserMessageEventTranscript() async throws {

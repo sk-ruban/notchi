@@ -661,6 +661,8 @@ final class NotchiStateMachine {
         analyzeEmotion = { prompt in
             await EmotionAnalyzer.shared.analyze(prompt)
         }
+        emotionAnalysisTasks.values.forEach { $0.cancel() }
+        emotionAnalysisTasks.removeAll()
         emotionDecayTimer?.cancel()
         emotionDecayTimer = nil
         emotionDecayInterval = EmotionState.decayInterval
