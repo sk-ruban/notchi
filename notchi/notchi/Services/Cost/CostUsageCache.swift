@@ -55,12 +55,14 @@ nonisolated enum CostUsageCacheStore {
         return decoded
     }
 
-    static func save(_ cache: CostUsageCache, to url: URL) {
+    /// True when the cache reached the file.
+    @discardableResult
+    static func save(_ cache: CostUsageCache, to url: URL) -> Bool {
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let tmp = url.deletingLastPathComponent().appendingPathComponent(".tmp-\(UUID().uuidString)")
         guard let data = try? JSONEncoder().encode(cache), (try? data.write(to: tmp, options: .atomic)) != nil
-        else { return }
-        _ = try? FileManager.default.replaceItemAt(url, withItemAt: tmp)
+        else { return false }
+        return (try? FileManager.default.replaceItemAt(url, withItemAt: tmp)) != nil
     }
 }

@@ -187,21 +187,24 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         return try? await URLSession.shared.data(from: url).0
     }
 
+    /// True when a fetched price list was applied.
     // @concurrent keeps the multi-megabyte decode off the caller's actor, which is usually MainActor.
-    @concurrent func refreshFromNetwork() async {
-        guard config.modelsDevKey != nil, let data = await fetchCatalog() else { return }
-        processNetworkData(data)
+    @discardableResult
+    @concurrent func refreshFromNetwork() async -> Bool {
+        guard config.modelsDevKey != nil, let data = await fetchCatalog() else { return false }
+        return processNetworkData(data)
     }
 
-    func processNetworkData(_ data: Data) {
-        guard let decoded = try? JSONDecoder().decode(ModelsDev.self, from: data) else { return }
+    @discardableResult
+    func processNetworkData(_ data: Data) -> Bool {
+        guard let decoded = try? JSONDecoder().decode(ModelsDev.self, from: data) else { return false }
         let provider: ModelsDev.Provider?
         switch config.modelsDevKey {
         case .anthropic: provider = decoded.anthropic
         case .openai: provider = decoded.openai
         case nil: provider = nil
         }
-        guard let provider else { return }
+        guard let provider else { return false }
 
         let perMillion = 1_000_000.0
         var updated: [String: ClaudeModelPricing] = [:]
@@ -226,8 +229,9 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
                 cacheReadPerTokenAboveThreshold: firstTier.map { ($0.cache_read ?? 0) / perMillion })
         }
 
-        guard Self.isPlausibleRefresh(updated, anchors: config.plausibilityAnchors) else { return }
+        guard Self.isPlausibleRefresh(updated, anchors: config.plausibilityAnchors) else { return false }
         persistSnapshot(mergeIntoTable(updated))
+        return true
     }
 
     private func mergeIntoTable(_ updated: [String: ClaudeModelPricing]) -> [String: ClaudeModelPricing] {
