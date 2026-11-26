@@ -976,7 +976,68 @@ extension ClaudeUsageServiceTests {
         XCTAssertTrue(isLoadingDuringRead)
     }
 
+    func testSelfHealOverlappingAConnectOnCredentialReadsSendsOneUsageRequest() async throws {
+        let scheduler = PollSchedulerSpy()
+        let recorder = RequestRecorder()
+        let gate = CredentialReadGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { request in
+                recorder.record(request)
+                return (self.makeSuccessPayload(utilization: 30), self.makeResponse(statusCode: 200))
+            }
+        )
+        dependencies.getOAuthCredentials = { _ in await gate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+        AppSettings.isUsageEnabled = true
+        service.currentUsage = makeQuotaPeriod(utilization: 18)
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        gate.release(returning: nil)
+        for _ in 0..<Self.settleYields { await Task.yield() }
+        XCTAssertEqual(scheduler.intervals, [Self.selfHealRetryInterval])
+
+        scheduler.fireLast()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.twoHeldReads)
+        gate.release(returning: makeCredentials(accessToken: "fresh-token", scopes: ["user:profile"]))
+        for _ in 0..<Self.settleYields { await Task.yield() }
+
+        XCTAssertEqual(recorder.paths, [Self.oauthUsagePath])
+    }
+
+    // e.g. an account switched off while its usage service was starting.
+    func testStopPollingDuringStartupCredentialReadSendsNoUsageRequest() async throws {
+        let scheduler = PollSchedulerSpy()
+        let recorder = RequestRecorder()
+        let gate = CredentialReadGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { request in
+                recorder.record(request)
+                return (self.makeSuccessPayload(utilization: 30), self.makeResponse(statusCode: 200))
+            }
+        )
+        dependencies.getOAuthCredentials = { _ in await gate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+
+        service.startPolling()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        service.stopPolling()
+        gate.release(returning: makeCredentials(accessToken: "fresh-token", scopes: ["user:profile"]))
+        for _ in 0..<Self.settleYields { await Task.yield() }
+
+        XCTAssertEqual(recorder.paths, [])
+    }
+
     private static let oneHeldRead = 1
+    private static let twoHeldReads = 2
+    private static let settleYields = 10
+    private static let selfHealRetryInterval: TimeInterval = 300
+    private static let oauthUsagePath = "/api/oauth/usage"
 }
 
 /// Stands in for a slow /usr/bin/security read: holds every credential read until released.
