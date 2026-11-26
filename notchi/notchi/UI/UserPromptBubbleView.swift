@@ -183,6 +183,9 @@ private final class PromptBubbleCache {
     var hoverLocation: CGPoint = .zero
     private var collapsed: (key: CollapsedKey, prompt: AttributedString)?
 
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
     func collapsedPrompt(for key: CollapsedKey, compute: () -> AttributedString) -> AttributedString {
         if let collapsed, collapsed.key == key { return collapsed.prompt }
         let prompt = compute()
