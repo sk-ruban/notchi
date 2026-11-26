@@ -69,6 +69,7 @@ struct PanelSettingsView: View {
     @State private var isCheckingCodex = false
     @State private var codexCheckRevision = 0
     @State private var codexCheckTask: Task<CodexHookSetup, Never>?
+    @State private var emotionAnalysisStatus: StatusBadge?
     @ObservedObject private var updateManager = UpdateManager.shared
     private var usageConnected: Bool { ClaudeUsageServices.shared.isAnyAccountConnected }
 
@@ -104,7 +105,11 @@ struct PanelSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             refreshHookStatuses()
+            refreshEmotionAnalysisStatus()
         }
+        .onChange(of: path) { _, _ in refreshEmotionAnalysisStatus() }
+        // The emotion analysis screen saves its key as it closes, after the path has already changed.
+        .onChange(of: EmotionAnalysisCredentials.shared.revision) { _, _ in refreshEmotionAnalysisStatus() }
         .task(id: codexCheckRevision) {
             await checkCodexSetup()
         }
@@ -328,8 +333,9 @@ struct PanelSettingsView: View {
         Button(action: { path.append(.emotionAnalysis) }) {
             SettingsRowView(icon: "brain", title: "Emotion Analysis") {
                 HStack(spacing: 6) {
-                    let status = emotionAnalysisStatus()
-                    statusBadge(status.text, color: status.color)
+                    if let emotionAnalysisStatus {
+                        statusBadge(emotionAnalysisStatus)
+                    }
                     Image(systemName: "chevron.right")
                         .panelFont(size: 9, weight: .semibold)
                         .foregroundColor(TerminalColors.dimmedText)
@@ -634,18 +640,16 @@ struct PanelSettingsView: View {
         statusBadge(status.text, color: status.color)
     }
 
-    private func emotionAnalysisStatus() -> (text: String, color: Color) {
+    private func refreshEmotionAnalysisStatus() {
         let provider = AppSettings.emotionAnalysisProvider
         if hasStoredApiKey(for: provider) {
-            return (provider.displayName, TerminalColors.green)
+            emotionAnalysisStatus = StatusBadge(text: provider.displayName, color: TerminalColors.green)
+        } else if provider == .claude,
+                  EmotionAnalysisCredentials.shared.claudeSettingsConfig() != nil {
+            emotionAnalysisStatus = StatusBadge(text: "Claude Code", color: TerminalColors.green)
+        } else {
+            emotionAnalysisStatus = StatusBadge(text: String(localized: "No Key"), color: TerminalColors.red)
         }
-
-        if provider == .claude,
-           ClaudeSettingsConfig.existsAtDefaultLocation() {
-            return ("Claude Code", TerminalColors.green)
-        }
-
-        return (String(localized: "No Key"), TerminalColors.red)
     }
 
     private func hasStoredApiKey(for provider: EmotionAnalysisProvider) -> Bool {
