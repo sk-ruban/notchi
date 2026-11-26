@@ -2,9 +2,15 @@ import SwiftUI
 
 struct UsageRingView: View {
     let content: NotchContentView.CollapsedRingContent
-    var diameter: CGFloat = 15
-    var lineWidth: CGFloat = 3
     var isStale: Bool = false
+
+    private static let standardDiameter: CGFloat = 15
+    private static let standardLineWidth: CGFloat = 3
+    private static let criticalDiameter: CGFloat = 20
+    private static let criticalLineWidth: CGFloat = 2
+    private static let criticalPercentage = 90
+    private static let fullPercentage = 100
+    private static let valueLabelFontSize: CGFloat = 10
 
     @State private var drawProgress: CGFloat = 0
 
@@ -17,6 +23,20 @@ struct UsageRingView: View {
 
     private var isUnlimited: Bool {
         content == .unlimited
+    }
+
+    /// The number inside the ring once it is too full to tell apart by its arc; three digits don't fit.
+    var valueLabel: String? {
+        guard case .percentage = content, clampedPercentage >= Self.criticalPercentage else { return nil }
+        return clampedPercentage >= Self.fullPercentage ? "!" : String(clampedPercentage)
+    }
+
+    var diameter: CGFloat {
+        valueLabel == nil ? Self.standardDiameter : Self.criticalDiameter
+    }
+
+    var lineWidth: CGFloat {
+        valueLabel == nil ? Self.standardLineWidth : Self.criticalLineWidth
     }
 
     private var ringColor: Color {
@@ -48,6 +68,14 @@ struct UsageRingView: View {
                         ringColor,
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                     )
+                if let valueLabel {
+                    Text(valueLabel)
+                        .font(.system(size: Self.valueLabelFontSize, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(ringColor)
+                        .opacity(Double(drawProgress))
+                        .contentTransition(.numericText())
+                }
             }
         }
         .frame(width: isUnlimited ? nil : diameter, height: diameter)
@@ -87,6 +115,7 @@ private struct UsageRingArc: Shape {
         UsageRingView(content: .percentage(25))
         UsageRingView(content: .percentage(65))
         UsageRingView(content: .percentage(95))
+        UsageRingView(content: .percentage(100))
         UsageRingView(content: .unlimited)
         UsageRingView(content: .unlimited, isStale: true)
     }
