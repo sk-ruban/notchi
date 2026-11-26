@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 nonisolated struct DevinUsage: Equatable, Sendable {
     let daily: QuotaPeriod?
@@ -44,14 +45,57 @@ nonisolated enum DevinUsageReader {
             .appendingPathComponent("Library/Application Support/Devin/User/globalStorage/state.vscdb")
     }
 
-    static func readUsage(databasePath: String = stateDatabaseURL.path, now: Date) -> DevinUsage? {
-        guard FileManager.default.fileExists(atPath: databasePath),
-              let encoded = CodexFileSystem.runSQLite(query: userStatusQuery, databasePath: databasePath, readOnly: true),
-              let proto = Data(base64Encoded: encoded) else {
-            return nil
+    private struct FileSignature: Equatable {
+        let size: UInt64
+        let modifiedAt: Date
+    }
+
+    private struct DatabaseSignature: Equatable {
+        let databasePath: String
+        let database: FileSignature
+        let writeAheadLog: FileSignature?
+    }
+
+    // Keeps the last query output so an unchanged database doesn't spawn sqlite3 on every poll.
+    private static let lastUserStatusRead = OSAllocatedUnfairLock<(signature: DatabaseSignature, encoded: String?)?>(
+        initialState: nil
+    )
+
+    static func readUsage(
+        databasePath: String = stateDatabaseURL.path,
+        now: Date,
+        runQuery: @Sendable (String, String) -> String? = { CodexFileSystem.runSQLite(query: $0, databasePath: $1, readOnly: true) }
+    ) -> DevinUsage? {
+        guard let signature = databaseSignature(databasePath: databasePath) else { return nil }
+
+        let encoded: String?
+        if let lastRead = lastUserStatusRead.withLock({ $0 }), lastRead.signature == signature {
+            encoded = lastRead.encoded
+        } else {
+            encoded = runQuery(userStatusQuery, databasePath)
+            lastUserStatusRead.withLock { $0 = (signature, encoded) }
         }
 
+        guard let encoded, let proto = Data(base64Encoded: encoded) else { return nil }
         return usage(fromUserStatusProto: proto, now: now)
+    }
+
+    private static func databaseSignature(databasePath: String) -> DatabaseSignature? {
+        guard let database = fileSignature(atPath: databasePath) else { return nil }
+        return DatabaseSignature(
+            databasePath: databasePath,
+            database: database,
+            writeAheadLog: fileSignature(atPath: databasePath + "-wal")
+        )
+    }
+
+    private static func fileSignature(atPath path: String) -> FileSignature? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attributes[.size] as? UInt64,
+              let modifiedAt = attributes[.modificationDate] as? Date else {
+            return nil
+        }
+        return FileSignature(size: size, modifiedAt: modifiedAt)
     }
 
     static func usage(fromUserStatusProto proto: Data, now: Date) -> DevinUsage? {
