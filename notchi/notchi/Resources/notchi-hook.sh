@@ -7,22 +7,11 @@ SOCKET_PATH="$HOME/Library/Application Support/Notchi/notchi.sock"
 [ -S "$SOCKET_PATH" ] && [ -O "$SOCKET_PATH" ] || exit 0
 export NOTCHI_SOCKET_PATH="$SOCKET_PATH"
 
-# Detect non-interactive (claude -p / --print) sessions
-IS_INTERACTIVE=true
-for CHECK_PID in $PPID $(ps -o ppid= -p $PPID 2>/dev/null | tr -d ' '); do
-    if ps -o args= -p "$CHECK_PID" 2>/dev/null | grep -qE '(^| )(-p|--print)( |$)'; then
-        IS_INTERACTIVE=false
-        break
-    fi
-done
-export NOTCHI_INTERACTIVE=$IS_INTERACTIVE
-
 # Parse input and send to socket using Python
 /usr/bin/python3 -I -c "
 import json
 import os
 import socket
-import subprocess
 import sys
 
 try:
@@ -58,7 +47,6 @@ output = {
     'status': input_data.get('status', status_map.get(hook_event, 'unknown')),
     'pid': None,
     'tty': None,
-    'interactive': os.environ.get('NOTCHI_INTERACTIVE', 'true') == 'true',
     'permission_mode': input_data.get('permission_mode', 'default')
 }
 
@@ -68,12 +56,25 @@ claude_config_dir = os.environ.get('CLAUDE_CONFIG_DIR')
 if claude_config_dir:
     output['claude_config_dir'] = claude_config_dir
 
+# Only these events read the process table; every other event skips ps and the subprocess import.
+PROCESS_CONTEXT_EVENTS = ('SessionStart', 'UserPromptSubmit', 'PermissionRequest')
+PROCESS_ID_EVENTS = ('SessionStart', 'UserPromptSubmit')
+PRINT_MODE_FLAGS = ('-p', '--print')
+# Print-mode detection depends on this read, so allow a loaded machine time to answer; a timeout
+# would count a headless agent as interactive.
+PROCESS_TABLE_TIMEOUT_SECONDS = 3
+# Bulky tool input (file contents, diffs) is cut; notchi only shows short fields, and reads command in full.
+MAX_TOOL_INPUT_TEXT = 2000
+UNTRIMMED_TOOL_INPUT_KEYS = ('command',)
+WHOLE_TOOL_INPUT_TOOLS = ('AskUserQuestion',)
+
 def process_table():
+    import subprocess
     try:
         ps_output = subprocess.check_output(
             ['/bin/ps', '-axo', 'pid=,ppid=,command='],
             text=True,
-            timeout=0.5,
+            timeout=PROCESS_TABLE_TIMEOUT_SECONDS,
         )
     except Exception:
         return {}
@@ -89,12 +90,25 @@ def process_table():
         table[int(parts[0])] = {
             'ppid': int(parts[1]),
             'argv0': argv0,
+            'tokens': tokens,
         }
 
     return table
 
-def claude_process_id():
-    processes = process_table()
+def is_interactive(processes):
+    # The hook shell's parent and grandparent: the agent, or a shell it wrapped the hook in.
+    hook_shell = processes.get(os.getppid())
+    pid = hook_shell['ppid'] if hook_shell else None
+    for _ in range(2):
+        info = processes.get(pid)
+        if info is None:
+            break
+        if any(token in PRINT_MODE_FLAGS for token in info['tokens']):
+            return False
+        pid = info['ppid']
+    return True
+
+def claude_process_id(processes):
     pid = os.getppid()
     visited = set()
 
@@ -118,10 +132,15 @@ def claude_process_id():
 
     return None
 
-if hook_event in ('SessionStart', 'UserPromptSubmit'):
-    process_id = claude_process_id()
-    if process_id:
-        output['claude_process_id'] = process_id
+process_table_read = False
+if hook_event in PROCESS_CONTEXT_EVENTS:
+    processes = process_table()
+    process_table_read = bool(processes)
+    output['interactive'] = is_interactive(processes)
+    if hook_event in PROCESS_ID_EVENTS:
+        process_id = claude_process_id(processes)
+        if process_id:
+            output['claude_process_id'] = process_id
 
 # Pass user prompt directly for UserPromptSubmit
 if hook_event == 'UserPromptSubmit':
@@ -137,8 +156,23 @@ tool_id = input_data.get('tool_use_id', '')
 if tool_id:
     output['tool_use_id'] = tool_id
 
+def trimmed_tool_input(value):
+    if isinstance(value, str):
+        return value[:MAX_TOOL_INPUT_TEXT]
+    if isinstance(value, list):
+        return [trimmed_tool_input(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: item if key in UNTRIMMED_TOOL_INPUT_KEYS else trimmed_tool_input(item)
+            for key, item in value.items()
+        }
+    return value
+
 tool_input = input_data.get('tool_input', {})
 if tool_input:
+    # Permission and question answers echo the input back to Claude, so those stay whole.
+    if hook_event in ('PreToolUse', 'PostToolUse') and tool not in WHOLE_TOOL_INPUT_TOOLS:
+        tool_input = trimmed_tool_input(tool_input)
     output['tool_input'] = tool_input
 
 permission_suggestions = input_data.get('permission_suggestions', [])
@@ -146,10 +180,9 @@ if permission_suggestions:
     output['permission_suggestions'] = permission_suggestions
 
 def should_wait_for_response():
-    if os.environ.get('NOTCHI_INTERACTIVE', 'true') != 'true':
-        return False
-
-    return hook_event == 'PermissionRequest'
+    # Without the process table a headless agent can't be ruled out, and waiting would stall it
+    # for minutes; not waiting just leaves the prompt to Claude.
+    return hook_event == 'PermissionRequest' and process_table_read and output.get('interactive', True)
 
 try:
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
