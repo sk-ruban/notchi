@@ -247,6 +247,22 @@ final class DevinUsageReaderTests: XCTestCase {
         XCTAssertEqual(usage?.daily?.usagePercentage, expectedDailyPercentage)
     }
 
+    func testFailedQueryIsRetriedWhileTheDatabaseIsUnchanged() throws {
+        let expectedQueryCount = 2
+        let databaseURL = try Self.makePlaceholderDatabase()
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+        let queryCount = OSAllocatedUnfairLock(initialState: 0)
+        let failingQuery: @Sendable (String, String) -> String? = { _, _ in
+            queryCount.withLock { $0 += 1 }
+            return nil
+        }
+
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: failingQuery)
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: failingQuery)
+
+        XCTAssertEqual(queryCount.withLock { $0 }, expectedQueryCount)
+    }
+
     func testChangedDatabaseIsQueriedAgain() throws {
         let expectedQueryCount = 2
         let databaseURL = try Self.makePlaceholderDatabase()
