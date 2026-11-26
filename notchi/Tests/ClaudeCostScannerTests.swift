@@ -101,6 +101,40 @@ final class ClaudeCostScannerTests: XCTestCase {
         XCTAssertEqual(second.buckets["2026-06-24"]?["claude-opus-4"]?.requestCount, 1)
     }
 
+    func testDeletedLogsCostStaysInHistory() throws {
+        let keptInput = 100
+        let deletedInput = 50
+        let kept = try writeFile([line(msgId: "m1", reqId: "r1", input: keptInput, output: 0)])
+        let root = kept.deletingLastPathComponent().deletingLastPathComponent()
+        let deleted = root.appendingPathComponent("q/d.jsonl")
+        try FileManager.default.createDirectory(at: deleted.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (line(msgId: "m2", reqId: "r2", input: deletedInput, output: 0) + "\n").data(using: .utf8)!.write(to: deleted)
+        let s = scanner(root: root)
+        let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
+        let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
+
+        try FileManager.default.removeItem(at: deleted)
+        let second = s.scan(cache: first, now: now)
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["claude-opus-4"]?.input, keptInput + deletedInput)
+    }
+
+    func testDeletedLogIsDroppedFromTrackedFiles() throws {
+        let kept = try writeFile([line(msgId: "m1", reqId: "r1", input: 100, output: 0)])
+        let root = kept.deletingLastPathComponent().deletingLastPathComponent()
+        let deleted = root.appendingPathComponent("q/d.jsonl")
+        try FileManager.default.createDirectory(at: deleted.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (line(msgId: "m2", reqId: "r2", input: 50, output: 0) + "\n").data(using: .utf8)!.write(to: deleted)
+        let s = scanner(root: root)
+        let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
+        let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
+
+        try FileManager.default.removeItem(at: deleted)
+        let second = s.scan(cache: first, now: now)
+
+        XCTAssertEqual(second.files.keys.map { URL(fileURLWithPath: $0).lastPathComponent }, [kept.lastPathComponent])
+    }
+
     func testMessagesWithoutIdsAreNotDeduped() throws {
         let noId = """
         {"type":"assistant","timestamp":"2026-06-24T12:00:00.000Z",\

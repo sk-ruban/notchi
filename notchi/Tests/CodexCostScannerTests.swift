@@ -212,6 +212,49 @@ final class CodexCostScannerTests: XCTestCase {
         XCTAssertEqual(secondCache.buckets["2026-06-24"]?["gpt-5"]?.input, 300)
     }
 
+    func testDeletedSessionsCostStaysInHistory() throws {
+        let keptInput = 300
+        let deletedInput = 200
+        let kept = try writeFile([tokenCountLine(lastUsage: (input: keptInput, cached: 0, output: 0))])
+        let root = kept.deletingLastPathComponent().deletingLastPathComponent()
+        let deleted = root.appendingPathComponent("sessions/d.jsonl")
+        try (tokenCountLine(timestamp: "2026-06-24T13:00:00.000Z", lastUsage: (input: deletedInput, cached: 0, output: 0)) + "\n")
+            .data(using: .utf8)!.write(to: deleted)
+        let s = scanner(root: root)
+        let first = s.scan(cache: emptyCache(), now: now())
+
+        try FileManager.default.removeItem(at: deleted)
+        let second = s.scan(cache: first, now: now())
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["gpt-5"]?.input, keptInput + deletedInput)
+    }
+
+    func testArchivedSessionIsCountedOnceAndKeepsItsModel() throws {
+        let firstInput = 300
+        let laterInput = 200
+        let session = try writeFile([
+            turnContextLine(model: "gpt-5.5"),
+            tokenCountLine(lastUsage: (input: firstInput, cached: 0, output: 0)),
+        ])
+        let base = session.deletingLastPathComponent().deletingLastPathComponent()
+        let sessions = base.appendingPathComponent("sessions")
+        let archived = base.appendingPathComponent("archived_sessions")
+        try FileManager.default.createDirectory(at: archived, withIntermediateDirectories: true)
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        let s = CodexCostScanner(projectsRoots: [sessions, archived], pricing: FlatPrice(), windowDays: 30, calendar: cal)
+        let first = s.scan(cache: emptyCache(), now: now())
+
+        let moved = archived.appendingPathComponent(session.lastPathComponent)
+        try FileManager.default.moveItem(at: session, to: moved)
+        let fh = try FileHandle(forWritingTo: moved); fh.seekToEndOfFile()
+        fh.write((tokenCountLine(timestamp: "2026-06-24T13:00:00.000Z",
+                                 lastUsage: (input: laterInput, cached: 0, output: 0)) + "\n").data(using: .utf8)!)
+        try fh.close()
+        let second = s.scan(cache: first, now: now())
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["gpt-5.5"]?.input, firstInput + laterInput)
+    }
+
     func testIncrementalScanPreservesModelAcrossWrites() throws {
         let url = try writeFile([turnContextLine(model: "gpt-5.5")])
         let root = url.deletingLastPathComponent().deletingLastPathComponent()

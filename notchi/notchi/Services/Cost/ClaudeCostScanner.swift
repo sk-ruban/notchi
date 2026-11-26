@@ -27,45 +27,30 @@ final class ClaudeCostScanner {
     nonisolated func scan(cache input: CostUsageCache, now: Date) -> CostUsageCache {
         seen.removeAll()
         var cache = input
-        if anyTrackedFileShrank(cache.files) {
-            cache.files = [:]
-            cache.buckets = [:]
-        }
+        let listing = CostLogFiles.list(in: projectsRoots)
+        cache.track(listing.files, listingIsComplete: listing.isComplete)
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
         let sinceKey = DailyCostReport.dayKey(windowStart, calendar: calendar)
 
-        for root in projectsRoots {
-            guard let en = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey]) else { continue }
-            for case let url as URL in en where url.pathExtension == "jsonl" {
-                let path = url.path
-                let attrs = try? FileManager.default.attributesOfItem(atPath: path)
-                let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
-                let mtime = ((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970) ?? 0
-                var state = cache.files[path] ?? .init(size: 0, mtime: 0, offset: 0)
-                if state.size == size, state.mtime == mtime { continue }
-                let startOffset = (size >= state.size) ? state.offset : 0
-                if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
+        for log in listing.files {
+            let url = log.url
+            let path = url.path
+            var state = cache.files[path] ?? .init(size: 0, mtime: 0, offset: 0)
+            if state.size == log.size, state.mtime == log.mtime { continue }
+            // `track` rebuilt the cache if any file shrank, so every tracked offset is still valid.
+            let startOffset = state.offset
+            if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
 
-                let parsed = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, into: &cache.buckets)
-                state.offset = parsed.offset
-                state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: parsed.dedupKeys)
-                state.size = size
-                state.mtime = mtime
-                cache.files[path] = state
-            }
+            let parsed = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, into: &cache.buckets)
+            state.offset = parsed.offset
+            state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: parsed.dedupKeys)
+            state.size = log.size
+            state.mtime = log.mtime
+            cache.files[path] = state
         }
         cache.buckets = cache.buckets.filter { $0.key >= sinceKey }
         return cache
-    }
-
-    nonisolated private func anyTrackedFileShrank(_ files: [String: CostUsageCache.FileState]) -> Bool {
-        for (path, state) in files {
-            let size = ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber)?.int64Value ?? 0
-            if size < state.size { return true }
-        }
-        return false
     }
 
     nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String,
