@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
     private var notchPanel: NotchPanel?
     private let windowHeightSlack: CGFloat = 50
     private var observedPanelScale = AppSettings.expandedPanelScale
+    private var observedExpandOnHover = AppSettings.expandOnHover
     private let integrationCoordinator = IntegrationCoordinator.shared
     private let globalShortcutService = GlobalShortcutService.shared
     private var minimizeShortcutMonitor: Any?
@@ -165,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.repositionWindowIfPanelScaleChanged()
-                self?.refreshPanelTrackingAreas()
+                self?.refreshPanelTrackingAreasIfExpandOnHoverChanged()
             }
         }
     }
@@ -175,6 +176,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         guard scale != observedPanelScale else { return }
         observedPanelScale = scale
         repositionWindow()
+    }
+
+    // Every defaults write in the process lands here, and rebuilding the tracking areas
+    // can re-fire hover enter and exit, so only react to the one setting they read.
+    private func refreshPanelTrackingAreasIfExpandOnHoverChanged() {
+        let expandOnHover = AppSettings.expandOnHover
+        guard expandOnHover != observedExpandOnHover else { return }
+        observedExpandOnHover = expandOnHover
+        refreshPanelTrackingAreas()
     }
 
     @objc private func refreshPanelTrackingAreas() {
