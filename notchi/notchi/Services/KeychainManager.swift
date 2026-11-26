@@ -8,7 +8,9 @@ struct ClaudeOAuthCredentials: Equatable {
     let scopes: Set<String>
 }
 
-enum KeychainManager {
+// Claude credential reads wait on /usr/bin/security for up to 2 s, so usage services call them
+// from background executors instead of the project's MainActor default.
+nonisolated enum KeychainManager {
     private static let claudeCodeService = "Claude Code-credentials"
     private static let configDirHashLength = 8
     private static let notchiService = "com.ruban.notchi"
@@ -286,7 +288,7 @@ enum KeychainManager {
         taskNowOverride = override
     }
 
-    static var keychainWritesForTesting = 0
+    nonisolated(unsafe) static var keychainWritesForTesting = 0
 
     static func _resetCredentialResolutionStateForTesting() {
         keychainWritesForTesting = 0

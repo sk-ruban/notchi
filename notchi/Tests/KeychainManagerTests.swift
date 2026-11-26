@@ -142,6 +142,36 @@ final class KeychainManagerTests: XCTestCase {
         XCTAssertEqual(seenAllowInteraction, [true, false])
     }
 
+    // MARK: - Live usage dependencies
+
+    nonisolated private final class ThreadRecorder: @unchecked Sendable {
+        var sawMainThread: Bool?
+    }
+
+    func testLiveCredentialReadRunsOffTheMainThread() async {
+        let recorder = ThreadRecorder()
+        KeychainManager._setSecurityCLIReadOverrideForTesting {
+            recorder.sawMainThread = Thread.isMainThread
+            return ["claudeAiOauth": ["accessToken": "cli-token"]]
+        }
+
+        _ = await ClaudeUsageServiceDependencies.live.getOAuthCredentials(false)
+
+        XCTAssertEqual(recorder.sawMainThread, false)
+    }
+
+    func testLiveSilentTokenRefreshRunsOffTheMainThread() async {
+        let recorder = ThreadRecorder()
+        KeychainManager._setSecurityCLIReadOverrideForTesting {
+            recorder.sawMainThread = Thread.isMainThread
+            return ["claudeAiOauth": ["accessToken": "cli-token"]]
+        }
+
+        _ = await ClaudeUsageServiceDependencies.live.refreshAccessTokenSilently()
+
+        XCTAssertEqual(recorder.sawMainThread, false)
+    }
+
     private func makeCredentialPayload(
         accessToken: String,
         expiresAt: Any? = nil,
