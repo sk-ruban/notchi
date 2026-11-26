@@ -32,6 +32,8 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
     }
     private static let startRetryDelay: DispatchTimeInterval = .milliseconds(250)
     private static let maxStartRetryAttempts = 8
+    // Parallel tool calls can fire dozens of hooks at once; a full queue refuses them and the event is lost.
+    private static let listenBacklog = SOMAXCONN
 
     private let socketPath: String
     private let clientReadTimeout: TimeInterval
@@ -139,7 +141,7 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
             logger.warning("Failed to suppress SIGPIPE on the server socket: \(errno)")
         }
 
-        guard listen(serverSocket, 10) == 0 else {
+        guard listen(serverSocket, Self.listenBacklog) == 0 else {
             logger.error("Failed to listen: \(errno)")
             close(serverSocket)
             serverSocket = -1
