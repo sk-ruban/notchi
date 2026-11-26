@@ -32,17 +32,24 @@ final class ClaudeCostScanner {
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
         let sinceKey = DailyCostReport.dayKey(windowStart, calendar: calendar)
+        let cutoffDay = CostLogLine.cutoffDay(forWindowStart: windowStart, calendar: calendar)
 
         for log in listing.files {
             let url = log.url
             let path = url.path
             var state = cache.files[path] ?? .init(size: 0, mtime: 0, offset: 0)
             if state.size == log.size, state.mtime == log.mtime { continue }
+            // Nothing written before the window counts. Offset 0 makes a later write read the file from the top.
+            if log.mtime < windowStart.timeIntervalSince1970 {
+                cache.files[path] = .init(size: log.size, mtime: log.mtime, offset: 0)
+                continue
+            }
             // `track` rebuilt the cache if any file shrank, so every tracked offset is still valid.
             let startOffset = state.offset
             if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
 
-            let parsed = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, into: &cache.buckets)
+            let parsed = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, cutoffDay: cutoffDay,
+                                   into: &cache.buckets)
             state.offset = parsed.offset
             state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: parsed.dedupKeys)
             state.size = log.size
@@ -53,7 +60,7 @@ final class ClaudeCostScanner {
         return cache
     }
 
-    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String,
+    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String, cutoffDay: Data,
                                        into buckets: inout DayModelBuckets) -> (offset: Int64, dedupKeys: [String]) {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return (startOffset, []) }
         defer { try? handle.close() }
@@ -69,7 +76,7 @@ final class ClaudeCostScanner {
             if data[i] == newline {
                 let lineData = data[lineStart..<i]
                 consumed += Int64(lineData.count) + 1
-                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, into: &buckets) {
+                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, cutoffDay: cutoffDay, into: &buckets) {
                     dedupKeys.append(dedupKey)
                 }
                 lineStart = data.index(after: i)
@@ -79,9 +86,11 @@ final class ClaudeCostScanner {
         return (consumed, dedupKeys)
     }
 
-    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, into buckets: inout DayModelBuckets) -> String? {
+    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, cutoffDay: Data,
+                                        into buckets: inout DayModelBuckets) -> String? {
         guard lineData.range(of: Data(#""type":"assistant""#.utf8)) != nil,
-              lineData.range(of: Data(#""usage""#.utf8)) != nil else { return nil }
+              lineData.range(of: Data(#""usage""#.utf8)) != nil,
+              !CostLogLine.isDated(lineData, before: cutoffDay) else { return nil }
         guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
               obj["type"] as? String == "assistant",
               let ts = obj["timestamp"] as? String,

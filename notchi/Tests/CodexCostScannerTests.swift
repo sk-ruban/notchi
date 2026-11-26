@@ -255,6 +255,25 @@ final class CodexCostScannerTests: XCTestCase {
         XCTAssertEqual(second.buckets["2026-06-24"]?["gpt-5.5"]?.input, firstInput + laterInput)
     }
 
+    func testSessionLastModifiedBeforeWindowIsReadFromTheTopOnceItChanges() throws {
+        let laterInput = 200
+        let url = try writeFile([
+            turnContextLine(model: "gpt-5.5", timestamp: "2026-04-01T11:00:00.000Z"),
+            tokenCountLine(timestamp: "2026-04-01T12:00:00.000Z", lastUsage: (input: 300, cached: 0, output: 0)),
+        ])
+        try FileManager.default.setAttributes(
+            [.modificationDate: ISO8601DateFormatter().date(from: "2026-04-01T13:00:00Z")!], ofItemAtPath: url.path)
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let first = s.scan(cache: emptyCache(), now: now())
+
+        let fh = try FileHandle(forWritingTo: url); fh.seekToEndOfFile()
+        fh.write((tokenCountLine(lastUsage: (input: laterInput, cached: 0, output: 0)) + "\n").data(using: .utf8)!)
+        try fh.close()
+        let second = s.scan(cache: first, now: now())
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["gpt-5.5"]?.input, laterInput)
+    }
+
     func testIncrementalScanPreservesModelAcrossWrites() throws {
         let url = try writeFile([turnContextLine(model: "gpt-5.5")])
         let root = url.deletingLastPathComponent().deletingLastPathComponent()
