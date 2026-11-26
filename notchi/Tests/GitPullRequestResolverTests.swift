@@ -347,6 +347,17 @@ final class GitPullRequestResolverTests: XCTestCase {
         XCTAssertEqual(GitPullRequestResolver.ghOutput(for: nil), .noPullRequest)
     }
 
+    func testGhKilledBySignalFourCountsAsAMiss() {
+        let output = GitPullRequestResolver.runProcess(
+            executable: "/bin/sh",
+            arguments: ["-c", "kill -ILL $$"],
+            cwd: "/tmp",
+            timeout: 5
+        )
+
+        XCTAssertEqual(GitPullRequestResolver.ghOutput(for: output), .noPullRequest)
+    }
+
     func testSuccessfulGhOutputIsPassedThrough() {
         XCTAssertEqual(
             GitPullRequestResolver.ghOutput(for: ProcessResult(status: 0, output: Self.openPRJSON)),

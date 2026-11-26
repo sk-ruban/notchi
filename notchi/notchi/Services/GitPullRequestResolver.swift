@@ -234,7 +234,7 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         }
     }
 
-    /// Returns nil when the process can't launch or runs past `timeout`.
+    /// Returns nil when the process can't launch, runs past `timeout` or is killed by a signal.
     static func runProcess(executable: String, arguments: [String], cwd: String, timeout: TimeInterval) -> ProcessResult? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -281,7 +281,8 @@ nonisolated final class GitPullRequestResolver: @unchecked Sendable {
         _ = sawEOF.wait(timeout: .now() + eofGrace)
         stdoutPipe.fileHandleForReading.readabilityHandler = nil
 
-        guard !timedOut else { return nil }
+        // A signal's number would otherwise read as an exit status, and signal 4 as gh's auth-required status.
+        guard !timedOut, process.terminationReason == .exit else { return nil }
         return ProcessResult(status: process.terminationStatus, output: output.data)
     }
 }
