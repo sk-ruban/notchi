@@ -6,14 +6,10 @@ final class ClaudeCostScanner {
     let windowDays: Int
     let calendar: Calendar
 
-    nonisolated(unsafe) private var seen = Set<String>()
+    nonisolated private static let assistantMarker = LogLineMarker(#""type":"assistant""#)
+    nonisolated private static let usageMarker = LogLineMarker(#""usage""#)
 
-    nonisolated(unsafe) private let isoFractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    nonisolated(unsafe) private let isoPlain = ISO8601DateFormatter()
+    nonisolated(unsafe) private var seen = Set<String>()
 
     nonisolated init(projectsRoots: [URL], pricing: any ClaudePricingProviding, windowDays: Int, calendar: Calendar) {
         self.projectsRoots = projectsRoots
@@ -33,6 +29,7 @@ final class ClaudeCostScanner {
                                         to: calendar.startOfDay(for: now))!
         let sinceKey = DailyCostReport.dayKey(windowStart, calendar: calendar)
         let cutoffDay = CostLogLine.cutoffDay(forWindowStart: windowStart, calendar: calendar)
+        var models = ModelPricingLookup(pricing: pricing, normalize: CostPricing.normalizeClaudeModel)
 
         for log in listing.files {
             let url = log.url
@@ -49,7 +46,7 @@ final class ClaudeCostScanner {
             if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
 
             let parsed = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, cutoffDay: cutoffDay,
-                                   into: &cache.buckets)
+                                   models: &models, into: &cache.buckets)
             state.offset = parsed.offset
             state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: parsed.dedupKeys)
             state.size = log.size
@@ -60,41 +57,29 @@ final class ClaudeCostScanner {
         return cache
     }
 
-    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String, cutoffDay: Data,
+    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String, cutoffDay: [UInt8],
+                                       models: inout ModelPricingLookup,
                                        into buckets: inout DayModelBuckets) -> (offset: Int64, dedupKeys: [String]) {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return (startOffset, []) }
-        defer { try? handle.close() }
-        if startOffset > 0 { try? handle.seek(toOffset: UInt64(startOffset)) }
-        guard let data = try? handle.readToEnd(), !data.isEmpty else { return (startOffset, []) }
-
         var dedupKeys: [String] = []
-        var consumed = startOffset
-        var lineStart = data.startIndex
-        let newline = UInt8(ascii: "\n")
-        var i = data.startIndex
-        while i < data.endIndex {
-            if data[i] == newline {
-                let lineData = data[lineStart..<i]
-                consumed += Int64(lineData.count) + 1
-                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, cutoffDay: cutoffDay, into: &buckets) {
-                    dedupKeys.append(dedupKey)
-                }
-                lineStart = data.index(after: i)
+        let consumed = CostLogFiles.forEachLine(in: url, from: startOffset) { line in
+            if let dedupKey = handleLine(line, sinceKey: sinceKey, cutoffDay: cutoffDay, models: &models,
+                                         into: &buckets) {
+                dedupKeys.append(dedupKey)
             }
-            i = data.index(after: i)
         }
-        return (consumed, dedupKeys)
+        return (consumed ?? startOffset, dedupKeys)
     }
 
-    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, cutoffDay: Data,
+    nonisolated private func handleLine(_ line: UnsafeRawBufferPointer, sinceKey: String, cutoffDay: [UInt8],
+                                        models: inout ModelPricingLookup,
                                         into buckets: inout DayModelBuckets) -> String? {
-        guard lineData.range(of: Data(#""type":"assistant""#.utf8)) != nil,
-              lineData.range(of: Data(#""usage""#.utf8)) != nil,
-              !CostLogLine.isDated(lineData, before: cutoffDay) else { return nil }
-        guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
+        guard Self.assistantMarker.occurs(in: line),
+              Self.usageMarker.occurs(in: line),
+              !CostLogLine.isDated(line, before: cutoffDay) else { return nil }
+        guard let obj = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any],
               obj["type"] as? String == "assistant",
               let ts = obj["timestamp"] as? String,
-              let date = parseTimestamp(ts) else { return nil }
+              let date = CostLogLine.date(fromTimestamp: ts) else { return nil }
         let dayKey = DailyCostReport.dayKey(date, calendar: calendar)
         guard dayKey >= sinceKey else { return nil }
         guard let message = obj["message"] as? [String: Any],
@@ -115,12 +100,13 @@ final class ClaudeCostScanner {
         let dedupKey = msgId + "|" + reqId
         if hasDedupKey, !seen.insert(dedupKey).inserted { return dedupKey }
 
-        let cost = pricing.pricing(model: model).flatMap {
+        let resolved = models.resolve(model)
+        let cost = resolved.pricing.flatMap {
             CostPricing.claudeCostUSD(input: input, cacheRead: cacheRead,
                 cacheCreation: cacheCreate, cacheCreation1h: cacheCreate1h, output: output, pricing: $0)
         }.map { $0 * speedMultiplier }
         let nanos = cost.map { Int(($0 * 1_000_000_000).rounded()) } ?? 0
-        let key = CostPricing.normalizeClaudeModel(model)
+        let key = resolved.model
         var dayModels = buckets[dayKey] ?? [:]
         dayModels[key] = (dayModels[key] ?? ModelTokenTotals()) + ModelTokenTotals(
             input: input, cacheRead: cacheRead, cacheCreation: cacheCreate, cacheCreation1h: cacheCreate1h,
@@ -130,8 +116,4 @@ final class ClaudeCostScanner {
     }
 
     nonisolated private func intval(_ v: Any?) -> Int { (v as? NSNumber)?.intValue ?? 0 }
-
-    nonisolated private func parseTimestamp(_ s: String) -> Date? {
-        isoFractional.date(from: s) ?? isoPlain.date(from: s)
-    }
 }
