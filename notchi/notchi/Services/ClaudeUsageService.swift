@@ -85,42 +85,6 @@ private struct AnthropicErrorDetail: Decodable {
     let message: String?
 }
 
-nonisolated private func runProcessWithTimeout(
-    executablePath: String,
-    arguments: [String],
-    environment: [String: String]? = nil,
-    commandTimeout: TimeInterval
-) -> String? {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: executablePath)
-    process.arguments = arguments
-    process.environment = environment
-
-    let stdoutPipe = Pipe()
-    process.standardOutput = stdoutPipe
-    process.standardError = Pipe()
-
-    let completion = DispatchSemaphore(value: 0)
-    process.terminationHandler = { _ in
-        completion.signal()
-    }
-
-    do {
-        try process.run()
-    } catch {
-        return nil
-    }
-
-    if completion.wait(timeout: .now() + commandTimeout) == .timedOut {
-        process.terminate()
-        return nil
-    }
-
-    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-    guard let output = String(data: data, encoding: .utf8) else { return nil }
-    return output
-}
-
 nonisolated private func extractAbsolutePath(from output: String) -> String? {
     output
         .split(separator: "\n")
@@ -249,7 +213,7 @@ enum ClaudeConfigDirectoryResolver {
                     arguments: arguments,
                     environment: environment,
                     commandTimeout: commandTimeout
-                )
+                ).flatMap { String(data: $0, encoding: .utf8) }
             }
         )
     }
@@ -454,7 +418,7 @@ nonisolated enum ClaudeCLIResolver {
                     arguments: arguments,
                     environment: environment,
                     commandTimeout: commandTimeout
-                )
+                ).flatMap { String(data: $0, encoding: .utf8) }
             }
         )
     }
