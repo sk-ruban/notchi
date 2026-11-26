@@ -21,7 +21,7 @@ final class CostHistoryStore {
     private let refreshInterval: TimeInterval = 90
     // Lets macOS coalesce the wakeup with other timers; scans need no precise timing.
     private let refreshTolerance: TimeInterval = 15
-    private let pricingRetryInterval: TimeInterval = 60 * 60
+    private let pricingRetryInterval: TimeInterval = 24 * 60 * 60
     private let pricingCatalog: PricingCatalog?
     private let pricingClock: PricingRefreshClock
     private var needsRescan = false
@@ -112,10 +112,12 @@ final class CostHistoryStore {
     func refresh() async {
         let now = Date()
         guard let buckets = await scanAndPublish(),
-              let catalog = pricingCatalog, catalog.canRefreshFromNetwork,
-              shouldRefreshPricing(after: buckets, now: now) else { return }
+              let catalog = pricingCatalog, catalog.canRefreshFromNetwork else { return }
+        let unpricedModels = Self.unpricedModels(in: buckets)
+        guard shouldRefreshPricing(unpricedModels: unpricedModels, now: now) else { return }
         // The fetch runs outside isScanning so a slow models.dev never blocks timer scans.
         pricingClock.lastRefresh = now
+        pricingClock.fetchedUnpricedModels.formUnion(unpricedModels)
         await catalog.refreshFromNetwork()
         await scanAndPublish(rescanIfBusy: true)
     }
@@ -150,17 +152,19 @@ final class CostHistoryStore {
         lastScan = now
     }
 
-    /// Fetches once at launch, then again only when a model released since scans unpriced.
-    private func shouldRefreshPricing(after buckets: DayModelBuckets, now: Date) -> Bool {
+    /// Fetches once at launch, then right away for a model newly found unpriced, such as one released
+    /// since. Models that stay unpriced, like ones behind a proxy, are retried daily.
+    private func shouldRefreshPricing(unpricedModels: Set<String>, now: Date) -> Bool {
         guard let lastPricingRefresh = pricingClock.lastRefresh else { return true }
-        return Self.hasUnpricedRequests(buckets)
-            && now.timeIntervalSince(lastPricingRefresh) >= pricingRetryInterval
+        guard !unpricedModels.isEmpty else { return false }
+        return !unpricedModels.isSubset(of: pricingClock.fetchedUnpricedModels)
+            || now.timeIntervalSince(lastPricingRefresh) >= pricingRetryInterval
     }
 
-    private static func hasUnpricedRequests(_ buckets: DayModelBuckets) -> Bool {
-        buckets.values.contains { models in
-            models.values.contains { $0.pricedCount < $0.requestCount }
-        }
+    private static func unpricedModels(in buckets: DayModelBuckets) -> Set<String> {
+        Set(buckets.values.flatMap { models in
+            models.filter { $0.value.pricedCount < $0.value.requestCount }.keys
+        })
     }
 }
 
@@ -221,6 +225,8 @@ extension CostHistoryStore {
 @MainActor
 final class PricingRefreshClock {
     var lastRefresh: Date?
+    /// Models that were unpriced when a fetch ran, so finding them unpriced again doesn't refetch.
+    var fetchedUnpricedModels: Set<String> = []
 
     // Default arguments are evaluated outside the main actor.
     nonisolated init() {}
