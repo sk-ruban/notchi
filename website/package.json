@@ -9,7 +9,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "astro": "^5.7.0",
+    "astro": "^7.4.13",
     "rough-notation": "^0.5.1"
   }
 }
