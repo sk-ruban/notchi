@@ -77,10 +77,10 @@ read_build_setting() {
 }
 
 # Pipe through xcpretty only when it's installed; pipefail keeps xcodebuild's exit status.
-# The raw log is kept because xcpretty hides the details of a failure.
+# The raw log, stderr included, is kept because xcpretty hides the details of a failure.
 run_xcodebuild() {
     if command -v xcpretty >/dev/null 2>&1; then
-        xcodebuild "$@" | tee -a "$XCODEBUILD_LOG" | xcpretty
+        xcodebuild "$@" 2>&1 | tee -a "$XCODEBUILD_LOG" | xcpretty
     else
         xcodebuild "$@"
     fi
