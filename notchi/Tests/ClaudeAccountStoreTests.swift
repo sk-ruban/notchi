@@ -184,6 +184,18 @@ final class ClaudeAccountStoreTests: XCTestCase {
         XCTAssertEqual(store.account(forSessionDirectory: elsewhere)?.directory.path, elsewhere.path)
     }
 
+    // A default-account hook event can arrive before the launch refresh has listed any accounts.
+    func testDefaultSessionNotedBeforeTheLaunchRefreshIsTheMostRecentAccount() async throws {
+        try makeAccount(".claude")
+        try makeAccount(Self.accountRunningNotchi)
+        let store = makeStore(hasNotchiHooks: { _ in false }, refreshes: false)
+
+        store.noteSession(directory: nil, rawConfigDir: nil)
+        await store.refreshInBackground()
+
+        XCTAssertEqual(store.mostRecentlyActiveAccount?.directory.lastPathComponent, ".claude")
+    }
+
     // MARK: - Names and colors
 
     func testDefaultAccountIsNamedDefault() throws {

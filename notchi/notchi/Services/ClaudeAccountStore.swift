@@ -6,8 +6,7 @@ import Observation
 /// per-account notchi switch the user picked for each.
 @MainActor @Observable
 final class ClaudeAccountStore {
-    // Empty until the launch refresh after the hooks install. Until then no session has an account, so
-    // views show the default account either way, and a session's hook event refreshes on arrival.
+    // Empty until the launch refresh after the hooks install; until then views show the default account.
     static let shared = ClaudeAccountStore()
 
     private(set) var accounts: [ClaudeAccount] = []
@@ -207,7 +206,8 @@ final class ClaudeAccountStore {
     /// (e.g. a config dir outside `~`) and rechecks its hooks, which may have changed since the last refresh.
     func noteSession(directory: URL?, rawConfigDir: String?) {
         guard let directory else {
-            let defaultKey = accounts.first(where: \.isDefault)?.key
+            // Before the launch refresh lands there's no default account to read the key from.
+            let defaultKey = accounts.first(where: \.isDefault)?.key ?? Self.key(for: defaultDirectory())
             if mostRecentlyActiveAccountKey != defaultKey { mostRecentlyActiveAccountKey = defaultKey }
             return
         }
