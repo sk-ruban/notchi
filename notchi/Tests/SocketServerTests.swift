@@ -328,6 +328,44 @@ final class SocketServerTests: XCTestCase {
         XCTAssertTrue(delivered)
     }
 
+    func testAnswerToAClientThatAlreadyHungUpDoesNotStopTheServer() async throws {
+        let response = Data("{\"ok\":true}".utf8)
+        let hungUpClientCount = 20
+        let answerDelay: TimeInterval = 0.05
+        let recorder = EventRecorder()
+        let path = uniqueSocketPath()
+        let server = SocketServer(socketPath: path, clientReadTimeout: 0.5)
+        activeServers.append((server, path))
+        let answered = AnsweredCounter()
+        server.start { event in
+            Task { await recorder.record(event) }
+            // Answer after the client is gone, like a card answered after a headless hook moved on.
+            Thread.sleep(forTimeInterval: answerDelay)
+            answered.increment()
+            return response
+        }
+        let didStart = await waitUntil(timeout: 1) { FileManager.default.fileExists(atPath: path) }
+        XCTAssertTrue(didStart)
+
+        for index in 0..<hungUpClientCount {
+            let client = try connectClient(to: path)
+            try client.send(makeEventPayload(sessionId: "hung-up-\(index)"))
+            client.closeConnection()
+        }
+        // The answers are written right after the handler returns; let all of them land before probing.
+        let allAnswered = await waitUntil(timeout: 3) { answered.count == hungUpClientCount }
+        XCTAssertTrue(allAnswered, "precondition: every hung-up client got an answer")
+        try await Task.sleep(for: .milliseconds(200))
+        let survivor = try connectClient(to: path)
+        try survivor.send(makeEventPayload(sessionId: "after-hang-ups"))
+        survivor.closeConnection()
+        let delivered = await waitUntil(timeout: 3) {
+            await recorder.snapshot().contains { $0.sessionId == "after-hang-ups" }
+        }
+
+        XCTAssertTrue(delivered)
+    }
+
     func testServerWritesHandlerResponseToHalfClosedClient() async throws {
         let response = Data("{\"ok\":true}".utf8)
         let path = uniqueSocketPath()
@@ -559,5 +597,16 @@ private final class UnixSocketClient {
         NSError(domain: NSPOSIXErrorDomain, code: Int(code), userInfo: [
             NSLocalizedDescriptionKey: "\(message) (\(code))",
         ])
+    }
+}
+
+private final class AnsweredCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    var count: Int { lock.withLock { value } }
+
+    func increment() {
+        lock.withLock { value += 1 }
     }
 }

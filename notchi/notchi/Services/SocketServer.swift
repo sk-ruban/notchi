@@ -125,6 +125,20 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
             logger.warning("Failed to restrict socket permissions: \(errno)")
         }
 
+        // Set on the listener so accepted sockets inherit it: setting it per client fails once a hook
+        // has already hung up, and answering that hook would then kill the app with SIGPIPE.
+        var suppressSigPipe: Int32 = 1
+        let suppressResult = setsockopt(
+            serverSocket,
+            SOL_SOCKET,
+            SO_NOSIGPIPE,
+            &suppressSigPipe,
+            socklen_t(MemoryLayout.size(ofValue: suppressSigPipe))
+        )
+        if suppressResult != 0 {
+            logger.warning("Failed to suppress SIGPIPE on the server socket: \(errno)")
+        }
+
         guard listen(serverSocket, 10) == 0 else {
             logger.error("Failed to listen: \(errno)")
             close(serverSocket)
@@ -288,21 +302,6 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
         let clientFlags = fcntl(clientSocket, F_GETFL)
         if clientFlags >= 0, fcntl(clientSocket, F_SETFL, clientFlags & ~O_NONBLOCK) != 0 {
             logger.warning("Failed to clear O_NONBLOCK on client socket: \(errno)")
-        }
-
-        var suppressSigPipe: Int32 = 1
-        let suppressSigPipeLength = socklen_t(MemoryLayout.size(ofValue: suppressSigPipe))
-        let suppressResult = withUnsafePointer(to: &suppressSigPipe) { pointer in
-            setsockopt(
-                clientSocket,
-                SOL_SOCKET,
-                SO_NOSIGPIPE,
-                pointer,
-                suppressSigPipeLength
-            )
-        }
-        if suppressResult != 0 {
-            logger.warning("Failed to suppress SIGPIPE on client socket: \(errno)")
         }
     }
 
