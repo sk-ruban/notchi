@@ -799,6 +799,8 @@ final class ClaudeUsageService {
     private let pollInterval: TimeInterval = 60
     // Bumped whenever polling stops or is rescheduled, so a timer or credential read begun earlier knows it was superseded.
     private var pollScheduleGeneration: UInt64 = 0
+    /// The latest connect owns `isLoading`, so an older one finishing can't clear a newer one's spinner.
+    private var connectGeneration: UInt64 = 0
     private var consecutiveRateLimits = 0
     private var cachedToken: String?
     private var preferHeadersFallback = false
@@ -835,11 +837,13 @@ final class ClaudeUsageService {
         oauthRecheckCounter = 0
         stopPolling()
         let generation = pollScheduleGeneration
+        connectGeneration &+= 1
+        let connect = connectGeneration
 
         Task {
             // The credential read can take seconds; loading covers it so retry and self-heal wait it out.
             isLoading = true
-            defer { isLoading = false }
+            defer { if connectGeneration == connect { isLoading = false } }
             let resolution = await resolveStoredAccessToken(
                 allowsCredentialRecovery: true,
                 prefersRecoveredCredentials: true
