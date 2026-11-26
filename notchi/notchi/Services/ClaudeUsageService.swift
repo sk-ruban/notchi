@@ -797,6 +797,7 @@ final class ClaudeUsageService {
     private var pendingResumeReconnectTimer: (any ClaudeUsagePollTimer)?
     private var selfHealRetryTimer: (any ClaudeUsagePollTimer)?
     private let pollInterval: TimeInterval = 60
+    // Bumped whenever polling stops or is rescheduled, so a timer or credential read begun earlier knows it was superseded.
     private var pollScheduleGeneration: UInt64 = 0
     private var consecutiveRateLimits = 0
     private var cachedToken: String?
@@ -833,15 +834,18 @@ final class ClaudeUsageService {
         preferHeadersFallback = false
         oauthRecheckCounter = 0
         stopPolling()
+        let generation = pollScheduleGeneration
 
         Task {
             // The credential read can take seconds; loading covers it so retry and self-heal wait it out.
             isLoading = true
             defer { isLoading = false }
-            guard let resolution = await resolveStoredAccessToken(
+            let resolution = await resolveStoredAccessToken(
                 allowsCredentialRecovery: true,
                 prefersRecoveredCredentials: true
-            ) else {
+            )
+            guard pollScheduleGeneration == generation else { return }
+            guard let resolution else {
                 presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
                 if currentUsage != nil {
                     scheduleSelfHealRetry()
@@ -886,6 +890,7 @@ final class ClaudeUsageService {
 
     func startPolling(afterSystemWake: Bool = false) {
         stopPolling()
+        let generation = pollScheduleGeneration
 
         Task {
             if afterSystemWake, let accessToken = cachedToken {
@@ -898,7 +903,9 @@ final class ClaudeUsageService {
                 return
             }
 
-            guard let resolution = await resolveStoredAccessToken(allowsCredentialRecovery: true) else {
+            let resolution = await resolveStoredAccessToken(allowsCredentialRecovery: true)
+            guard pollScheduleGeneration == generation else { return }
+            guard let resolution else {
                 isConnected = false
                 clearOAuthBackoffState()
                 if currentUsage != nil {
@@ -1063,11 +1070,14 @@ final class ClaudeUsageService {
     private func attemptSelfHeal() async {
         selfHealRetryTimer = nil
         guard dependencies.isUsageEnabled(), pollTimer == nil, !isLoading else { return }
+        let generation = pollScheduleGeneration
 
-        guard let resolution = await resolveStoredAccessToken(
+        let resolution = await resolveStoredAccessToken(
             allowsCredentialRecovery: true,
             prefersRecoveredCredentials: true
-        ) else {
+        )
+        guard pollScheduleGeneration == generation else { return }
+        guard let resolution else {
             scheduleSelfHealRetry()
             return
         }
