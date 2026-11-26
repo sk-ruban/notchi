@@ -66,6 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         Task.detached(priority: .utility) { [integrationCoordinator] in
             integrationCoordinator.prepareForLaunch()
             integrationCoordinator.installHooksIfNeeded()
+            await MainActor.run {
+                NotificationCenter.default.post(name: .notchiLaunchHookInstallDidFinish, object: nil)
+            }
             integrationCoordinator.start { event in
                 NotchiStateMachine.shared.handleEvent(event)
             }
@@ -264,6 +267,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
         NSApp.setActivationPolicy(.accessory)
     }
 
+}
+
+extension Notification.Name {
+    static let notchiLaunchHookInstallDidFinish = Notification.Name("notchiLaunchHookInstallDidFinish")
 }
 
 // MARK: - SPUUpdaterDelegate

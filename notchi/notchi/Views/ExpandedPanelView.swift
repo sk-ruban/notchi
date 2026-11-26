@@ -187,6 +187,8 @@ struct ExpandedPanelView: View {
     @AppStorage(AppSettings.showGitBranchAndPullRequestKey) private var showGitBranchAndPullRequest = true
     @AppStorage(AppSettings.mainUsageBarPeriodKey) private var mainUsageBarPeriodRaw = MainUsageBarPeriod.session.rawValue
     @Environment(\.panelScale) private var panelScale
+    // Reading it parses each agent's config files, so it's checked on appear rather than per render.
+    @State private var hooksInstalled: Bool?
 
     static let compactHeaderClearance: CGFloat = 0
     static let compactFeedMaxHeight: CGFloat = 320
@@ -939,29 +941,44 @@ struct ExpandedPanelView: View {
     }
 
     private var emptyState: some View {
-        let hooksInstalled = IntegrationCoordinator.shared.hasAnyInstalledHooks()
-        let title = hooksInstalled ? String(localized: "Waiting for activity") : String(localized: "Hooks not installed")
-        let subtitle = hooksInstalled
-            ? String(localized: "Start Claude Code, Codex or Devin to begin tracking")
-            : String(localized: "Open settings to set up Claude Code, Codex or Devin integration")
+        VStack(spacing: 8) {
+            // onAppear runs before the first frame, so this is set by the time anything draws.
+            if let hooksInstalled {
+                let title = hooksInstalled ? String(localized: "Waiting for activity") : String(localized: "Hooks not installed")
+                let subtitle = hooksInstalled
+                    ? String(localized: "Start Claude Code, Codex or Devin to begin tracking")
+                    : String(localized: "Open settings to set up Claude Code, Codex or Devin integration")
 
-        return VStack(spacing: 8) {
-            MorphingText(
-                text: title,
-                fontSize: 14,
-                fontWeight: .medium,
-                color: TerminalColors.secondaryText,
-                alignment: .center
-            )
-            MorphingText(
-                text: subtitle,
-                fontSize: 12,
-                color: TerminalColors.dimmedText,
-                alignment: .center,
-                lineLimit: 2
-            )
+                MorphingText(
+                    text: title,
+                    fontSize: 14,
+                    fontWeight: .medium,
+                    color: TerminalColors.secondaryText,
+                    alignment: .center
+                )
+                MorphingText(
+                    text: subtitle,
+                    fontSize: 12,
+                    color: TerminalColors.dimmedText,
+                    alignment: .center,
+                    lineLimit: 2
+                )
+            }
         }
         .frame(maxWidth: .infinity)
+        .onAppear(perform: refreshHooksInstalled)
+        // Forget it while hidden, so the next appearance doesn't morph from a stale title.
+        .onDisappear { hooksInstalled = nil }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshHooksInstalled()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .notchiLaunchHookInstallDidFinish)) { _ in
+            refreshHooksInstalled()
+        }
+    }
+
+    private func refreshHooksInstalled() {
+        hooksInstalled = IntegrationCoordinator.shared.hasAnyInstalledHooks()
     }
 
     private func scrollActivityItem(_ id: String, expanded: Bool, proxy: ScrollViewProxy) {
