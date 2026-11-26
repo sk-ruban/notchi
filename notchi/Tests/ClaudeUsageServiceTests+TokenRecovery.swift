@@ -976,6 +976,50 @@ extension ClaudeUsageServiceTests {
         XCTAssertTrue(isLoadingDuringRead)
     }
 
+    func testOlderConnectFinishingLeavesANewerConnectLoading() async throws {
+        let scheduler = PollSchedulerSpy()
+        let gate = CredentialReadGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { _ in (self.makeSuccessPayload(utilization: 27), self.makeResponse(statusCode: 200)) }
+        )
+        dependencies.getOAuthCredentials = { _ in await gate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+
+        // A second press of Usage while the first credential read is still waiting.
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.twoHeldReads)
+        gate.releaseOldest(returning: nil)
+        for _ in 0..<Self.settleYields { await Task.yield() }
+        let isLoadingWhileNewerReadWaits = service.isLoading
+        gate.release(returning: nil)
+
+        XCTAssertTrue(isLoadingWhileNewerReadWaits)
+    }
+
+    func testStoppingDuringAConnectStillEndsLoading() async throws {
+        let scheduler = PollSchedulerSpy()
+        let gate = CredentialReadGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { _ in (self.makeSuccessPayload(utilization: 27), self.makeResponse(statusCode: 200)) }
+        )
+        dependencies.getOAuthCredentials = { _ in await gate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        service.stopPolling()
+        gate.release(returning: nil)
+        for _ in 0..<Self.settleYields { await Task.yield() }
+
+        XCTAssertFalse(service.isLoading)
+    }
+
     func testSelfHealOverlappingAConnectOnCredentialReadsSendsOneUsageRequest() async throws {
         let scheduler = PollSchedulerSpy()
         let recorder = RequestRecorder()
@@ -1042,7 +1086,8 @@ extension ClaudeUsageServiceTests {
 
 /// Stands in for a slow /usr/bin/security read: holds every credential read until released.
 final class CredentialReadGate {
-    private static let maxYieldsWaitingForReads = 50
+    private static let heldReadsTimeout: Duration = .seconds(2)
+    private static let heldReadsPollInterval: Duration = .milliseconds(5)
     private var heldReads: [CheckedContinuation<ClaudeOAuthCredentials?, Never>] = []
 
     // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
@@ -1052,10 +1097,20 @@ final class CredentialReadGate {
         await withCheckedContinuation { heldReads.append($0) }
     }
 
-    func waitForHeldReads(_ count: Int) async {
-        for _ in 0..<Self.maxYieldsWaitingForReads where heldReads.count < count {
-            await Task.yield()
+    /// Fails the test, and frees any held read so nothing stays suspended, if the reads never arrive.
+    func waitForHeldReads(_ count: Int, file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = ContinuousClock.now + Self.heldReadsTimeout
+        while heldReads.count < count, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: Self.heldReadsPollInterval)
         }
+        guard heldReads.count < count else { return }
+        XCTFail("Expected \(count) held credential reads, got \(heldReads.count)", file: file, line: line)
+        release(returning: nil)
+    }
+
+    func releaseOldest(returning credentials: ClaudeOAuthCredentials?) {
+        guard !heldReads.isEmpty else { return }
+        heldReads.removeFirst().resume(returning: credentials)
     }
 
     func release(returning credentials: ClaudeOAuthCredentials?) {
