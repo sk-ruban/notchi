@@ -575,7 +575,7 @@ final class EmotionAnalyzer {
 
     private static func truncatedForAnalysis(_ prompt: String) -> String {
         guard prompt.count > analyzedPromptHeadLength + analyzedPromptTailLength else { return prompt }
-        return prompt.prefix(analyzedPromptHeadLength) + truncatedPromptSeparator + prompt.suffix(analyzedPromptTailLength)
+        return String(prompt.prefix(analyzedPromptHeadLength)) + truncatedPromptSeparator + String(prompt.suffix(analyzedPromptTailLength))
     }
 
     private func resolveProvider() -> EmotionAnalysisProviding? {
