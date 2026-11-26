@@ -385,6 +385,9 @@ nonisolated enum ClaudeCLIResolver {
     // from the main actor, so guard the shared state with stateQueue and
     // snapshot it once per resolution.
     nonisolated(unsafe) private static var lockedTestHooks = makeDefaultTestHooks()
+    nonisolated(unsafe) private static var cachedUserAgent: String?
+    // Every account's usage service asks at launch; one lookup at a time lets the rest reuse its result.
+    private static let userAgentResolutionLock = NSLock()
 
     static var testHooks: TestHooks {
         get {
@@ -395,18 +398,48 @@ nonisolated enum ClaudeCLIResolver {
         }
     }
 
+    /// The same for every account, so it's looked up once per run; a miss is retried in case Claude Code gets installed.
     static func resolveUserAgent() -> String? {
-        let hooks = testHooks
-        for claudePath in knownExecutablePaths(testHooks: hooks) {
-            guard let version = resolveVersion(at: claudePath, testHooks: hooks) else { continue }
-            return "claude-code/\(version)"
+        userAgentResolutionLock.withLock {
+            if let cached = stateQueue.sync(execute: { cachedUserAgent }) {
+                return cached
+            }
+            let resolved = lookUpUserAgent(testHooks: testHooks)
+            if let resolved {
+                stateQueue.sync { cachedUserAgent = resolved }
+            }
+            return resolved
+        }
+    }
+
+    private static func lookUpUserAgent(testHooks: TestHooks) -> String? {
+        let environment = testHooks.environment()
+        var triedPaths: Set<String> = []
+        func userAgent(trying paths: [String]) -> String? {
+            for path in paths where path.hasPrefix("/") && !triedPaths.contains(path) {
+                guard testHooks.isExecutableFile(path) else { continue }
+                triedPaths.insert(path)
+                guard let version = resolveVersion(at: path, testHooks: testHooks) else { continue }
+                return "claude-code/\(version)"
+            }
+            return nil
         }
 
-        return nil
+        if let userAgent = userAgent(trying: knownExecutablePaths(environment: environment)) {
+            return userAgent
+        }
+        // The shell lookup spawns login and interactive shells, so it only runs when no known path answers.
+        guard let shellResolvedPath = resolveCommandPathViaShell(environment: environment, testHooks: testHooks) else {
+            return nil
+        }
+        return userAgent(trying: [shellResolvedPath])
     }
 
     static func resetTestingHooks() {
-        testHooks = makeDefaultTestHooks()
+        stateQueue.sync {
+            lockedTestHooks = makeDefaultTestHooks()
+            cachedUserAgent = nil
+        }
     }
 
     private static func makeDefaultTestHooks() -> TestHooks {
@@ -426,9 +459,9 @@ nonisolated enum ClaudeCLIResolver {
         )
     }
 
-    private static func knownExecutablePaths(testHooks: TestHooks) -> [String] {
+    /// Explicit install locations, then `PATH`; the shell lookup is the caller's last resort.
+    private static func knownExecutablePaths(environment: [String: String]) -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let environment = testHooks.environment()
         let explicitPaths = [
             "\(home)/.local/bin/claude",
             ClaudeConfigDirectoryResolver.resolve().claudeBinaryPath,
@@ -438,21 +471,7 @@ nonisolated enum ClaudeCLIResolver {
         let pathDerivedCandidates = (environment["PATH"] ?? "")
             .split(separator: ":")
             .map { "\($0)/claude" }
-        let shellResolvedPath = resolveCommandPathViaShell(environment: environment, testHooks: testHooks)
-            .map { [$0] } ?? []
-
-        var resolvedPaths: [String] = []
-        var seenPaths: Set<String> = []
-
-        for path in explicitPaths + pathDerivedCandidates + shellResolvedPath {
-            guard path.hasPrefix("/") else { continue }
-            guard !seenPaths.contains(path) else { continue }
-            guard testHooks.isExecutableFile(path) else { continue }
-            seenPaths.insert(path)
-            resolvedPaths.append(path)
-        }
-
-        return resolvedPaths
+        return explicitPaths + pathDerivedCandidates
     }
 
     static func resolveCommandPathViaShell(environment: [String: String]) -> String? {
