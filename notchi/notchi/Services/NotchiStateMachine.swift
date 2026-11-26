@@ -17,6 +17,7 @@ final class NotchiStateMachine {
     private var pendingSessionStartTimes: [ProviderSessionKey: Date] = [:]
     private var processMonitorTask: Task<Void, Never>?
     private var codexThreadMetadataMonitorTask: Task<Void, Never>?
+    private var codexThreadMetadataMonitorInterval: Duration?
     private var codexThreadMetadataRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshGeneration = 0
@@ -36,7 +37,9 @@ final class NotchiStateMachine {
     private static let syncDebounce: Duration = .milliseconds(100)
     private static let waitingClearGuard: TimeInterval = 2.0
     private static let processMonitorInterval: Duration = .seconds(2)
-    private static let codexThreadMetadataMonitorInterval: Duration = .seconds(5)
+    private static let codexThreadMetadataActiveMonitorInterval: Duration = .seconds(5)
+    // Each poll spawns sqlite3; archive, delete and title changes on idle threads can wait longer.
+    private static let codexThreadMetadataIdleMonitorInterval: Duration = .seconds(45)
     private nonisolated static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
     private nonisolated static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
     private static let processMissLimit = 2
@@ -218,6 +221,7 @@ final class NotchiStateMachine {
                 for: sessionKey,
                 hasActiveWatcher: fileWatchers[sessionKey] != nil
             )
+            refreshCodexThreadMetadataMonitoring()
 
             pendingSyncTasks.removeValue(forKey: sessionKey)
         }
@@ -469,22 +473,34 @@ final class NotchiStateMachine {
     }
 
     private func refreshCodexThreadMetadataMonitoring() {
-        let shouldMonitor = sessionStore.sessions.values.contains { $0.isCodexThreadBacked }
+        let codexSessions = sessionStore.sessions.values.filter(\.isCodexThreadBacked)
 
-        if shouldMonitor {
-            guard codexThreadMetadataMonitorTask == nil else { return }
+        if !codexSessions.isEmpty {
+            let interval = codexSessions.contains(where: \.isProcessing)
+                ? Self.codexThreadMetadataActiveMonitorInterval
+                : Self.codexThreadMetadataIdleMonitorInterval
+            guard interval != codexThreadMetadataMonitorInterval else { return }
+
+            let finishedTurn = codexThreadMetadataMonitorInterval == Self.codexThreadMetadataActiveMonitorInterval
+            codexThreadMetadataMonitorTask?.cancel()
+            codexThreadMetadataMonitorInterval = interval
             codexThreadMetadataMonitorTask = Task { [weak self] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: Self.codexThreadMetadataMonitorInterval)
+                    try? await Task.sleep(for: interval)
                     guard !Task.isCancelled else { return }
                     self?.reconcileCodexThreadMetadata()
                 }
+            }
+            // Codex often names a thread around the end of its first turn; don't make that wait for the idle poll.
+            if finishedTurn, codexThreadMetadataAutoRefreshEnabled {
+                scheduleCodexThreadMetadataRefresh()
             }
         } else {
             // Only the monitoring-to-idle transition means the last Codex session ended.
             let wasMonitoring = codexThreadMetadataMonitorTask != nil
             codexThreadMetadataMonitorTask?.cancel()
             codexThreadMetadataMonitorTask = nil
+            codexThreadMetadataMonitorInterval = nil
             codexThreadMetadataRefreshTask?.cancel()
             codexThreadMetadataRefreshTask = nil
             cancelCodexCompactionSignalRefresh()
@@ -622,6 +638,7 @@ final class NotchiStateMachine {
         processMonitorTask = nil
         codexThreadMetadataMonitorTask?.cancel()
         codexThreadMetadataMonitorTask = nil
+        codexThreadMetadataMonitorInterval = nil
         codexThreadMetadataRefreshTask?.cancel()
         codexThreadMetadataRefreshTask = nil
         cancelCodexCompactionSignalRefresh()
@@ -642,6 +659,10 @@ final class NotchiStateMachine {
         sessionStore.refreshCodexCompactionSignalsForTesting()
         endClosedCodexSessions(closedSessions)
         refreshCodexThreadMetadataMonitoring()
+    }
+
+    var codexThreadMetadataMonitorIntervalForTesting: Duration? {
+        codexThreadMetadataMonitorInterval
     }
 
     func setCodexThreadMetadataAutoRefreshEnabledForTesting(_ enabled: Bool) {
