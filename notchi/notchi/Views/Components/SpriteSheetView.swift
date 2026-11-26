@@ -70,13 +70,14 @@ struct SpriteSheetView: View {
     var frameCount: Int = 6
     var columns: Int = 6
     var fps: Double = 10
-    var isAnimating: Bool = true
     var animationStartDate: Date = SpriteAnimationPhase.sharedLoopAnchor
     var repeatsAnimation: Bool = true
     var isMirrored: Bool = false
 
+    @Environment(\.isAnimationPaused) private var isAnimationPaused
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / fps, paused: !isAnimating)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / fps, paused: isAnimationPaused)) { timeline in
             SpriteFrameView(
                 spriteSheet: spriteSheet,
                 frameCount: frameCount,
@@ -88,7 +89,6 @@ struct SpriteSheetView: View {
     }
 
     private func currentFrame(at date: Date) -> Int {
-        guard isAnimating else { return 0 }
         let elapsed = max(0, date.timeIntervalSince(animationStartDate))
         let frame = Int(elapsed * fps)
 

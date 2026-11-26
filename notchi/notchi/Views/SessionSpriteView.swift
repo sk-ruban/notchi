@@ -8,6 +8,7 @@ struct SessionSpriteView: View {
     var repeatsAnimation = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isAnimationPaused) private var isAnimationPaused
     @State private var stateMirrorKey: String?
     @State private var stateMirrored = false
     @State private var animatedVerticalOffset: CGFloat = 0
@@ -32,14 +33,13 @@ struct SessionSpriteView: View {
     private static let sobTrembleAmplitude: CGFloat = 0.2
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: state.motionFrameInterval, paused: bobAmplitude == 0 && trembleAmplitude == 0)) { timeline in
+        TimelineView(.animation(minimumInterval: state.motionFrameInterval, paused: isAnimationPaused || (bobAmplitude == 0 && trembleAmplitude == 0))) { timeline in
             let presentation = spriteSheetPresentation(at: timeline.date)
             SpriteSheetView(
                 spriteSheet: presentation.spriteSheetName,
                 frameCount: state.frameCount,
                 columns: state.columns,
                 fps: state.animationFPS,
-                isAnimating: true,
                 animationStartDate: effectiveAnimationStartDate,
                 repeatsAnimation: repeatsAnimation,
                 isMirrored: presentation.renderMirrored

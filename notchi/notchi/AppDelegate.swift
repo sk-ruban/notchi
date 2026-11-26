@@ -116,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
 
         panel.contentView = hitTestView
         panel.orderFrontRegardless()
+        AnimationVisibility.shared.start(observing: panel)
 
         self.notchPanel = panel
     }
