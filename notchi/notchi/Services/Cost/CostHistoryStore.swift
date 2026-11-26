@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 @MainActor
 @Observable
@@ -18,6 +19,8 @@ final class CostHistoryStore {
     private let scanProvider: @Sendable (Date) async -> DayModelBuckets
     private var timer: Timer?
     private let refreshInterval: TimeInterval = 90
+    // Lets macOS coalesce the wakeup with other timers; scans need no precise timing.
+    private let refreshTolerance: TimeInterval = 15
     private let pricingRetryInterval: TimeInterval = 60 * 60
     private let pricingCatalog: PricingCatalog?
     private let pricingClock: PricingRefreshClock
@@ -41,17 +44,21 @@ final class CostHistoryStore {
                      cacheURL: URL) {
         let scan = Self.makeScan(provider: provider, projectsRoots: projectsRoots,
                                  pricing: pricing, windowDays: windowDays, calendar: calendar)
+        // Only this store uses its cache file, so after the first load the copy in memory matches the file.
+        let savedCache = OSAllocatedUnfairLock<CostUsageCache?>(initialState: nil)
         self.init(windowDays: windowDays, calendar: calendar, provider: provider, pricingCatalog: pricing,
                   pricingClock: pricingClock) { now in
             await Task.detached(priority: .utility) {
                 let sig = pricing.signature()
                 let timeZoneID = calendar.timeZone.identifier
-                let cache = CostUsageCacheStore.load(url: cacheURL)
-                    .reconciled(withPricingSignature: sig, timeZoneIdentifier: timeZoneID)
-                var updated = scan(cache, now)
+                let saved = savedCache.withLock { $0 } ?? CostUsageCacheStore.load(url: cacheURL)
+                var updated = scan(saved.reconciled(withPricingSignature: sig, timeZoneIdentifier: timeZoneID), now)
                 updated.pricingSignature = sig
                 updated.timeZoneIdentifier = timeZoneID
-                CostUsageCacheStore.save(updated, to: cacheURL)
+                if updated != saved {
+                    CostUsageCacheStore.save(updated, to: cacheURL)
+                }
+                savedCache.withLock { $0 = updated }
                 return updated.buckets
             }.value
         }
@@ -94,6 +101,7 @@ final class CostHistoryStore {
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
         }
+        timer?.tolerance = refreshTolerance
     }
 
     func stop() {

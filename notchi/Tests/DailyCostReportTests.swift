@@ -96,6 +96,41 @@ final class CostHistoryStoreTests: XCTestCase {
                                 cacheURL: root.appendingPathComponent("cache.json"))
     }
 
+    @MainActor
+    func testRefreshWithUnchangedLogsLeavesCacheFileUntouched() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let cacheURL = root.appendingPathComponent("cache.json")
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { nil })
+        let store = try storeScanningSession(model: "claude-sonnet-4-6", inputTokens: 10, outputTokens: 5,
+                                             catalog: catalog, root: root)
+        await store.refresh()
+        let marker = Data("cache already in memory".utf8)
+        try marker.write(to: cacheURL)
+
+        await store.refresh()
+
+        XCTAssertEqual(try Data(contentsOf: cacheURL), marker)
+    }
+
+    @MainActor
+    func testRefreshWithNewUsageSavesItToTheCacheFile() async throws {
+        let firstInput = 10
+        let laterInput = 100
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { nil })
+        let store = try storeScanningSession(model: "claude-sonnet-4-6", inputTokens: firstInput, outputTokens: 0,
+                                             catalog: catalog, root: root)
+        await store.refresh()
+        try writeSession(root: root, model: "claude-sonnet-4-6", inputTokens: laterInput, outputTokens: 0,
+                         requestId: "r2")
+
+        await store.refresh()
+
+        let saved = CostUsageCacheStore.load(url: root.appendingPathComponent("cache.json"))
+        let savedInput = saved.buckets.values.flatMap(\.values).map(\.input).reduce(0, +)
+        XCTAssertEqual(savedInput, firstInput + laterInput)
+    }
+
     private actor FetchCounter {
         private(set) var count = 0
         func increment() { count += 1 }
