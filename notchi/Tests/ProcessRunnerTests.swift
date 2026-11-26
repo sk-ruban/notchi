@@ -8,6 +8,7 @@ final class ProcessRunnerTests: XCTestCase {
     private static let commandTimeout: TimeInterval = 2
     private static let shortTimeout: TimeInterval = 0.2
     private static let longRunningSeconds = "5"
+    private static let stdoutAfterStderr = "done"
 
     func testOutputLargerThanThePipeBufferIsReturnedWhole() {
         let output = runProcessWithTimeout(
@@ -16,7 +17,17 @@ final class ProcessRunnerTests: XCTestCase {
             commandTimeout: Self.commandTimeout
         )
 
-        XCTAssertEqual(output?.count, Self.largeOutputByteCount)
+        XCTAssertEqual(output, Data(count: Self.largeOutputByteCount))
+    }
+
+    func testStdoutIsReturnedAfterMoreThanThePipeBufferGoesToStderr() {
+        let output = runProcessWithTimeout(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "head -c \(Self.largeOutputByteCount) /dev/zero >&2; printf '\(Self.stdoutAfterStderr)'"],
+            commandTimeout: Self.commandTimeout
+        )
+
+        XCTAssertEqual(output, Data(Self.stdoutAfterStderr.utf8))
     }
 
     func testProcessOutlivingTheTimeoutReturnsNil() {
