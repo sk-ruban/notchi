@@ -96,7 +96,8 @@ final class EmotionAnalysisCredentials {
     }
 
     private static func signature(of url: URL) -> SettingsFileSignature {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        // A symlink's own attributes don't change when its target (often a dotfiles checkout) is edited.
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.resolvingSymlinksInPath().path)
         return SettingsFileSignature(
             path: url.path,
             size: attributes?[.size] as? UInt64,

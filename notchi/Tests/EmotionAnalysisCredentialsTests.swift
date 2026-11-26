@@ -119,6 +119,19 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
         XCTAssertEqual(credentials.claudeSettingsConfig()?.apiKey, expectedAuthToken)
     }
 
+    func testChangedTargetOfSymlinkedClaudeSettingsIsLoadedAgain() throws {
+        let expectedAuthToken = "token-two"
+        let targetURL = settingsDirectory.appendingPathComponent("dotfiles-settings.json")
+        try writeSettings(authToken: "token-one", to: targetURL)
+        try FileManager.default.createSymbolicLink(at: settingsURL, withDestinationURL: targetURL)
+        let credentials = makeCredentials(keychain: { _ in nil })
+        _ = credentials.claudeSettingsConfig()
+
+        try writeSettings(authToken: expectedAuthToken, to: targetURL)
+
+        XCTAssertEqual(credentials.claudeSettingsConfig()?.apiKey, expectedAuthToken)
+    }
+
     private var settingsURL: URL {
         settingsDirectory.appendingPathComponent("settings.json")
     }
@@ -138,8 +151,8 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
         )
     }
 
-    private func writeSettings(authToken: String) throws {
+    private func writeSettings(authToken: String, to url: URL? = nil) throws {
         let data = try JSONSerialization.data(withJSONObject: ["env": ["ANTHROPIC_AUTH_TOKEN": authToken]])
-        try data.write(to: settingsURL)
+        try data.write(to: url ?? settingsURL)
     }
 }
