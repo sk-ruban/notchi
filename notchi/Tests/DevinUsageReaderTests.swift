@@ -269,7 +269,8 @@ final class DevinUsageReaderTests: XCTestCase {
         let runQuery: @Sendable (String, String) -> String? = { _, _ in encoded.withLock { $0 } }
 
         _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
-        encoded.withLock { $0 = Self.encodedUserStatus(dailyRemaining: 60) }
+        let updatedStatus = Self.encodedUserStatus(dailyRemaining: 60)
+        encoded.withLock { $0 = updatedStatus }
         try Data("wal frame".utf8).write(to: URL(fileURLWithPath: databaseURL.path + "-wal"))
         let usage = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
 
@@ -285,7 +286,7 @@ final class DevinUsageReaderTests: XCTestCase {
         )).base64EncodedString()
     }
 
-    private static func countingQuery(
+    private nonisolated static func countingQuery(
         _ count: OSAllocatedUnfairLock<Int>,
         returning encoded: String
     ) -> @Sendable (String, String) -> String? {
