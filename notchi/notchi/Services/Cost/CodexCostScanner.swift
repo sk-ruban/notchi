@@ -22,6 +22,7 @@ nonisolated final class CodexCostScanner {
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
         let sinceKey = DailyCostReport.dayKey(windowStart, calendar: calendar)
+        let cutoffDay = CostLogLine.cutoffDay(forWindowStart: windowStart, calendar: calendar)
 
         let isoFractional = ISO8601DateFormatter()
         isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -33,12 +34,19 @@ nonisolated final class CodexCostScanner {
             let path = url.path
             var state = cache.files[path] ?? .init(size: 0, mtime: 0, offset: 0)
             if state.size == log.size, state.mtime == log.mtime { continue }
+            // Nothing written before the window counts. Offset 0 makes a later write read the file from the top,
+            // so it still picks up the session's model and running totals.
+            if log.mtime < windowStart.timeIntervalSince1970 {
+                cache.files[path] = .init(size: log.size, mtime: log.mtime, offset: 0)
+                continue
+            }
             // `track` rebuilt the cache if any file shrank, so every tracked offset is still valid.
             let startOffset = state.offset
             let resume = startOffset > 0 ? state.codexResume : nil
             if startOffset > 0 { seen.formUnion(state.recentDedupKeys ?? []) }
 
-            let result = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, resume: resume,
+            let result = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, cutoffDay: cutoffDay,
+                                   resume: resume,
                                    seen: &seen, isoFractional: isoFractional, isoPlain: isoPlain,
                                    into: &cache.buckets)
             state.offset = result.offset
@@ -52,7 +60,7 @@ nonisolated final class CodexCostScanner {
         return cache
     }
 
-    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String,
+    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String, cutoffDay: Data,
                                        resume: CostUsageCache.CodexResume?,
                                        seen: inout Set<String>,
                                        isoFractional: ISO8601DateFormatter, isoPlain: ISO8601DateFormatter,
@@ -82,7 +90,7 @@ nonisolated final class CodexCostScanner {
             if data[i] == newline {
                 let lineData = data[lineStart..<i]
                 consumed += Int64(lineData.count) + 1
-                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, currentModel: &currentModel,
+                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, cutoffDay: cutoffDay, currentModel: &currentModel,
                                              runningBaseline: &runningBaseline, seen: &seen,
                                              isoFractional: isoFractional, isoPlain: isoPlain, into: &buckets) {
                     dedupKeys.append(dedupKey)
@@ -100,14 +108,16 @@ nonisolated final class CodexCostScanner {
                                    baseCached: baseline?.cached, baseOutput: baseline?.output)
     }
 
-    nonisolated private func handleLine(_ lineData: Data, sinceKey: String,
+    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, cutoffDay: Data,
                                         currentModel: inout String?,
                                         runningBaseline: inout (input: Int, cached: Int, output: Int)?,
                                         seen: inout Set<String>,
                                         isoFractional: ISO8601DateFormatter, isoPlain: ISO8601DateFormatter,
                                         into buckets: inout DayModelBuckets) -> String? {
-        guard lineData.range(of: Data(#""token_count""#.utf8)) != nil
-            || lineData.range(of: Data(#""turn_context""#.utf8)) != nil else { return nil }
+        let mentionsTurnContext = lineData.range(of: Data(#""turn_context""#.utf8)) != nil
+        guard mentionsTurnContext || lineData.range(of: Data(#""token_count""#.utf8)) != nil else { return nil }
+        // A turn context sets the model for the lines after it, however old, so only token counts skip by date.
+        if !mentionsTurnContext, CostLogLine.isDated(lineData, before: cutoffDay) { return nil }
         guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
               let type_ = obj["type"] as? String else { return nil }
 

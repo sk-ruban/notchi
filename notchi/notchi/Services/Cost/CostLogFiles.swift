@@ -62,3 +62,35 @@ extension CostUsageCache {
         }
     }
 }
+
+nonisolated enum CostLogLine {
+    // A timestamp written with a UTC offset (-12:00 to +14:00) can name a day up to two days off the local one.
+    static let timeZoneSlackDays = 2
+
+    private static let timestampKey = Data(#""timestamp""#.utf8)
+    private static let valueStart = Data(#":""#.utf8)
+    private static let dayLength = "yyyy-MM-dd".count
+
+    /// The day a line's timestamp must reach to possibly fall in a window starting at `windowStart`.
+    static func cutoffDay(forWindowStart windowStart: Date, calendar: Calendar) -> Data {
+        let cutoff = calendar.date(byAdding: .day, value: -timeZoneSlackDays, to: windowStart) ?? windowStart
+        return Data(DailyCostReport.dayKey(cutoff, calendar: calendar).utf8)
+    }
+
+    /// True when the line has a timestamp and every one is dated before `cutoffDay`, so parsing it can be skipped.
+    /// Every one is checked because tool input nested in the line can carry its own.
+    static func isDated(_ line: Data, before cutoffDay: Data) -> Bool {
+        var searchStart = line.startIndex
+        var foundTimestamp = false
+        while let key = line.range(of: timestampKey, in: searchStart..<line.endIndex) {
+            let dayStart = key.upperBound + valueStart.count
+            let dayEnd = dayStart + dayLength
+            guard dayEnd <= line.endIndex,
+                  line[key.upperBound..<dayStart] == valueStart,
+                  line[dayStart..<dayEnd].lexicographicallyPrecedes(cutoffDay) else { return false }
+            foundTimestamp = true
+            searchStart = dayEnd
+        }
+        return foundTimestamp
+    }
+}

@@ -135,6 +135,56 @@ final class ClaudeCostScannerTests: XCTestCase {
         XCTAssertEqual(second.files.keys.map { URL(fileURLWithPath: $0).lastPathComponent }, [kept.lastPathComponent])
     }
 
+    func testLogLastModifiedBeforeWindowIsTrackedUnread() throws {
+        let unreadOffset: Int64 = 0
+        let url = try writeFile([line(msgId: "m1", reqId: "r1", input: 100, output: 0, day: "2026-04-01")])
+        try FileManager.default.setAttributes(
+            [.modificationDate: ISO8601DateFormatter().date(from: "2026-04-01T13:00:00Z")!], ofItemAtPath: url.path)
+        let fileSize = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber).int64Value
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!)
+
+        let state = try XCTUnwrap(out.files.values.first)
+        XCTAssertEqual(state.size, fileSize)
+        XCTAssertEqual(state.offset, unreadOffset)
+    }
+
+    func testLineDatedTwoDaysBeforeWindowStartByItsOwnOffsetIsCountedWhenInsideTheWindowLocally() throws {
+        // 2026-05-24T23:00-12:00 is 2026-05-26 01:00 in UTC+14, the first day of a window ending 2026-06-24.
+        let inputTokens = 100
+        let reply = """
+        {"type":"assistant","timestamp":"2026-05-24T23:00:00-12:00","requestId":"r1",\
+        "message":{"id":"m1","model":"claude-opus-4-20250101",\
+        "usage":{"input_tokens":\(inputTokens),"output_tokens":0,\
+        "cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+        """
+        let url = try writeFile([reply])
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Pacific/Kiritimati")!
+        let s = ClaudeCostScanner(projectsRoots: [url.deletingLastPathComponent().deletingLastPathComponent()],
+                                  pricing: FlatPrice(), windowDays: 30, calendar: cal)
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T00:00:00Z")!)
+
+        XCTAssertEqual(out.buckets["2026-05-26"]?["claude-opus-4"]?.input, inputTokens)
+    }
+
+    func testReplyInWindowIsCountedWhenItsToolInputCarriesAnOlderTimestamp() throws {
+        let inputTokens = 100
+        let reply = """
+        {"type":"assistant","requestId":"r1","message":{"id":"m1","model":"claude-opus-4-20250101",\
+        "content":[{"type":"tool_use","input":{"timestamp":"2025-01-01T00:00:00Z"}}],\
+        "usage":{"input_tokens":\(inputTokens),"output_tokens":0,\
+        "cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"timestamp":"2026-06-24T12:00:00.000Z"}
+        """
+        let url = try writeFile([reply])
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!)
+
+        XCTAssertEqual(out.buckets["2026-06-24"]?["claude-opus-4"]?.input, inputTokens)
+    }
+
     func testMessagesWithoutIdsAreNotDeduped() throws {
         let noId = """
         {"type":"assistant","timestamp":"2026-06-24T12:00:00.000Z",\
