@@ -18,7 +18,6 @@ DerivedData/
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
 
 # IDE
 *.swp
