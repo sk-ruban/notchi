@@ -9,18 +9,21 @@ import SwiftUI
 final class AnimationVisibility {
     static let shared = AnimationVisibility()
 
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
     private(set) var isDisplayAsleep = false
     private(set) var isPanelOccluded = false
 
     var isPaused: Bool { isDisplayAsleep || isPanelOccluded }
 
-    private var isWindowVisible: (NSWindow) -> Bool = AnimationVisibility.isOnScreen
+    private var isWindowVisible: @MainActor (NSWindow) -> Bool = AnimationVisibility.isOnScreen
 
     func start(
         observing panel: NSWindow,
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         notificationCenter: NotificationCenter = .default,
-        isWindowVisible: @escaping (NSWindow) -> Bool = AnimationVisibility.isOnScreen
+        isWindowVisible: @escaping @MainActor (NSWindow) -> Bool = AnimationVisibility.isOnScreen
     ) {
         self.isWindowVisible = isWindowVisible
         updateOcclusion(of: panel)
