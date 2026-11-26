@@ -95,10 +95,14 @@ private enum MarkdownBlock {
     case codeBlock(String)
 }
 
+// Hoisted so each regex compiles once rather than on every line of every render.
+private let orderedListMarkerPattern = /^(\d+)\.\s+/
+private let orderedListItemPattern = /^(\d+)\.\s+(.+)$/
+
 private func isBlockLevelLine(_ line: String) -> Bool {
     line.hasPrefix("```") || line.hasPrefix("> ") ||
     line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") ||
-    line.firstMatch(of: /^(\d+)\.\s+/) != nil ||
+    line.firstMatch(of: orderedListMarkerPattern) != nil ||
     line.trimmingCharacters(in: .whitespaces).isEmpty
 }
 
@@ -134,7 +138,7 @@ private func parseBlocks(_ text: String) -> [MarkdownBlock] {
             continue
         }
 
-        if let match = line.firstMatch(of: /^(\d+)\.\s+(.+)$/) {
+        if let match = line.firstMatch(of: orderedListItemPattern) {
             blocks.append(.orderedListItem(Int(match.1) ?? 1, String(match.2)))
             i += 1
             continue
