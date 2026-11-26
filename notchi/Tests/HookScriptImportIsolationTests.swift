@@ -196,6 +196,277 @@ final class HookScriptImportIsolationTests: XCTestCase {
         )
     }
 
+    private static let maxToolInputTextLength = 2_000
+
+    private func deliver(
+        scriptName: String,
+        sessionId: String,
+        payload: String,
+        extraEnvironment: [String: String] = [:],
+        agentArgument: String? = nil,
+        agentWrapsHookInShell: Bool = false
+    ) async throws -> AgentHookEnvelope {
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: recorder)
+        let script = try stageScript(named: scriptName, socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        _ = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: payload,
+            extraEnvironment: extraEnvironment,
+            agentArgument: agentArgument,
+            agentWrapsHookInShell: agentWrapsHookInShell
+        )
+
+        _ = await waitUntil(timeout: 2) {
+            await recorder.snapshot().contains { $0.sessionId == sessionId }
+        }
+        let snapshot = await recorder.snapshot()
+        return try XCTUnwrap(snapshot.first { $0.sessionId == sessionId }, "\(scriptName) never delivered its event")
+    }
+
+    func testClaudeHookMarksAPromptFromAPrintModeAgentNonInteractive() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-print-mode",
+            payload: #"{"hook_event_name":"UserPromptSubmit","session_id":"claude-print-mode","prompt":"hi"}"#,
+            agentArgument: "--print"
+        )
+
+        XCTAssertEqual(envelope.interactive, false)
+    }
+
+    func testClaudeHookMarksAPromptNonInteractiveWhenAPrintModeAgentWrapsTheHookInAShell() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-print-mode-wrapped",
+            payload: #"{"hook_event_name":"UserPromptSubmit","session_id":"claude-print-mode-wrapped","prompt":"hi"}"#,
+            agentArgument: "--print",
+            agentWrapsHookInShell: true
+        )
+
+        XCTAssertEqual(envelope.interactive, false)
+    }
+
+    func testClaudeHookMarksAPromptFromATerminalAgentInteractive() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-terminal",
+            payload: #"{"hook_event_name":"UserPromptSubmit","session_id":"claude-terminal","prompt":"hi"}"#
+        )
+
+        XCTAssertEqual(envelope.interactive, true)
+    }
+
+    func testClaudeHookMarksAPermissionRequestFromAPrintModeAgentNonInteractive() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-print-permission",
+            payload: #"{"hook_event_name":"PermissionRequest","session_id":"claude-print-permission","tool_name":"Bash"}"#,
+            agentArgument: "-p"
+        )
+
+        XCTAssertEqual(envelope.interactive, false)
+    }
+
+    func testDevinHookMarksAPromptFromAPrintModeAgentNonInteractive() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let envelope = try await deliver(
+            scriptName: "notchi-devin-hook",
+            sessionId: "devin-print-mode",
+            payload: #"{"hook_event_name":"UserPromptSubmit","session_id":"devin-print-mode","prompt":"hi"}"#,
+            extraEnvironment: ["DEVIN_PROJECT_DIR": "/tmp/devin-project"],
+            agentArgument: "--print"
+        )
+
+        XCTAssertEqual(envelope.interactive, false)
+    }
+
+    func testClaudeHookKeepsTheStartOfLongToolInputTextAndFieldsNotchiReadsWhole() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let filePath = "/tmp/project/notes.md"
+        let longCommand = "echo " + String(repeating: "c", count: Self.maxToolInputTextLength * 2)
+        let longContent = "start-" + String(repeating: "x", count: Self.maxToolInputTextLength * 3) + "-end"
+        let toolInput = try String(decoding: JSONSerialization.data(withJSONObject: [
+            "file_path": filePath, "content": longContent, "command": longCommand,
+        ]), as: UTF8.self)
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-long-write",
+            payload: #"{"hook_event_name":"PreToolUse","session_id":"claude-long-write","tool_name":"Write","tool_use_id":"t1","tool_input":\#(toolInput)}"#
+        )
+
+        XCTAssertEqual(envelope.toolInput?["file_path"]?.value as? String, filePath)
+        XCTAssertEqual(envelope.toolInput?["command"]?.value as? String, longCommand)
+        XCTAssertEqual(envelope.toolInput?["content"]?.value as? String, String(longContent.prefix(Self.maxToolInputTextLength)))
+    }
+
+    func testDevinHookKeepsTheStartOfLongToolInputText() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let longContent = "start-" + String(repeating: "x", count: Self.maxToolInputTextLength * 3) + "-end"
+
+        let envelope = try await deliver(
+            scriptName: "notchi-devin-hook",
+            sessionId: "devin-long-write",
+            payload: #"{"hook_event_name":"PreToolUse","session_id":"devin-long-write","tool_name":"write","tool_input":{"content":"\#(longContent)"}}"#,
+            extraEnvironment: ["DEVIN_PROJECT_DIR": "/tmp/devin-project"]
+        )
+
+        XCTAssertEqual(envelope.toolInput?["content"]?.value as? String, String(longContent.prefix(Self.maxToolInputTextLength)))
+    }
+
+    func testClaudeHookKeepsAskUserQuestionInputWhole() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let longQuestion = String(repeating: "q", count: Self.maxToolInputTextLength * 2)
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-long-question",
+            payload: #"{"hook_event_name":"PreToolUse","session_id":"claude-long-question","tool_name":"AskUserQuestion","tool_use_id":"t2","tool_input":{"questions":[{"question":"\#(longQuestion)"}]}}"#
+        )
+
+        let questions = envelope.toolInput?["questions"]?.value as? [[String: Any]]
+        XCTAssertEqual(questions?.first?["question"] as? String, longQuestion)
+    }
+
+    func testClaudeHookKeepsPermissionRequestInputWhole() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let longContent = String(repeating: "x", count: Self.maxToolInputTextLength * 3)
+
+        let envelope = try await deliver(
+            scriptName: "notchi-hook",
+            sessionId: "claude-long-permission",
+            payload: #"{"hook_event_name":"PermissionRequest","session_id":"claude-long-permission","tool_name":"Write","tool_input":{"file_path":"/tmp/a","content":"\#(longContent)"}}"#,
+            agentArgument: "--print"
+        )
+
+        XCTAssertEqual(envelope.toolInput?["content"]?.value as? String, longContent)
+    }
+
+    func testCodexHookDetectsAnImageOnAPromptAtTheEndOfALargeTranscript() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let prompt = "what is in this screenshot"
+        let fillerLine = #"{"type":"response_item","payload":{"type":"message","content":"\#(String(repeating: "f", count: 4_000))"}}"#
+        let promptLine = #"{"type":"event_msg","payload":{"type":"user_message","message":"\#(prompt)","images":["data:image/png;base64,AAAA"]}}"#
+        let fillerLineCount = 1_000
+        let transcript = try XCTUnwrap(stagingDirectory).appendingPathComponent("large-rollout.jsonl")
+        let contents = Array(repeating: fillerLine, count: fillerLineCount) + [promptLine]
+        try Data((contents.joined(separator: "\n") + "\n").utf8).write(to: transcript)
+
+        let envelope = try await deliver(
+            scriptName: "notchi-codex-hook",
+            sessionId: "codex-large-transcript",
+            payload: #"{"hook_event_name":"UserPromptSubmit","session_id":"codex-large-transcript","cwd":"/tmp","transcript_path":"\#(transcript.path)","prompt":"\#(prompt)"}"#
+        )
+
+        XCTAssertEqual(envelope.hasAttachments, true)
+    }
+
+    func testClaudeHookDoesNotWaitForAnAnswerToAPrintModePermissionRequest() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let recorder = EventRecorder()
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: recorder, response: Data(#"{"decision":"allow"}"#.utf8))
+        let script = try stageScript(named: "notchi-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+
+        let result = try runHook(
+            script: script,
+            workingDirectory: workspace.directory,
+            payload: #"{"hook_event_name":"PermissionRequest","session_id":"headless-permission","tool_name":"Bash"}"#,
+            agentArgument: "--print"
+        )
+        let delivered = await waitUntil(timeout: 2) {
+            await recorder.snapshot().contains { $0.sessionId == "headless-permission" }
+        }
+        XCTAssertTrue(delivered, "precondition: the hook reached notchi")
+
+        XCTAssertEqual(result.standardOutput, "")
+    }
+
+    private func deliverCodexPrompt(_ prompt: String, transcriptLines: [String], sessionId: String) async throws -> AgentHookEnvelope {
+        let transcript = try XCTUnwrap(stagingDirectory).appendingPathComponent("\(sessionId).jsonl")
+        try Data((transcriptLines.joined(separator: "\n") + "\n").utf8).write(to: transcript)
+        return try await deliver(
+            scriptName: "notchi-codex-hook",
+            sessionId: sessionId,
+            payload: #"{"hook_event_name":"UserPromptSubmit","session_id":"\#(sessionId)","cwd":"/tmp","transcript_path":"\#(transcript.path)","prompt":"\#(prompt)"}"#
+        )
+    }
+
+    private func codexPromptLine(_ prompt: String, imageData: String = "AAAA") -> String {
+        #"{"type":"event_msg","payload":{"type":"user_message","message":"\#(prompt)","images":["data:image/png;base64,\#(imageData)"]}}"#
+    }
+
+    private static let codexFillerLine = #"{"type":"response_item","payload":{"type":"message","content":"filler"}}"#
+
+    func testCodexHookDetectsAnImageOnAPromptLineLargerThanTwoMegabytes() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let prompt = "describe this large screenshot"
+        let largeImage = String(repeating: "A", count: 3 * 1024 * 1024)
+
+        let envelope = try await deliverCodexPrompt(
+            prompt,
+            transcriptLines: [Self.codexFillerLine, codexPromptLine(prompt, imageData: largeImage)],
+            sessionId: "codex-large-prompt-line"
+        )
+
+        XCTAssertEqual(envelope.hasAttachments, true)
+    }
+
+    func testCodexHookDetectsAnImageOnAPromptFollowedByALineLargerThanTwoMegabytes() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let prompt = "what changed here"
+        let largeLine = #"{"type":"response_item","payload":{"type":"message","content":"\#(String(repeating: "r", count: 3 * 1024 * 1024))"}}"#
+
+        let envelope = try await deliverCodexPrompt(
+            prompt,
+            transcriptLines: [codexPromptLine(prompt), largeLine],
+            sessionId: "codex-large-following-line"
+        )
+
+        XCTAssertEqual(envelope.hasAttachments, true)
+    }
+
+    func testCodexHookDetectsAnImageOnAPromptTwoHundredLinesFromTheEnd() async throws {
+        try skipUnlessStdlibPythonRuns()
+        let prompt = "still in the window"
+        // The hook looks back over the last 200 transcript lines; the prompt is the oldest of them.
+        // 199 lines of 5,000 bytes fill just under the hook's 1 MB read, so the prompt line (about
+        // 60 KB with its image) crosses that read's start and needs a second read to be whole.
+        let linesAfterPrompt = 199
+        let fillerLineBytes = 5_000
+        let fillerPrefix = #"{"type":"response_item","payload":{"type":"message","content":""#
+        let fillerSuffix = #""}}"#
+        let sizedFillerLine = fillerPrefix
+            + String(repeating: "f", count: fillerLineBytes - 1 - fillerPrefix.utf8.count - fillerSuffix.utf8.count)
+            + fillerSuffix
+        let promptImage = String(repeating: "A", count: 60_000)
+
+        let envelope = try await deliverCodexPrompt(
+            prompt,
+            transcriptLines: [Self.codexFillerLine, codexPromptLine(prompt, imageData: promptImage)]
+                + Array(repeating: sizedFillerLine, count: linesAfterPrompt),
+            sessionId: "codex-prompt-at-window-edge"
+        )
+
+        XCTAssertEqual(envelope.hasAttachments, true)
+    }
+
     func testBundledHooksRunPythonInIsolatedMode() throws {
         for name in Self.bundledHookNames {
             let script = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
@@ -424,11 +695,21 @@ final class HookScriptImportIsolationTests: XCTestCase {
         script: URL,
         workingDirectory: URL,
         payload: String,
-        extraEnvironment: [String: String] = [:]
+        extraEnvironment: [String: String] = [:],
+        agentArgument: String? = nil,
+        agentWrapsHookInShell: Bool = false
     ) throws -> (standardOutput: String, standardError: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [script.path]
+        if let agentArgument {
+            // Launch through a parent shell whose arguments end with `agentArgument`, the way an agent
+            // started as `claude --print` would. The trailing `true` keeps bash from exec'ing the script.
+            let hook = "/bin/bash \(HookFile.shellQuote(script.path)); true"
+            let command = agentWrapsHookInShell ? "/bin/bash -c \"\(hook)\"; true" : hook
+            process.arguments = ["-c", command, agentArgument]
+        } else {
+            process.arguments = [script.path]
+        }
         process.currentDirectoryURL = workingDirectory
         process.environment = Self.agentLikeEnvironment.merging(extraEnvironment) { _, new in new }
 
@@ -439,10 +720,12 @@ final class HookScriptImportIsolationTests: XCTestCase {
         process.standardOutput = output
         process.standardError = error
 
+        // A hook that exits before reading stdin must fail the test, not kill the test process with SIGPIPE.
+        _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         try process.run()
 
-        input.fileHandleForWriting.write(Data(payload.utf8))
-        input.fileHandleForWriting.closeFile()
+        try? input.fileHandleForWriting.write(contentsOf: Data(payload.utf8))
+        try? input.fileHandleForWriting.close()
 
         let pendingOutput = readConcurrently(output.fileHandleForReading)
         let pendingError = readConcurrently(error.fileHandleForReading)
