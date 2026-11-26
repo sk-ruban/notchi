@@ -24,13 +24,14 @@ enum SpriteLayout {
 struct IslandBackgroundView: View {
     let background: IslandBackground
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isAnimationPaused) private var isAnimationPaused
 
     var body: some View {
         GeometryReader { geometry in
             if background == .automatic {
                 AutomaticIslandBackgroundView()
             } else if background == .water {
-                TimelineView(.animation(minimumInterval: 1 / WaterAnimation.framesPerSecond, paused: reduceMotion)) { timeline in
+                TimelineView(.animation(minimumInterval: 1 / WaterAnimation.framesPerSecond, paused: reduceMotion || isAnimationPaused)) { timeline in
                     let frame = WaterAnimation.frameIndex(at: timeline.date, reduceMotion: reduceMotion)
                     Rectangle().fill(tilePaint(assetName: WaterAnimation.assetName(frame: frame)))
                 }
@@ -282,6 +283,7 @@ private struct GrassSpriteView: View {
     var glowOpacity: Double = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isAnimationPaused) private var isAnimationPaused
     @Environment(\.panelScale) private var panelScale
     @State private var stateMirrorKey: String?
     @State private var stateMirrored = false
@@ -299,14 +301,13 @@ private struct GrassSpriteView: View {
     var body: some View {
         let motion = GrassSpriteMotion(state: state, reduceMotion: reduceMotion)
         let spriteSize = SpriteLayout.size * SpriteLayout.spriteScale(panelScale: panelScale)
-        return TimelineView(.animation(minimumInterval: motion.frameInterval, paused: !motion.isAnimating)) { timeline in
+        return TimelineView(.animation(minimumInterval: motion.frameInterval, paused: isAnimationPaused || !motion.isAnimating)) { timeline in
             let presentation = spriteSheetPresentation(at: timeline.date)
             SpriteSheetView(
                 spriteSheet: presentation.spriteSheetName,
                 frameCount: state.frameCount,
                 columns: state.columns,
                 fps: state.animationFPS,
-                isAnimating: true,
                 animationStartDate: SpriteAnimationPhase.variedLoopAnchor(for: sessionId, spriteSheet: state.spriteSheetName),
                 isMirrored: presentation.renderMirrored
             )

@@ -168,6 +168,7 @@ struct NotchContentView: View {
     var codexUsageService: CodexUsageService = .shared
     var devinUsageService: DevinUsageService = .shared
     var haptics: HapticService = .shared
+    var animationVisibility: AnimationVisibility = .shared
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject private var updateManager = UpdateManager.shared
     @AppStorage(AppSettings.notchLeftContentKey) private var leftContentRaw = NotchSlotContent.ring.rawValue
@@ -725,6 +726,7 @@ struct NotchContentView: View {
         .onChange(of: isCollapsedRingVisible) { _, _ in
             panelManager.refreshIdleMode()
         }
+        .environment(\.isAnimationPaused, animationVisibility.isPaused)
     }
 
     @ViewBuilder
