@@ -44,9 +44,9 @@ struct ClaudeUsageServiceDependencies {
     var fetchUsage: (URLRequest) async throws -> (Data, URLResponse)
     var getOAuthTokenFromEnvironment: () -> String?
     var getCachedOAuthToken: () -> String?
-    var getOAuthCredentials: (_ allowInteraction: Bool) -> ClaudeOAuthCredentials?
+    var getOAuthCredentials: (_ allowInteraction: Bool) async -> ClaudeOAuthCredentials?
     var cacheOAuthToken: (_ token: String) -> Void
-    var refreshAccessTokenSilently: () -> String?
+    var refreshAccessTokenSilently: () async -> String?
     var clearCachedOAuthToken: () -> Void
     var loadRecoverySnapshot: () -> ClaudeUsageRecoverySnapshot?
     var saveRecoverySnapshot: (ClaudeUsageRecoverySnapshot) -> Void
@@ -675,13 +675,18 @@ extension ClaudeUsageServiceDependencies {
                 KeychainManager.getCachedOAuthToken(service: service)
             },
             getOAuthCredentials: { allowInteraction in
-                KeychainManager.getOAuthCredentials(service: service, allowInteraction: allowInteraction)
+                // WHY: the /usr/bin/security read can block for seconds, and every account does one.
+                await Task.detached(priority: .utility) {
+                    KeychainManager.getOAuthCredentials(service: service, allowInteraction: allowInteraction)
+                }.value
             },
             cacheOAuthToken: { token in
                 KeychainManager.cacheOAuthToken(token, service: service)
             },
             refreshAccessTokenSilently: {
-                KeychainManager.refreshAccessTokenSilently(service: service)
+                await Task.detached(priority: .utility) {
+                    KeychainManager.refreshAccessTokenSilently(service: service)
+                }.value
             },
             clearCachedOAuthToken: {
                 KeychainManager.clearCachedOAuthToken(service: service)
@@ -847,7 +852,7 @@ final class ClaudeUsageService {
         stopPolling()
 
         Task {
-            guard let resolution = resolveStoredAccessToken(
+            guard let resolution = await resolveStoredAccessToken(
                 allowsCredentialRecovery: true,
                 prefersRecoveredCredentials: true
             ) else {
@@ -907,7 +912,7 @@ final class ClaudeUsageService {
                 return
             }
 
-            guard let resolution = resolveStoredAccessToken(allowsCredentialRecovery: true) else {
+            guard let resolution = await resolveStoredAccessToken(allowsCredentialRecovery: true) else {
                 isConnected = false
                 clearOAuthBackoffState()
                 if currentUsage != nil {
@@ -956,7 +961,7 @@ final class ClaudeUsageService {
     private func resolveStoredAccessToken(
         allowsCredentialRecovery: Bool,
         prefersRecoveredCredentials: Bool = false
-    ) -> ClaudeUsageAccessTokenResolution? {
+    ) async -> ClaudeUsageAccessTokenResolution? {
         var recoveredCredentials: ClaudeOAuthCredentials?
         var attemptedCredentialRecovery = false
 
@@ -970,7 +975,7 @@ final class ClaudeUsageService {
 
         if prefersRecoveredCredentials, allowsCredentialRecovery {
             attemptedCredentialRecovery = true
-            recoveredCredentials = dependencies.getOAuthCredentials(false)
+            recoveredCredentials = await dependencies.getOAuthCredentials(false)
             if let silentCredentials = recoveredCredentials {
                 let recoveredToken = silentCredentials.accessToken
                 dependencies.cacheOAuthToken(recoveredToken)
@@ -987,7 +992,7 @@ final class ClaudeUsageService {
         }
 
         if !attemptedCredentialRecovery {
-            recoveredCredentials = dependencies.getOAuthCredentials(false)
+            recoveredCredentials = await dependencies.getOAuthCredentials(false)
         }
 
         if let silentCredentials = recoveredCredentials {
@@ -1073,7 +1078,7 @@ final class ClaudeUsageService {
         selfHealRetryTimer = nil
         guard dependencies.isUsageEnabled(), pollTimer == nil, !isLoading else { return }
 
-        guard let resolution = resolveStoredAccessToken(
+        guard let resolution = await resolveStoredAccessToken(
             allowsCredentialRecovery: true,
             prefersRecoveredCredentials: true
         ) else {
@@ -1294,7 +1299,7 @@ final class ClaudeUsageService {
                     consecutiveRateLimits += 1
 
                     if consecutiveRateLimits >= 3,
-                       let freshToken = dependencies.refreshAccessTokenSilently(),
+                       let freshToken = await dependencies.refreshAccessTokenSilently(),
                        freshToken != accessToken {
                         cachedToken = freshToken
                         consecutiveRateLimits = 0
@@ -1537,7 +1542,7 @@ final class ClaudeUsageService {
         oauthRecheckCounter = 0
         dependencies.clearCachedOAuthToken()
 
-        switch resolveAuthFailureResolution(after401With: currentToken) {
+        switch await resolveAuthFailureResolution(after401With: currentToken) {
         case let .retry(freshToken):
             cachedToken = freshToken
             consecutiveRateLimits = 0
@@ -1564,7 +1569,11 @@ final class ClaudeUsageService {
         allowPreflightRefreshRecovery: Bool,
         cachedCredentials: ClaudeOAuthCredentials?
     ) async -> PreflightResult {
-        guard let credentials = cachedCredentials ?? dependencies.getOAuthCredentials(false) else {
+        var credentials = cachedCredentials
+        if credentials == nil {
+            credentials = await dependencies.getOAuthCredentials(false)
+        }
+        guard let credentials else {
             return .proceed(accessToken)
         }
 
@@ -1601,7 +1610,7 @@ final class ClaudeUsageService {
             }
 
             if allowPreflightRefreshRecovery,
-               let freshToken = dependencies.refreshAccessTokenSilently(),
+               let freshToken = await dependencies.refreshAccessTokenSilently(),
                freshToken != effectiveAccessToken {
                 cachedToken = freshToken
                 consecutiveRateLimits = 0
@@ -1623,8 +1632,8 @@ final class ClaudeUsageService {
         return .proceed(effectiveAccessToken)
     }
 
-    private func resolveAuthFailureResolution(after401With currentToken: String) -> ClaudeUsageAuthFailureResolution {
-        guard let credentials = dependencies.getOAuthCredentials(false) else {
+    private func resolveAuthFailureResolution(after401With currentToken: String) async -> ClaudeUsageAuthFailureResolution {
+        guard let credentials = await dependencies.getOAuthCredentials(false) else {
             return .reconnect(String(localized: "Token expired."))
         }
 
@@ -1648,7 +1657,7 @@ final class ClaudeUsageService {
         clearOAuthBackoffState()
         dependencies.clearCachedOAuthToken()
 
-        if let freshToken = dependencies.refreshAccessTokenSilently(),
+        if let freshToken = await dependencies.refreshAccessTokenSilently(),
            freshToken != currentToken {
             cachedToken = freshToken
             consecutiveRateLimits = 0
