@@ -59,8 +59,11 @@ enum FileChipText {
         return iconByExtension[String(basename[basename.index(after: dot)...])]
     }
 
+    // Hoisted so the regex compiles once rather than on every run of every render.
+    private static let filenamePattern = /\.?[A-Za-z0-9_][A-Za-z0-9_.+-]*\.[A-Za-z0-9]{1,12}/
+
     static func isFilenameShaped(_ text: String) -> Bool {
-        text.wholeMatch(of: /\.?[A-Za-z0-9_][A-Za-z0-9_.+-]*\.[A-Za-z0-9]{1,12}/) != nil
+        text.wholeMatch(of: filenamePattern) != nil
             && !text.hasSuffix(".")
     }
 
