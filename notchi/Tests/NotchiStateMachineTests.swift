@@ -1012,6 +1012,27 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertEqual(session.emotionState.scores[.happy], expectedHappyScore)
     }
 
+    func testSkippedPromptStillDropsTheEarlierPromptsLateEmotion() async throws {
+        let expectedHappyScore = 0.0
+        let stateMachine = NotchiStateMachine.shared
+        var releaseFirstAnalysis: CheckedContinuation<Void, Never>?
+        stateMachine.analyzeEmotion = { _ in
+            await withCheckedContinuation { releaseFirstAnalysis = $0 }
+            return (emotion: "happy", intensity: 1.0)
+        }
+        let session = makeInteractiveSession(sessionId: "emotion-skip-cancel-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "first"))
+        let firstStarted = await waitUntil(timeout: 2) { releaseFirstAnalysis != nil }
+        XCTAssertTrue(firstStarted, "precondition: the first analysis is in flight")
+        // A newer prompt that isn't analyzed itself still starts a new turn.
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "/clear"))
+        releaseFirstAnalysis?.resume()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(session.emotionState.scores[.happy, default: 0], expectedHappyScore)
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

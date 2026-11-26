@@ -124,6 +124,8 @@ final class NotchiStateMachine {
                 startFileWatcher(sessionKey: event.sessionKey, transcriptPath: transcriptPath)
             }
 
+            // A new turn retires the previous prompt's mood, even when this prompt isn't analyzed.
+            emotionAnalysisTasks.removeValue(forKey: event.sessionKey)?.cancel()
             if session.isInteractive,
                event.provider.capabilities.supportsPromptEmotionAnalysis,
                let prompt = event.userPrompt,
@@ -200,8 +202,6 @@ final class NotchiStateMachine {
 
     private func analyzeEmotion(of prompt: String, for session: SessionData) {
         let sessionKey = session.sessionKey
-        // A slow reply to an earlier prompt must not overwrite the mood of this one.
-        emotionAnalysisTasks.removeValue(forKey: sessionKey)?.cancel()
         emotionAnalysisTasks[sessionKey] = Task {
             let result = await analyzeEmotion(prompt)
             guard !Task.isCancelled else { return }
