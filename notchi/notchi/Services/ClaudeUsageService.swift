@@ -835,6 +835,9 @@ final class ClaudeUsageService {
         stopPolling()
 
         Task {
+            // The credential read can take seconds; loading covers it so retry and self-heal wait it out.
+            isLoading = true
+            defer { isLoading = false }
             guard let resolution = await resolveStoredAccessToken(
                 allowsCredentialRecovery: true,
                 prefersRecoveredCredentials: true

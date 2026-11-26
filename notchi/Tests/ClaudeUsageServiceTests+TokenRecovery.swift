@@ -954,4 +954,52 @@ extension ClaudeUsageServiceTests {
         XCTAssertEqual(service.currentUsage?.usagePercentage, 22)
         XCTAssertEqual(scheduler.intervals, [60])
     }
+
+    // MARK: - Slow credential reads
+
+    func testConnectShowsLoadingWhileReadingCredentials() async throws {
+        let scheduler = PollSchedulerSpy()
+        let gate = CredentialReadGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { _ in (self.makeSuccessPayload(utilization: 27), self.makeResponse(statusCode: 200)) }
+        )
+        dependencies.getOAuthCredentials = { _ in await gate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        let isLoadingDuringRead = service.isLoading
+        gate.release(returning: nil)
+
+        XCTAssertTrue(isLoadingDuringRead)
+    }
+
+    private static let oneHeldRead = 1
+}
+
+/// Stands in for a slow /usr/bin/security read: holds every credential read until released.
+final class CredentialReadGate {
+    private static let maxYieldsWaitingForReads = 50
+    private var heldReads: [CheckedContinuation<ClaudeOAuthCredentials?, Never>] = []
+
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
+    func read() async -> ClaudeOAuthCredentials? {
+        await withCheckedContinuation { heldReads.append($0) }
+    }
+
+    func waitForHeldReads(_ count: Int) async {
+        for _ in 0..<Self.maxYieldsWaitingForReads where heldReads.count < count {
+            await Task.yield()
+        }
+    }
+
+    func release(returning credentials: ClaudeOAuthCredentials?) {
+        let reads = heldReads
+        heldReads.removeAll()
+        reads.forEach { $0.resume(returning: credentials) }
+    }
 }
