@@ -2129,6 +2129,30 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(session.task, .compacting)
     }
 
+    func testCodexCompactionSignalRequestsSkipIdleCodexSessions() {
+        let store = SessionStore.shared
+        let processingSessionId = "codex-compact-processing-\(UUID().uuidString)"
+        let idleSessionId = "codex-compact-idle-\(UUID().uuidString)"
+        let expectedSessionKeys = [ProviderSessionKey(provider: .codex, rawSessionId: processingSessionId)]
+        _ = store.process(makeEvent(
+            sessionId: processingSessionId,
+            provider: .codex,
+            transcriptPath: "/tmp/compact-processing-rollout.jsonl",
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        _ = store.process(makeEvent(
+            sessionId: idleSessionId,
+            provider: .codex,
+            transcriptPath: "/tmp/compact-idle-rollout.jsonl",
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+
+        XCTAssertEqual(store.codexCompactionSignalRequests().map(\.sessionKey), expectedSessionKeys)
+    }
+
     func testActiveCodexCompactionSignalPreventsWorkingEventFlicker() {
         let store = SessionStore.shared
         let sessionId = "codex-compact-no-flicker-\(UUID().uuidString)"

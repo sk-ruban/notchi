@@ -825,6 +825,100 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertEqual(resolverCalls.withLock { $0 }, 2)
     }
 
+    func testCodexThreadMetadataMonitorPollsAtIdleIntervalAfterCodexStop() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
+        let expectedIdleInterval: Duration = .seconds(45)
+        let sessionId = "codex-idle-monitor-\(UUID().uuidString)"
+        let transcriptPath = "/tmp/codex-idle-monitor.jsonl"
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+
+        XCTAssertEqual(stateMachine.codexThreadMetadataMonitorIntervalForTesting, expectedIdleInterval)
+    }
+
+    func testCodexThreadMetadataMonitorReturnsToActiveIntervalOnNextCodexPrompt() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
+        let expectedActiveInterval: Duration = .seconds(5)
+        let sessionId = "codex-active-monitor-\(UUID().uuidString)"
+        let transcriptPath = "/tmp/codex-active-monitor.jsonl"
+        let prompt = makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        )
+
+        stateMachine.handleEvent(prompt)
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+        stateMachine.handleEvent(prompt)
+
+        XCTAssertEqual(stateMachine.codexThreadMetadataMonitorIntervalForTesting, expectedActiveInterval)
+    }
+
+    func testCodexStopRefreshesThreadTitleBeforeTheNextIdlePoll() async {
+        let stateMachine = NotchiStateMachine.shared
+        let expectedTitle = "Renamed after the reply"
+        let sessionId = "codex-stop-title-\(UUID().uuidString)"
+        let sessionKey = ProviderSessionKey(provider: .codex, rawSessionId: sessionId)
+        let transcriptPath = "/tmp/codex-stop-title.jsonl"
+        SessionStore.shared.setCodexMetadataResolverForTesting { _ in
+            CodexThreadMetadata(title: "First title", archived: false)
+        }
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        let resolvedFirstTitle = await waitUntil(timeout: 2) {
+            SessionStore.shared.session(for: sessionKey)?.codexTitle == "First title"
+        }
+        XCTAssertTrue(resolvedFirstTitle, "precondition: the first event resolves the thread")
+
+        SessionStore.shared.setCodexMetadataResolverForTesting { _ in
+            CodexThreadMetadata(title: expectedTitle, archived: false)
+        }
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+        _ = await waitUntil(timeout: 2) {
+            SessionStore.shared.session(for: sessionKey)?.codexTitle == expectedTitle
+        }
+
+        XCTAssertEqual(SessionStore.shared.session(for: sessionKey)?.codexTitle, expectedTitle)
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
