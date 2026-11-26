@@ -43,14 +43,20 @@ final class ClaudeAccountStoreTests: XCTestCase {
         return directory
     }
 
-    private func makeStore() -> ClaudeAccountStore {
+    /// Only `refresh` reads hooks through the default check, which it does on the main thread.
+    private func makeStore(
+        hasNotchiHooks: (@Sendable (URL) -> Bool)? = nil,
+        refreshes: Bool = true
+    ) -> ClaudeAccountStore {
         let store = ClaudeAccountStore(
             home: home,
             defaultDirectory: { [home] in home!.appendingPathComponent(".claude", isDirectory: true) },
             defaults: defaults,
             setClaudeHooksEnabled: { [unowned self] enabled in claudeHooksEnabled = enabled },
             removeSharedScript: { [unowned self] in sharedScriptRemovals += 1 },
-            hasNotchiHooks: { [unowned self] directory in accountsWithHooks.contains(directory.lastPathComponent) },
+            hasNotchiHooks: hasNotchiHooks ?? { [unowned self] directory in
+                MainActor.assumeIsolated { accountsWithHooks.contains(directory.lastPathComponent) }
+            },
             addHooks: { [unowned self] directory in
                 guard addHooksSucceeds else { return false }
                 addedHooks.append(directory.lastPathComponent)
@@ -65,7 +71,7 @@ final class ClaudeAccountStoreTests: XCTestCase {
             accountsDidChange: { _ in },
             costAccountsDidChange: { _ in }
         )
-        store.refresh()
+        if refreshes { store.refresh() }
         return store
     }
 
@@ -115,6 +121,67 @@ final class ClaudeAccountStoreTests: XCTestCase {
         try makeAccount(".claude-personal")
 
         XCTAssertEqual(makeStore().account(forSessionDirectory: nil)?.directory.lastPathComponent, ".claude")
+    }
+
+    // MARK: - Refreshing at launch
+
+    nonisolated private static let accountRunningNotchi = ".claude-work"
+    private static let scanTimeout: TimeInterval = 5
+
+    func testBackgroundRefreshListsTheAccountsRunningNotchi() async throws {
+        try makeAccount(".claude")
+        try makeAccount(Self.accountRunningNotchi)
+        let store = makeStore(hasNotchiHooks: { $0.lastPathComponent == Self.accountRunningNotchi }, refreshes: false)
+
+        await store.refreshInBackground()
+
+        XCTAssertEqual(store.accounts.filter(\.isNotchiEnabled).map(\.directory.lastPathComponent), [Self.accountRunningNotchi])
+    }
+
+    func testBackgroundRefreshReadsHooksOffTheMainThread() async throws {
+        nonisolated final class ThreadRecorder: @unchecked Sendable {
+            var sawMainThread: Bool?
+        }
+        try makeAccount(".claude")
+        let recorder = ThreadRecorder()
+        let store = makeStore(
+            hasNotchiHooks: { _ in
+                recorder.sawMainThread = Thread.isMainThread
+                return false
+            },
+            refreshes: false
+        )
+
+        await store.refreshInBackground()
+
+        XCTAssertEqual(recorder.sawMainThread, false)
+    }
+
+    // A session noted while the launch scan is still reading must not be dropped when that older scan lands.
+    func testBackgroundRefreshKeepsASessionNotedWhileItWasReading() async throws {
+        try makeAccount(".claude")
+        let elsewhere = home.appendingPathComponent("work/claude-config", isDirectory: true)
+        let scanStarted = expectation(description: "background scan reads hooks")
+        scanStarted.assertForOverFulfill = false
+        let release = DispatchSemaphore(value: 0)
+        let store = makeStore(
+            hasNotchiHooks: { _ in
+                guard !Thread.isMainThread else { return false }
+                scanStarted.fulfill()
+                release.wait()
+                release.signal()
+                return false
+            },
+            refreshes: false
+        )
+        let backgroundRefresh = Task { await store.refreshInBackground() }
+        await fulfillment(of: [scanStarted], timeout: Self.scanTimeout)
+
+        store.noteSession(directory: elsewhere, rawConfigDir: elsewhere.path)
+        release.signal()
+        await backgroundRefresh.value
+
+        XCTAssertEqual(store.account(forSessionDirectory: elsewhere)?.directory.path, elsewhere.path)
     }
 
     // MARK: - Names and colors

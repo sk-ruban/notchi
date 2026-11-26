@@ -6,11 +6,9 @@ import Observation
 /// per-account notchi switch the user picked for each.
 @MainActor @Observable
 final class ClaudeAccountStore {
-    static let shared: ClaudeAccountStore = {
-        let store = ClaudeAccountStore()
-        store.refresh()
-        return store
-    }()
+    // Empty until the launch refresh after the hooks install. Until then no session has an account, so
+    // views show the default account either way, and a session's hook event refreshes on arrival.
+    static let shared = ClaudeAccountStore()
 
     private(set) var accounts: [ClaudeAccount] = []
     private(set) var mostRecentlyActiveAccountKey: String?
@@ -28,7 +26,7 @@ final class ClaudeAccountStore {
     private let defaults: UserDefaults
     private let setClaudeHooksEnabled: (Bool) -> Void
     private let removeSharedScript: () -> Void
-    private let hasNotchiHooks: (URL) -> Bool
+    private let hasNotchiHooks: @Sendable (URL) -> Bool
     private let addHooks: (URL) -> Bool
     private let removeHooks: (URL) -> Void
     private let accountsDidChange: @MainActor ([ClaudeUsageAccount]) -> Void
@@ -38,6 +36,7 @@ final class ClaudeAccountStore {
     private var keysBySessionPath: [String: String] = [:]
     private var accountKeysWithSessions: Set<String> = []
     private var reportedConfigDirs: [String: String?] = [:]
+    @ObservationIgnored private var refreshGeneration = 0
     // Views look this up on every render; it only changes when preferences are saved.
     @ObservationIgnored private var usageAccountsByKey: [String: ClaudeUsageAccount] = [:]
 
@@ -47,7 +46,7 @@ final class ClaudeAccountStore {
         defaults: UserDefaults = .standard,
         setClaudeHooksEnabled: @escaping (Bool) -> Void = { AppSettings.setHooksEnabled($0, for: .claude) },
         removeSharedScript: @escaping () -> Void = { HookInstaller.removeSharedScript() },
-        hasNotchiHooks: @escaping (URL) -> Bool = { HookInstaller.isHookInstalled(inAccount: $0) },
+        hasNotchiHooks: @escaping @Sendable (URL) -> Bool = { HookInstaller.isHookInstalled(inAccount: $0) },
         addHooks: @escaping (URL) -> Bool = { HookInstaller.addHooks(toAccount: $0) },
         removeHooks: @escaping (URL) -> Void = { HookInstaller.removeHooks(fromAccount: $0) },
         accountsDidChange: @escaping @MainActor ([ClaudeUsageAccount]) -> Void = { ClaudeUsageServices.shared.sync(with: $0) },
@@ -73,19 +72,75 @@ final class ClaudeAccountStore {
     }
 
     func refresh() {
-        let defaultDirectory = defaultDirectory()
-        let defaultKey = Self.key(for: defaultDirectory)
-        var preferences = Self.preferences(in: defaults)
+        refreshGeneration &+= 1
+        apply(Self.scanAccounts(
+            home: home,
+            defaultDirectory: defaultDirectory(),
+            switchedOn: Self.accountDirectoriesWithNotchi(in: defaults),
+            seenInSessions: sessionDirectories,
+            hasNotchiHooks: hasNotchiHooks
+        ))
+    }
 
-        var directoriesByKey: [String: URL] = [defaultKey: defaultDirectory]
+    /// `refresh` with the disk reads (the home folder and every account's settings) off the main thread.
+    func refreshInBackground() async {
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        let home = home
+        let defaultDirectory = defaultDirectory()
         let switchedOn = Self.accountDirectoriesWithNotchi(in: defaults)
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
-        let seenInSessions = sessionDirectories.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        for directory in discoveredDirectories() + switchedOn + seenInSessions {
+        let seenInSessions = sessionDirectories
+        let hasNotchiHooks = hasNotchiHooks
+        let scan = await Task.detached(priority: .utility) {
+            Self.scanAccounts(
+                home: home,
+                defaultDirectory: defaultDirectory,
+                switchedOn: switchedOn,
+                seenInSessions: seenInSessions,
+                hasNotchiHooks: hasNotchiHooks
+            )
+        }.value
+        // A refresh that ran meanwhile read newer sessions and settings than this scan did.
+        guard generation == refreshGeneration else { return }
+        apply(scan)
+    }
+
+    /// What `refresh` reads from disk: which folders are accounts, and which of them run notchi.
+    nonisolated private struct AccountScan: Sendable {
+        let defaultKey: String
+        let orderedKeys: [String]
+        let directoriesByKey: [String: URL]
+        let keysWithNotchiHooks: Set<String>
+    }
+
+    nonisolated private static func scanAccounts(
+        home: URL,
+        defaultDirectory: URL,
+        switchedOn: [URL],
+        seenInSessions: Set<String>,
+        hasNotchiHooks: (URL) -> Bool
+    ) -> AccountScan {
+        let defaultKey = key(for: defaultDirectory)
+        var directoriesByKey: [String: URL] = [defaultKey: defaultDirectory]
+        let existingSwitchedOn = switchedOn.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let sessionURLs = seenInSessions.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        for directory in discoveredDirectories(in: home) + existingSwitchedOn + sessionURLs {
             let key = Self.key(for: directory)
             directoriesByKey[key] = directoriesByKey[key] ?? directory
         }
-        let orderedKeys = [defaultKey] + directoriesByKey.keys.filter { $0 != defaultKey }.sorted()
+        return AccountScan(
+            defaultKey: defaultKey,
+            orderedKeys: [defaultKey] + directoriesByKey.keys.filter { $0 != defaultKey }.sorted(),
+            directoriesByKey: directoriesByKey,
+            keysWithNotchiHooks: Set(directoriesByKey.filter { hasNotchiHooks($0.value) }.keys)
+        )
+    }
+
+    private func apply(_ scan: AccountScan) {
+        let defaultKey = scan.defaultKey
+        let orderedKeys = scan.orderedKeys
+        let directoriesByKey = scan.directoriesByKey
+        var preferences = Self.preferences(in: defaults)
 
         // Colors are kept once given, so a new account appearing never recolors the others.
         var didAssignColor = false
@@ -107,7 +162,7 @@ final class ClaudeAccountStore {
                 isDefault: isDefault,
                 name: preferences[key]?.name ?? ClaudeAccount.folderName(for: directory, isDefault: isDefault),
                 color: color,
-                isNotchiEnabled: hasNotchiHooks(directory)
+                isNotchiEnabled: scan.keysWithNotchiHooks.contains(key)
             )
         }
         accountsByKey = Dictionary(uniqueKeysWithValues: accounts.map { ($0.key, $0) })
@@ -258,14 +313,14 @@ final class ClaudeAccountStore {
         directory.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
-    private func discoveredDirectories() -> [URL] {
+    nonisolated private static func discoveredDirectories(in home: URL) -> [URL] {
         let fileManager = FileManager.default
         let names = (try? fileManager.contentsOfDirectory(atPath: home.path)) ?? []
         return names
-            .filter { $0.hasPrefix(Self.accountFolderPrefix) }
+            .filter { $0.hasPrefix(accountFolderPrefix) }
             .map { home.appendingPathComponent($0, isDirectory: true) }
             .filter { directory in
-                Self.accountMarkers.contains { fileManager.fileExists(atPath: directory.appendingPathComponent($0).path) }
+                accountMarkers.contains { fileManager.fileExists(atPath: directory.appendingPathComponent($0).path) }
             }
     }
 

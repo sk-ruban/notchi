@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SP
             }
             await ClaudeUsageService.shared.startPolling()
             // Builds the account list after the hooks install, which also starts each other account's usage.
-            await ClaudeAccountStore.shared.refresh()
+            await ClaudeAccountStore.shared.refreshInBackground()
             await CodexUsageService.shared.startPolling()
             await DevinUsageService.shared.startPolling()
             await CostHistoryStore.shared.start()
