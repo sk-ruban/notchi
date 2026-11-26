@@ -13,8 +13,9 @@ struct UserPromptBubbleView: View {
     @State private var availableWidth: CGFloat = 0
     @State private var renderedTextWidth: CGFloat = 0
     @State private var hoveredLink: URL?
-    @State private var hoverLocation: CGPoint = .zero
+    @State private var cache = PromptBubbleCache()
     @State private var previewedImage: UserPromptImageAttachment?
+    @State private var previewAnchor: CGPoint = .zero
 
     private static let collapsedLineLimit = 3
     private static let fontSize: CGFloat = 13
@@ -47,8 +48,9 @@ struct UserPromptBubbleView: View {
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            hoverLocation = location
-                            hoveredLink = displayedPrompt.flatMap { link(at: location, in: $0) }
+                            cache.hoverLocation = location
+                            let linkUnderPointer = displayedPrompt.flatMap { link(at: location, in: $0) }
+                            if linkUnderPointer != hoveredLink { hoveredLink = linkUnderPointer }
                         case .ended:
                             hoveredLink = nil
                         }
@@ -60,12 +62,13 @@ struct UserPromptBubbleView: View {
                     }
                     .environment(\.openURL, OpenURLAction { url in
                         guard FileChipText.isImageFileLink(url) else { return .systemAction }
+                        previewAnchor = cache.hoverLocation
                         previewedImage = UserPromptImageAttachment(displayName: url.lastPathComponent, path: url.path)
                         return .handled
                     })
                     .popover(
                         item: $previewedImage,
-                        attachmentAnchor: .rect(.rect(CGRect(origin: hoverLocation, size: .zero)))
+                        attachmentAnchor: .rect(.rect(CGRect(origin: previewAnchor, size: .zero)))
                     ) { attachment in
                         UserPromptImagePreview(attachment: attachment, presentation: .single)
                             .padding(Self.previewPadding)
@@ -152,14 +155,39 @@ struct UserPromptBubbleView: View {
 
     private func collapsedPrompt(_ attributed: AttributedString) -> AttributedString {
         let textWidth = availableWidth - 2 * Self.horizontalPadding
-        let collapsed = PromptTailTruncation.collapsed(
-            attributed,
-            width: textWidth,
-            lineLimit: Self.collapsedLineLimit
-        ) { candidate in
-            FileChipText.measurementAttributedString(from: candidate, fontSize: Self.fontSize, fontScale: fontScale)
+        let key = PromptBubbleCache.CollapsedKey(prompt: attributed, width: textWidth, fontScale: fontScale)
+        return cache.collapsedPrompt(for: key) {
+            let collapsed = PromptTailTruncation.collapsed(
+                attributed,
+                width: textWidth,
+                lineLimit: Self.collapsedLineLimit
+            ) { candidate in
+                FileChipText.measurementAttributedString(from: candidate, fontSize: Self.fontSize, fontScale: fontScale)
+            }
+            return collapsed ?? attributed
         }
-        return collapsed ?? attributed
+    }
+}
+
+/// Holds what the bubble reuses between renders. Writes here don't invalidate the view the way
+/// @State writes do, so the pointer can be tracked on every mouse move without re-running `body`.
+private final class PromptBubbleCache {
+    // The prompt carries its image size labels, so a resized image still re-collapses.
+    struct CollapsedKey: Equatable {
+        let prompt: AttributedString
+        let width: CGFloat
+        let fontScale: CGFloat
+    }
+
+    // Only read when an image link is clicked, to anchor its popover.
+    var hoverLocation: CGPoint = .zero
+    private var collapsed: (key: CollapsedKey, prompt: AttributedString)?
+
+    func collapsedPrompt(for key: CollapsedKey, compute: () -> AttributedString) -> AttributedString {
+        if let collapsed, collapsed.key == key { return collapsed.prompt }
+        let prompt = compute()
+        collapsed = (key, prompt)
+        return prompt
     }
 }
 
