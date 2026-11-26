@@ -131,6 +131,26 @@ final class CostHistoryStoreTests: XCTestCase {
         XCTAssertEqual(savedInput, firstInput + laterInput)
     }
 
+    @MainActor
+    func testCacheThatFailedToSaveIsSavedOnTheNextRefresh() async throws {
+        let inputTokens = 10
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try writeSession(root: root, model: "claude-sonnet-4-6", inputTokens: inputTokens, outputTokens: 0)
+        let blocker = root.appendingPathComponent("caches")
+        try Data().write(to: blocker)
+        let cacheURL = blocker.appendingPathComponent("cache.json")
+        let store = CostHistoryStore(windowDays: 30, calendar: .current,
+                                     pricing: PricingCatalog(fallbackBundle: .main, fetchCatalog: { nil }),
+                                     projectsRoots: [root.appendingPathComponent("projects")], cacheURL: cacheURL)
+        await store.refresh()
+        try FileManager.default.removeItem(at: blocker)
+
+        await store.refresh()
+
+        let saved = CostUsageCacheStore.load(url: cacheURL)
+        XCTAssertEqual(saved.buckets.values.flatMap(\.values).map(\.input).reduce(0, +), inputTokens)
+    }
+
     private actor FetchCounter {
         private(set) var count = 0
         func increment() { count += 1 }
@@ -184,6 +204,20 @@ final class CostHistoryStoreTests: XCTestCase {
     private static let unpricedRequest = ModelTokenTotals(input: 10, output: 5, requestCount: 1, pricedCount: 0)
     private static let pastHourlyRetry: TimeInterval = 2 * 60 * 60
     private static let pastDailyRetry: TimeInterval = 25 * 60 * 60
+    // The anchors pass the plausibility guard, so a fetch returning this succeeds without pricing the test's models.
+    private static let plausibleModelsDev = Data("""
+        {"anthropic":{"models":{
+          "claude-sonnet-4-6":{"cost":{"input":3,"output":15}},
+          "claude-opus-4-8":{"cost":{"input":5,"output":25}}
+        }}}
+        """.utf8)
+
+    private func countingCatalog(_ counter: FetchCounter, succeeds: Bool = true) -> PricingCatalog {
+        PricingCatalog(fallbackBundle: .main, fetchCatalog: {
+            await counter.increment()
+            return succeeds ? Self.plausibleModelsDev : nil
+        })
+    }
 
     /// A store whose scans report every model in `unpricedModels` as unpriced today.
     @MainActor
@@ -200,10 +234,9 @@ final class CostHistoryStoreTests: XCTestCase {
     @MainActor
     func testSameUnpricedModelIsNotRefetchedAfterAnHour() async {
         let counter = FetchCounter()
-        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
         let clock = PricingRefreshClock()
         let store = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
-                                           catalog: catalog, clock: clock)
+                                           catalog: countingCatalog(counter), clock: clock)
         await store.refresh()
         clock.lastRefresh = Date().addingTimeInterval(-Self.pastHourlyRetry)
 
@@ -216,10 +249,9 @@ final class CostHistoryStoreTests: XCTestCase {
     @MainActor
     func testSameUnpricedModelIsRefetchedAfterADay() async {
         let counter = FetchCounter()
-        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
         let clock = PricingRefreshClock()
         let store = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
-                                           catalog: catalog, clock: clock)
+                                           catalog: countingCatalog(counter), clock: clock)
         await store.refresh()
         clock.lastRefresh = Date().addingTimeInterval(-Self.pastDailyRetry)
 
@@ -230,13 +262,14 @@ final class CostHistoryStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testNewlyUnpricedModelIsFetchedRightAway() async {
+    func testNewlyUnpricedModelIsFetchedOnceAnHourHasPassed() async {
         let counter = FetchCounter()
-        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
+        let clock = PricingRefreshClock()
         let unpricedModels = OSAllocatedUnfairLock(initialState: ["proxy-model"])
-        let store = storeReportingUnpriced(unpricedModels, catalog: catalog, clock: PricingRefreshClock())
+        let store = storeReportingUnpriced(unpricedModels, catalog: countingCatalog(counter), clock: clock)
         await store.refresh()
         unpricedModels.withLock { $0.append("claude-released-today") }
+        clock.lastRefresh = Date().addingTimeInterval(-Self.pastHourlyRetry)
 
         await store.refresh()
 
@@ -245,9 +278,39 @@ final class CostHistoryStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testStoresSharingAPriceListFetchOncePerUnpricedModel() async {
+    func testNewlyUnpricedModelWaitsAnHourAfterTheLastFetch() async {
         let counter = FetchCounter()
-        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
+        let unpricedModels = OSAllocatedUnfairLock(initialState: ["proxy-model"])
+        let store = storeReportingUnpriced(unpricedModels, catalog: countingCatalog(counter),
+                                           clock: PricingRefreshClock())
+        await store.refresh()
+        unpricedModels.withLock { $0.append("claude-released-today") }
+
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 1)
+    }
+
+    @MainActor
+    func testUnpricedModelIsRetriedAfterAnHourWhenTheFetchFailed() async {
+        let counter = FetchCounter()
+        let clock = PricingRefreshClock()
+        let store = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
+                                           catalog: countingCatalog(counter, succeeds: false), clock: clock)
+        await store.refresh()
+        clock.lastRefresh = Date().addingTimeInterval(-Self.pastHourlyRetry)
+
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 2)
+    }
+
+    @MainActor
+    func testStoresSharingAPriceListFetchForEachUnpricedModelOnce() async {
+        let counter = FetchCounter()
+        let catalog = countingCatalog(counter)
         let clock = PricingRefreshClock()
         let work = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
                                           catalog: catalog, clock: clock)
@@ -255,6 +318,9 @@ final class CostHistoryStoreTests: XCTestCase {
                                               catalog: catalog, clock: clock)
         await work.refresh()
         await personal.refresh()
+        clock.lastRefresh = Date().addingTimeInterval(-Self.pastHourlyRetry)
+        await personal.refresh()
+        clock.lastRefresh = Date().addingTimeInterval(-Self.pastHourlyRetry)
 
         await work.refresh()
 
