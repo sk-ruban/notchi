@@ -14,11 +14,15 @@ final class AnimationVisibility {
 
     var isPaused: Bool { isDisplayAsleep || isPanelOccluded }
 
+    private var isWindowVisible: (NSWindow) -> Bool = AnimationVisibility.isOnScreen
+
     func start(
         observing panel: NSWindow,
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
-        notificationCenter: NotificationCenter = .default
+        notificationCenter: NotificationCenter = .default,
+        isWindowVisible: @escaping (NSWindow) -> Bool = AnimationVisibility.isOnScreen
     ) {
+        self.isWindowVisible = isWindowVisible
         updateOcclusion(of: panel)
 
         workspaceNotificationCenter.addObserver(
@@ -47,8 +51,12 @@ final class AnimationVisibility {
         }
     }
 
+    private static func isOnScreen(_ window: NSWindow) -> Bool {
+        window.occlusionState.contains(.visible)
+    }
+
     private func updateOcclusion(of panel: NSWindow) {
-        isPanelOccluded = !panel.occlusionState.contains(.visible)
+        isPanelOccluded = !isWindowVisible(panel)
     }
 }
 
