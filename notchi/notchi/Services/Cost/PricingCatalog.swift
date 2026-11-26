@@ -258,6 +258,10 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
         var buffer = ""
         for (key, p) in sorted {
             buffer += "\(key):\(fmt(p.inputPerToken)):\(fmt(p.outputPerToken)):\(fmt(p.cacheCreationPerToken)):\(fmt(p.cacheReadPerToken)):\(p.thresholdTokens ?? -1):\(fmtOpt(p.inputPerTokenAboveThreshold)):\(fmtOpt(p.outputPerTokenAboveThreshold)):\(fmtOpt(p.cacheCreationPerTokenAboveThreshold)):\(fmtOpt(p.cacheReadPerTokenAboveThreshold))"
+            // Added only when set, so caches signed before this price was covered still match.
+            if let oneHourCacheWrite = p.cacheCreation1hPerToken {
+                buffer += ":1h=\(fmt(oneHourCacheWrite))"
+            }
         }
         let fnvOffsetBasis: UInt64 = 0xcbf2_9ce4_8422_2325
         let fnvPrime: UInt64 = 0x0000_0100_0000_01b3

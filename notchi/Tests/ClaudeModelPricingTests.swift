@@ -107,6 +107,28 @@ final class ClaudeModelPricingTests: XCTestCase {
         XCTAssertEqual(a, b, "sub-12-sig-fig float differences must not change the signature")
     }
 
+    private static func sonnetPricing(oneHourCacheWrite: Double?) -> ClaudeModelPricing {
+        ClaudeModelPricing(inputPerToken: 0.000003, outputPerToken: 0.000015,
+            cacheCreationPerToken: 0.00000375, cacheReadPerToken: 0.0000003,
+            cacheCreation1hPerToken: oneHourCacheWrite, thresholdTokens: 200000,
+            inputPerTokenAboveThreshold: 0.000006, outputPerTokenAboveThreshold: 0.0000225,
+            cacheCreationPerTokenAboveThreshold: 0.0000075, cacheReadPerTokenAboveThreshold: 0.0000006)
+    }
+
+    // Computed by the signature code before it covered 1-hour cache writes, for this same table.
+    private static let previousSonnetSignature = "ce2fb39bd7b9799b"
+
+    func testSignatureChangesWhenOnlyTheOneHourCacheWritePriceChanges() {
+        let standard = PricingCatalog(table: ["claude-sonnet-4-6": Self.sonnetPricing(oneHourCacheWrite: nil)])
+        let oneHour = PricingCatalog(table: ["claude-sonnet-4-6": Self.sonnetPricing(oneHourCacheWrite: 0.000006)])
+        XCTAssertNotEqual(standard.signature(), oneHour.signature())
+    }
+
+    func testSignatureOfATableWithoutOneHourPricesMatchesThePreviousFormat() {
+        let catalog = PricingCatalog(table: ["claude-sonnet-4-6": Self.sonnetPricing(oneHourCacheWrite: nil)])
+        XCTAssertEqual(catalog.signature(), Self.previousSonnetSignature)
+    }
+
     // MARK: - T3: disk snapshot round-trips and overlays fallback
 
     func testSnapshotPersistsAndOverlaysFallback() throws {
