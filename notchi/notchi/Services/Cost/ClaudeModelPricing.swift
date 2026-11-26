@@ -61,3 +61,23 @@ nonisolated enum CostPricing {
             + Double(cacheRead) * rdP
     }
 }
+
+/// Normalizes and prices each raw model name once per scan, instead of running a regex and taking the
+/// price list's lock for every reply.
+nonisolated struct ModelPricingLookup {
+    private let pricing: any ClaudePricingProviding
+    private let normalize: (String) -> String
+    private var resolved: [String: (model: String, pricing: ClaudeModelPricing?)] = [:]
+
+    init(pricing: any ClaudePricingProviding, normalize: @escaping (String) -> String) {
+        self.pricing = pricing
+        self.normalize = normalize
+    }
+
+    mutating func resolve(_ rawModel: String) -> (model: String, pricing: ClaudeModelPricing?) {
+        if let known = resolved[rawModel] { return known }
+        let result = (model: normalize(rawModel), pricing: pricing.pricing(model: rawModel))
+        resolved[rawModel] = result
+        return result
+    }
+}

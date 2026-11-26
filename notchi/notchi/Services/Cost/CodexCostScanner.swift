@@ -15,6 +15,9 @@ nonisolated final class CodexCostScanner {
 
     nonisolated deinit {}
 
+    private static let turnContextMarker = LogLineMarker(#""turn_context""#)
+    private static let tokenCountMarker = LogLineMarker(#""token_count""#)
+
     nonisolated func scan(cache input: CostUsageCache, now: Date) -> CostUsageCache {
         var cache = input
         let listing = CostLogFiles.list(in: projectsRoots)
@@ -24,10 +27,8 @@ nonisolated final class CodexCostScanner {
         let sinceKey = DailyCostReport.dayKey(windowStart, calendar: calendar)
         let cutoffDay = CostLogLine.cutoffDay(forWindowStart: windowStart, calendar: calendar)
 
-        let isoFractional = ISO8601DateFormatter()
-        isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoPlain = ISO8601DateFormatter()
         var seen = Set<String>()
+        var models = ModelPricingLookup(pricing: pricing, normalize: CostPricing.normalizeOpenAIModel)
 
         for log in listing.files {
             let url = log.url
@@ -47,8 +48,7 @@ nonisolated final class CodexCostScanner {
 
             let result = parseFile(url: url, startOffset: startOffset, sinceKey: sinceKey, cutoffDay: cutoffDay,
                                    resume: resume,
-                                   seen: &seen, isoFractional: isoFractional, isoPlain: isoPlain,
-                                   into: &cache.buckets)
+                                   seen: &seen, models: &models, into: &cache.buckets)
             state.offset = result.offset
             state.codexResume = result.resume
             state.recentDedupKeys = state.dedupKeys(afterReadingFrom: startOffset, adding: result.dedupKeys)
@@ -60,10 +60,9 @@ nonisolated final class CodexCostScanner {
         return cache
     }
 
-    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String, cutoffDay: Data,
+    nonisolated private func parseFile(url: URL, startOffset: Int64, sinceKey: String, cutoffDay: [UInt8],
                                        resume: CostUsageCache.CodexResume?,
-                                       seen: inout Set<String>,
-                                       isoFractional: ISO8601DateFormatter, isoPlain: ISO8601DateFormatter,
+                                       seen: inout Set<String>, models: inout ModelPricingLookup,
                                        into buckets: inout DayModelBuckets)
         -> (offset: Int64, resume: CostUsageCache.CodexResume, dedupKeys: [String]) {
         var currentModel = resume?.model
@@ -72,34 +71,15 @@ nonisolated final class CodexCostScanner {
             runningBaseline = (i, c, o)
         }
 
-        guard let handle = try? FileHandle(forReadingFrom: url) else {
-            return (startOffset, resumeState(currentModel, runningBaseline), [])
-        }
-        defer { try? handle.close() }
-        if startOffset > 0 { try? handle.seek(toOffset: UInt64(startOffset)) }
-        guard let data = try? handle.readToEnd(), !data.isEmpty else {
-            return (startOffset, resumeState(currentModel, runningBaseline), [])
-        }
-
         var dedupKeys: [String] = []
-        var consumed = startOffset
-        var lineStart = data.startIndex
-        let newline = UInt8(ascii: "\n")
-        var i = data.startIndex
-        while i < data.endIndex {
-            if data[i] == newline {
-                let lineData = data[lineStart..<i]
-                consumed += Int64(lineData.count) + 1
-                if let dedupKey = handleLine(lineData, sinceKey: sinceKey, cutoffDay: cutoffDay, currentModel: &currentModel,
-                                             runningBaseline: &runningBaseline, seen: &seen,
-                                             isoFractional: isoFractional, isoPlain: isoPlain, into: &buckets) {
-                    dedupKeys.append(dedupKey)
-                }
-                lineStart = data.index(after: i)
+        let consumed = CostLogFiles.forEachLine(in: url, from: startOffset) { line in
+            if let dedupKey = handleLine(line, sinceKey: sinceKey, cutoffDay: cutoffDay, currentModel: &currentModel,
+                                         runningBaseline: &runningBaseline, seen: &seen, models: &models,
+                                         into: &buckets) {
+                dedupKeys.append(dedupKey)
             }
-            i = data.index(after: i)
         }
-        return (consumed, resumeState(currentModel, runningBaseline), dedupKeys)
+        return (consumed ?? startOffset, resumeState(currentModel, runningBaseline), dedupKeys)
     }
 
     nonisolated private func resumeState(_ model: String?,
@@ -108,17 +88,16 @@ nonisolated final class CodexCostScanner {
                                    baseCached: baseline?.cached, baseOutput: baseline?.output)
     }
 
-    nonisolated private func handleLine(_ lineData: Data, sinceKey: String, cutoffDay: Data,
+    nonisolated private func handleLine(_ line: UnsafeRawBufferPointer, sinceKey: String, cutoffDay: [UInt8],
                                         currentModel: inout String?,
                                         runningBaseline: inout (input: Int, cached: Int, output: Int)?,
-                                        seen: inout Set<String>,
-                                        isoFractional: ISO8601DateFormatter, isoPlain: ISO8601DateFormatter,
+                                        seen: inout Set<String>, models: inout ModelPricingLookup,
                                         into buckets: inout DayModelBuckets) -> String? {
-        let mentionsTurnContext = lineData.range(of: Data(#""turn_context""#.utf8)) != nil
-        guard mentionsTurnContext || lineData.range(of: Data(#""token_count""#.utf8)) != nil else { return nil }
+        let mentionsTurnContext = Self.turnContextMarker.occurs(in: line)
+        guard mentionsTurnContext || Self.tokenCountMarker.occurs(in: line) else { return nil }
         // A turn context sets the model for the lines after it, however old, so only token counts skip by date.
-        if !mentionsTurnContext, CostLogLine.isDated(lineData, before: cutoffDay) { return nil }
-        guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any],
+        if !mentionsTurnContext, CostLogLine.isDated(line, before: cutoffDay) { return nil }
+        guard let obj = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any],
               let type_ = obj["type"] as? String else { return nil }
 
         if type_ == "turn_context" {
@@ -133,7 +112,7 @@ nonisolated final class CodexCostScanner {
               let payload = obj["payload"] as? [String: Any],
               payload["type"] as? String == "token_count",
               let ts = obj["timestamp"] as? String,
-              let date = parseTimestamp(ts, isoFractional: isoFractional, isoPlain: isoPlain) else { return nil }
+              let date = CostLogLine.date(fromTimestamp: ts) else { return nil }
 
         let dayKey = DailyCostReport.dayKey(date, calendar: calendar)
         guard dayKey >= sinceKey else { return nil }
@@ -166,8 +145,8 @@ nonisolated final class CodexCostScanner {
 
         if delta.input == 0, delta.cached == 0, delta.output == 0 { return nil }
 
-        let rawModel = currentModel ?? "gpt-5"
-        let normalizedModel = CostPricing.normalizeOpenAIModel(rawModel)
+        let resolved = models.resolve(currentModel ?? "gpt-5")
+        let normalizedModel = resolved.model
         let cached = min(delta.cached, delta.input)
         let mappedInput = delta.input - cached
         let mappedCacheRead = cached
@@ -176,8 +155,7 @@ nonisolated final class CodexCostScanner {
         let dedupKey = "\(ts)|\(normalizedModel)|\(delta.input)|\(delta.cached)|\(delta.output)"
         if !seen.insert(dedupKey).inserted { return dedupKey }
 
-        let pricingResult = pricing.pricing(model: rawModel)
-        let cost = pricingResult.map {
+        let cost = resolved.pricing.map {
             CostPricing.claudeCostUSD(input: mappedInput, cacheRead: mappedCacheRead,
                 cacheCreation: 0, cacheCreation1h: 0, output: mappedOutput, pricing: $0)
         } ?? nil
@@ -192,9 +170,4 @@ nonisolated final class CodexCostScanner {
     }
 
     nonisolated private func intval(_ v: Any?) -> Int { (v as? NSNumber)?.intValue ?? 0 }
-
-    nonisolated private func parseTimestamp(_ s: String, isoFractional: ISO8601DateFormatter,
-                                            isoPlain: ISO8601DateFormatter) -> Date? {
-        isoFractional.date(from: s) ?? isoPlain.date(from: s)
-    }
 }
