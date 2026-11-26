@@ -29,6 +29,7 @@ BUILD_DIR="build/release"
 ARCHIVE_PATH="${BUILD_DIR}/${APP_NAME}.xcarchive"
 EXPORT_DIR="${BUILD_DIR}/export"
 APP_PATH="${EXPORT_DIR}/${APP_NAME}.app"
+XCODEBUILD_LOG="${BUILD_DIR}/xcodebuild.log"
 
 # --- Helpers ---
 step() {
@@ -50,7 +51,7 @@ find_sparkle_bin_dir() {
 
     local derived_data="${HOME}/Library/Developer/Xcode/DerivedData"
     local found
-    found=$(find "$derived_data" -path "*/Sparkle.framework/../bin" -type d 2>/dev/null | head -n 1)
+    found=$(find "$derived_data" -path "*/SourcePackages/artifacts/sparkle/Sparkle/bin" -type d 2>/dev/null | head -n 1)
 
     if [[ -z "$found" ]]; then
         found=$(find "$derived_data" -name "sign_update" -type f 2>/dev/null | head -n 1)
@@ -72,7 +73,17 @@ read_build_setting() {
     xcodebuild -showBuildSettings \
         -project "$PROJECT_PATH" \
         -scheme "$SCHEME" \
-        2>/dev/null | awk -F' = ' -v key="$key" '$1 ~ key { print $2; exit }'
+        2>/dev/null | awk -F' = ' -v key="$key" '{ name = $1; sub(/^[[:space:]]+/, "", name) } name == key { print $2; exit }'
+}
+
+# Pipe through xcpretty only when it's installed; pipefail keeps xcodebuild's exit status.
+# The raw log is kept because xcpretty hides the details of a failure.
+run_xcodebuild() {
+    if command -v xcpretty >/dev/null 2>&1; then
+        xcodebuild "$@" | tee -a "$XCODEBUILD_LOG" | xcpretty
+    else
+        xcodebuild "$@"
+    fi
 }
 
 read_latest_published_build_version() {
@@ -146,15 +157,7 @@ step "Step 1/6: Clean and archive (Developer ID distribution)"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-xcodebuild clean archive \
-    -project "$PROJECT_PATH" \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -archivePath "$ARCHIVE_PATH" \
-    CODE_SIGN_IDENTITY="Developer ID Application" \
-    DEVELOPMENT_TEAM="$TEAM_ID" \
-    CODE_SIGN_STYLE="Manual" \
-    | xcpretty || xcodebuild clean archive \
+run_xcodebuild clean archive \
     -project "$PROJECT_PATH" \
     -scheme "$SCHEME" \
     -configuration Release \
@@ -186,11 +189,7 @@ cat > "$EXPORT_OPTIONS_PLIST" <<PLIST
 </plist>
 PLIST
 
-xcodebuild -exportArchive \
-    -archivePath "$ARCHIVE_PATH" \
-    -exportOptionsPlist "$EXPORT_OPTIONS_PLIST" \
-    -exportPath "$EXPORT_DIR" \
-    | xcpretty || xcodebuild -exportArchive \
+run_xcodebuild -exportArchive \
     -archivePath "$ARCHIVE_PATH" \
     -exportOptionsPlist "$EXPORT_OPTIONS_PLIST" \
     -exportPath "$EXPORT_DIR"
