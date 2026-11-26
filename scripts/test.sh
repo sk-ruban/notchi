@@ -77,6 +77,7 @@ run_attempt() {
         -resolvePackageDependencies
         -project "$PROJECT_PATH"
         -scheme "$SCHEME"
+        -derivedDataPath "$DERIVED_DATA_PATH"
     )
     local test_cmd=(
         xcodebuild

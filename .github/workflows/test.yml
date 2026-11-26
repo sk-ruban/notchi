@@ -3,8 +3,16 @@ name: Build & Test
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "website/**"
+      - "docs/**"
+      - "**/*.md"
   push:
     branches: [main]
+    paths-ignore:
+      - "website/**"
+      - "docs/**"
+      - "**/*.md"
   workflow_dispatch:
 
 concurrency:
@@ -22,7 +30,7 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Show Xcode version
         run: |
@@ -30,12 +38,20 @@ jobs:
           xcodebuild -version
           xcrun swift --version
 
+      - name: Cache Swift packages
+        uses: actions/cache@v6
+        with:
+          path: build/test/DerivedData/SourcePackages
+          key: spm-${{ runner.os }}-${{ env.DEVELOPER_DIR }}-${{ hashFiles('notchi/notchi.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
       - name: Build and test
         run: ./scripts/test.sh all
 
       - name: Upload test result bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TestResults
           path: build/test/TestResults.xcresult
