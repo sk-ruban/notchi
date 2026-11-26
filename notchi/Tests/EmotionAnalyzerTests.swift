@@ -91,6 +91,38 @@ final class EmotionAnalyzerTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    @MainActor
+    func testLongPromptIsSentAsItsHeadAndTail() async {
+        let head = String(repeating: "a", count: 1_500)
+        let tail = String(repeating: "c", count: 500)
+        let expectedPrompt = head + "\n…\n" + tail
+        let provider = CapturingEmotionProvider()
+
+        _ = await EmotionAnalyzer.shared.analyze(
+            prompt: head + String(repeating: "b", count: 1_000) + tail,
+            using: provider
+        )
+
+        XCTAssertEqual(provider.prompts, [expectedPrompt])
+    }
+
+    @MainActor
+    func testPromptAtTheLengthLimitIsSentUnchanged() async {
+        let expectedPrompt = String(repeating: "a", count: 2_000)
+        let provider = CapturingEmotionProvider()
+
+        _ = await EmotionAnalyzer.shared.analyze(prompt: expectedPrompt, using: provider)
+
+        XCTAssertEqual(provider.prompts, [expectedPrompt])
+    }
+
+    func testEmotionRequestsTimeOutAfterFifteenSeconds() throws {
+        let expectedTimeout: TimeInterval = 15
+        let request = EmotionAnalysisRequest.post(to: try XCTUnwrap(URL(string: "https://example.com/v1/messages")))
+
+        XCTAssertEqual(request.timeoutInterval, expectedTimeout)
+    }
+
     func testLoadClaudeSettingsConfigReadsCustomResolvedSettingsFile() throws {
         let settingsURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID().uuidString)-settings.json")
@@ -123,5 +155,19 @@ private struct ThrowingEmotionProvider: EmotionAnalysisProviding {
 
     func analyze(prompt: String, systemPrompt: String) async throws -> (emotion: String, intensity: Double) {
         throw URLError(.notConnectedToInternet)
+    }
+}
+
+private final class CapturingEmotionProvider: EmotionAnalysisProviding {
+    private(set) var prompts: [String] = []
+
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
+    var providerName: String { "Capturing" }
+
+    func analyze(prompt: String, systemPrompt: String) async throws -> (emotion: String, intensity: Double) {
+        prompts.append(prompt)
+        return (emotion: "neutral", intensity: 0)
     }
 }
