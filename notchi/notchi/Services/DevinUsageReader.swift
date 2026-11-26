@@ -57,7 +57,7 @@ nonisolated enum DevinUsageReader {
     }
 
     // Keeps the last query output so an unchanged database doesn't spawn sqlite3 on every poll.
-    private static let lastUserStatusRead = OSAllocatedUnfairLock<(signature: DatabaseSignature, encoded: String?)?>(
+    private static let lastUserStatusRead = OSAllocatedUnfairLock<(signature: DatabaseSignature, encoded: String)?>(
         initialState: nil
     )
 
@@ -73,7 +73,10 @@ nonisolated enum DevinUsageReader {
             encoded = lastRead.encoded
         } else {
             encoded = runQuery(userStatusQuery, databasePath)
-            lastUserStatusRead.withLock { $0 = (signature, encoded) }
+            // A failed query (sqlite3 busy, or no output) is retried on the next poll.
+            if let encoded {
+                lastUserStatusRead.withLock { $0 = (signature, encoded) }
+            }
         }
 
         guard let encoded, let proto = Data(base64Encoded: encoded) else { return nil }
