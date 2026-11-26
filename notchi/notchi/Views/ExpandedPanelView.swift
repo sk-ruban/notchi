@@ -825,6 +825,7 @@ struct ExpandedPanelView: View {
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: 0) {
             if panelMode != .islandOnly {
+                let activityItems = unifiedActivityItems
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         if let session = effectiveSession {
@@ -872,7 +873,7 @@ struct ExpandedPanelView: View {
                                     .padding(.bottom, 8)
                                 }
 
-                                ForEach(unifiedActivityItems) { item in
+                                ForEach(activityItems) { item in
                                     switch item {
                                     case .tool(let event):
                                         ActivityRowView(event: event)
@@ -916,11 +917,11 @@ struct ExpandedPanelView: View {
                         .onAppear {
                             if effectiveSession?.pendingQuestions.isEmpty == false {
                                 scrollToQuestionPrompt(proxy: proxy)
-                            } else if let lastItem = unifiedActivityItems.last {
+                            } else if let lastItem = activityItems.last {
                                 proxy.scrollTo(lastItem.id, anchor: .bottom)
                             }
                         }
-                        .onChange(of: unifiedActivityItems.last?.id) { _, newId in
+                        .onChange(of: activityItems.last?.id) { _, newId in
                             if let id = newId {
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     proxy.scrollTo(id, anchor: .bottom)
