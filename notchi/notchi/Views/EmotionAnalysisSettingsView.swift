@@ -26,6 +26,7 @@ struct EmotionAnalysisSettingsView: View {
     @State private var fetchedModels: [EmotionAnalysisModel] = []
     @State private var customModelInput = ""
     @State private var setupLinkShakePhase: CGFloat = 0
+    @State private var hasClaudeCodeFallback = false
     @FocusState private var isAPIKeyFocused: Bool
     @FocusState private var isBaseURLFocused: Bool
     @FocusState private var isCustomModelFocused: Bool
@@ -69,6 +70,9 @@ struct EmotionAnalysisSettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            hasClaudeCodeFallback = EmotionAnalysisCredentials.shared.claudeSettingsConfig() != nil
+        }
         .onDisappear {
             saveApiKey(for: provider)
             saveBaseURL(for: provider)
@@ -497,10 +501,6 @@ struct EmotionAnalysisSettingsView: View {
         .buttonStyle(.plain)
     }
 
-
-    private var hasClaudeCodeFallback: Bool {
-        ClaudeSettingsConfig.existsAtDefaultLocation()
-    }
 
     private var canTest: Bool {
         hasApiKey || (provider == .claude && hasClaudeCodeFallback)

@@ -26,14 +26,6 @@ struct ClaudeSettingsConfig {
         }
     }
 
-    nonisolated static func loadFromDefaultLocation() -> ClaudeSettingsConfig? {
-        load(from: ClaudeConfigDirectoryResolver.resolve().settingsURL)
-    }
-
-    nonisolated static func existsAtDefaultLocation() -> Bool {
-        loadFromDefaultLocation() != nil
-    }
-
     nonisolated static func parse(from data: Data) throws -> ClaudeSettingsConfig? {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let env = json?["env"] as? [String: String] ?? [:]
@@ -600,7 +592,7 @@ final class EmotionAnalyzer {
     }
 
     private func resolveClaudeProvider() -> ClaudeEmotionAnalysisProvider? {
-        if let apiKey = KeychainManager.getAnthropicApiKey(allowInteraction: false)?
+        if let apiKey = EmotionAnalysisCredentials.shared.apiKey(for: .claude)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !apiKey.isEmpty {
             guard let apiURL = Self.manualEndpointURL(for: .claude) else {
@@ -615,7 +607,7 @@ final class EmotionAnalyzer {
             )
         }
 
-        guard let config = ClaudeSettingsConfig.loadFromDefaultLocation() else {
+        guard let config = EmotionAnalysisCredentials.shared.claudeSettingsConfig() else {
             return nil
         }
 
@@ -630,7 +622,7 @@ final class EmotionAnalyzer {
     }
 
     private func resolveOpenAIProvider() -> OpenAIEmotionAnalysisProvider? {
-        guard let apiKey = KeychainManager.getOpenAIApiKey(allowInteraction: false)?
+        guard let apiKey = EmotionAnalysisCredentials.shared.apiKey(for: .openAI)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !apiKey.isEmpty,
               let apiURL = Self.manualEndpointURL(for: .openAI) else {
@@ -687,7 +679,7 @@ final class EmotionAnalyzer {
                 )
             }
 
-            if let config = ClaudeSettingsConfig.loadFromDefaultLocation() {
+            if let config = EmotionAnalysisCredentials.shared.claudeSettingsConfig() {
                 return ClaudeEmotionAnalysisProvider(
                     apiURL: config.apiURL,
                     apiKey: config.apiKey,
