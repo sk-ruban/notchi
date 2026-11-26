@@ -98,6 +98,10 @@ private enum SpriteHandoffTiming {
     static let expandAnimationDuration = 0.2
     static let collapseAnimationDuration = 0.16
     static let cleanupBufferDuration = 0.02
+    // Must end within the expand cleanup delay, which is when the hidden header sprite pauses.
+    static let headerSpriteFadeOutDelay = 0.05
+    static let headerSpriteFadeOutDuration = 0.14
+    static let headerSpriteFadeInDuration = 0.16
 
     static func animationDuration(for expanded: Bool) -> Double {
         expanded ? expandAnimationDuration : collapseAnimationDuration
@@ -187,6 +191,8 @@ struct NotchContentView: View {
     @State private var spriteHandoff: SpriteHandoff?
     @State private var spriteHandoffProgress: CGFloat = 0
     @State private var spriteHandoffGeneration = 0
+    // Set once the expanded panel has finished fading out the collapsed header sprites.
+    @State private var hasExpandedPanelSettled = false
     @State private var launchGlowVisible = false
     @State private var launchGlowProgress: Double = 0
     @State private var isLaunchWavePreparing = false
@@ -350,8 +356,8 @@ struct NotchContentView: View {
 
     private var collapsedHeaderSpriteVisibilityAnimation: Animation {
         isExpanded
-            ? .easeOut(duration: 0.14).delay(0.05)
-            : .easeOut(duration: 0.16)
+            ? .easeOut(duration: SpriteHandoffTiming.headerSpriteFadeOutDuration).delay(SpriteHandoffTiming.headerSpriteFadeOutDelay)
+            : .easeOut(duration: SpriteHandoffTiming.headerSpriteFadeInDuration)
     }
 
     private var collapsedHeaderSpriteScale: CGFloat {
@@ -399,6 +405,12 @@ struct NotchContentView: View {
 
     private var isLaunchWaveActive: Bool {
         launchWave != nil || isLaunchWavePreparing
+    }
+
+    // The faded-out header sprite stays in the tree so collapsing fades it back in unchanged,
+    // but its timelines would keep ticking at full rate, so pause them.
+    private var isCollapsedHeaderSpriteAnimationPaused: Bool {
+        animationVisibility.isPaused || (isExpanded && hasExpandedPanelSettled)
     }
 
     private var collapsedHeaderSpriteVisuals: (opacity: Double, blur: CGFloat) {
@@ -965,6 +977,7 @@ struct NotchContentView: View {
             .opacity(collapsedHeaderSpriteVisuals.opacity)
             .blur(radius: collapsedHeaderSpriteVisuals.blur)
             .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
+            .environment(\.isAnimationPaused, isCollapsedHeaderSpriteAnimationPaused)
         } else {
             Color.clear.frame(width: sideWidth)
         }
@@ -973,31 +986,31 @@ struct NotchContentView: View {
     private func startSpriteHandoff(for expanded: Bool, keepsGrassIslandRendered: Bool) {
         spriteHandoffGeneration += 1
         let generation = spriteHandoffGeneration
+        hasExpandedPanelSettled = false
 
-        guard let activeSession, panelMode != .compact else {
+        if let activeSession, panelMode != .compact {
+            spriteHandoff = SpriteHandoff(
+                direction: expanded ? .expanding : .collapsing,
+                sessionId: activeSession.id,
+                keepsGrassIslandRendered: keepsGrassIslandRendered
+            )
+            spriteHandoffProgress = 0
+
+            withAnimation(.easeOut(duration: SpriteHandoffTiming.animationDuration(for: expanded))) {
+                spriteHandoffProgress = 1
+            }
+        } else {
             spriteHandoff = nil
             spriteHandoffProgress = 0
-            return
-        }
-
-        let animationDuration = SpriteHandoffTiming.animationDuration(for: expanded)
-
-        spriteHandoff = SpriteHandoff(
-            direction: expanded ? .expanding : .collapsing,
-            sessionId: activeSession.id,
-            keepsGrassIslandRendered: keepsGrassIslandRendered
-        )
-        spriteHandoffProgress = 0
-
-        withAnimation(.easeOut(duration: animationDuration)) {
-            spriteHandoffProgress = 1
         }
 
         Task { @MainActor in
+            // Also outlasts the header sprite's plain fade-out when there's no handoff.
             try? await Task.sleep(for: SpriteHandoffTiming.cleanupDelay(for: expanded))
             guard generation == spriteHandoffGeneration else { return }
             spriteHandoff = nil
             spriteHandoffProgress = 0
+            hasExpandedPanelSettled = expanded
         }
     }
 
