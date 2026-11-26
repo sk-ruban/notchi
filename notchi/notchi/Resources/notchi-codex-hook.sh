@@ -131,6 +131,14 @@ def transcript_tail_lines(path):
         lines.pop(0)
     return [line.decode('utf-8', 'replace') for line in lines[-TRANSCRIPT_TAIL_LINES:]]
 
+def is_user_message_item(payload):
+    item = payload.get('item')
+    return (
+        payload.get('type') == 'item_completed' and
+        isinstance(item, dict) and
+        item.get('type') == 'UserMessage'
+    )
+
 def transcript_user_message_attachment_state(path, normalized_prompt):
     if not path:
         return None
@@ -147,7 +155,15 @@ def transcript_user_message_attachment_state(path, normalized_prompt):
             continue
 
         payload = event.get('payload')
-        if not isinstance(payload, dict) or payload.get('type') != 'user_message':
+        if not isinstance(payload, dict):
+            continue
+
+        if is_user_message_item(payload):
+            # Codex versions that record prompts as UserMessage items write them only after
+            # UserPromptSubmit hooks finish, so waiting for this prompt can never succeed.
+            return False
+
+        if payload.get('type') != 'user_message':
             continue
 
         if normalized_text(payload.get('message')) != normalized_prompt:
