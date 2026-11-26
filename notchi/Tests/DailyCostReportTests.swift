@@ -181,6 +181,87 @@ final class CostHistoryStoreTests: XCTestCase {
         XCTAssertEqual(fetches, 1)
     }
 
+    private static let unpricedRequest = ModelTokenTotals(input: 10, output: 5, requestCount: 1, pricedCount: 0)
+    private static let pastHourlyRetry: TimeInterval = 2 * 60 * 60
+    private static let pastDailyRetry: TimeInterval = 25 * 60 * 60
+
+    /// A store whose scans report every model in `unpricedModels` as unpriced today.
+    @MainActor
+    private func storeReportingUnpriced(_ unpricedModels: OSAllocatedUnfairLock<[String]>,
+                                        catalog: PricingCatalog, clock: PricingRefreshClock) -> CostHistoryStore {
+        let dayKey = DailyCostReport.dayKey(Date(), calendar: .current)
+        return CostHistoryStore(windowDays: 30, calendar: .current, provider: .claude,
+                                pricingCatalog: catalog, pricingClock: clock) { _ in
+            let models = unpricedModels.withLock { $0 }
+            return [dayKey: Dictionary(uniqueKeysWithValues: models.map { ($0, Self.unpricedRequest) })]
+        }
+    }
+
+    @MainActor
+    func testSameUnpricedModelIsNotRefetchedAfterAnHour() async {
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
+        let clock = PricingRefreshClock()
+        let store = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
+                                           catalog: catalog, clock: clock)
+        await store.refresh()
+        clock.lastRefresh = Date().addingTimeInterval(-Self.pastHourlyRetry)
+
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 1)
+    }
+
+    @MainActor
+    func testSameUnpricedModelIsRefetchedAfterADay() async {
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
+        let clock = PricingRefreshClock()
+        let store = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
+                                           catalog: catalog, clock: clock)
+        await store.refresh()
+        clock.lastRefresh = Date().addingTimeInterval(-Self.pastDailyRetry)
+
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 2)
+    }
+
+    @MainActor
+    func testNewlyUnpricedModelIsFetchedRightAway() async {
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
+        let unpricedModels = OSAllocatedUnfairLock(initialState: ["proxy-model"])
+        let store = storeReportingUnpriced(unpricedModels, catalog: catalog, clock: PricingRefreshClock())
+        await store.refresh()
+        unpricedModels.withLock { $0.append("claude-released-today") }
+
+        await store.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 2)
+    }
+
+    @MainActor
+    func testStoresSharingAPriceListFetchOncePerUnpricedModel() async {
+        let counter = FetchCounter()
+        let catalog = PricingCatalog(fallbackBundle: .main, fetchCatalog: { await counter.increment(); return nil })
+        let clock = PricingRefreshClock()
+        let work = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["proxy-model"]),
+                                          catalog: catalog, clock: clock)
+        let personal = storeReportingUnpriced(OSAllocatedUnfairLock(initialState: ["other-proxy-model"]),
+                                              catalog: catalog, clock: clock)
+        await work.refresh()
+        await personal.refresh()
+
+        await work.refresh()
+
+        let fetches = await counter.count
+        XCTAssertEqual(fetches, 2)
+    }
+
     @MainActor
     func testFirstRefreshFetchesCatalogWhenEveryModelIsPriced() async throws {
         let counter = FetchCounter()
