@@ -20,24 +20,25 @@ nonisolated final class CodexCostScanner {
 
     nonisolated func scan(cache input: CostUsageCache, now: Date) -> CostUsageCache {
         var cache = input
-        let listing = CostLogFiles.list(in: projectsRoots)
-        cache.track(listing.files, listingIsComplete: listing.isComplete)
         let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1),
                                         to: calendar.startOfDay(for: now))!
         let sinceKey = DailyCostReport.dayKey(windowStart, calendar: calendar)
-        let cutoffDay = CostLogLine.cutoffDay(forWindowStart: windowStart, calendar: calendar)
+        let cutoffDay = CostLogLine.cutoffDay(forWindowStart: windowStart, timeZone: calendar.timeZone)
+        let logs = CostLogFiles.list(in: projectsRoots)
+        cache.track(logs, windowStart: windowStart)
 
         var seen = Set<String>()
         var models = ModelPricingLookup(pricing: pricing, normalize: CostPricing.normalizeOpenAIModel)
 
-        for log in listing.files {
+        for log in logs {
             let url = log.url
             let path = url.path
-            var state = cache.files[path] ?? .init(size: 0, mtime: 0, offset: 0)
+            let tracked = cache.files[path]
+            var state = tracked ?? .init(size: 0, mtime: 0, offset: 0)
             if state.size == log.size, state.mtime == log.mtime { continue }
             // Nothing written before the window counts. Offset 0 makes a later write read the file from the top,
-            // so it still picks up the session's model and running totals.
-            if log.mtime < windowStart.timeIntervalSince1970 {
+            // so it still picks up the session's model.
+            if tracked == nil, log.mtime < windowStart.timeIntervalSince1970 {
                 cache.files[path] = .init(size: log.size, mtime: log.mtime, offset: 0)
                 continue
             }
@@ -79,7 +80,7 @@ nonisolated final class CodexCostScanner {
                 dedupKeys.append(dedupKey)
             }
         }
-        return (consumed ?? startOffset, resumeState(currentModel, runningBaseline), dedupKeys)
+        return (consumed, resumeState(currentModel, runningBaseline), dedupKeys)
     }
 
     nonisolated private func resumeState(_ model: String?,

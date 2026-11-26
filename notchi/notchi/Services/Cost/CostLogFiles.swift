@@ -8,35 +8,27 @@ nonisolated struct CostLogFile {
 }
 
 nonisolated enum CostLogFiles {
-    /// Every log under `roots`, stat'ed once. `isComplete` is false when part of a root couldn't be read,
-    /// so files there only look missing.
-    static func list(in roots: [URL]) -> (files: [CostLogFile], isComplete: Bool) {
+    /// Every log under `roots`, stat'ed once.
+    static func list(in roots: [URL]) -> [CostLogFile] {
         let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey]
         var files: [CostLogFile] = []
-        var isComplete = true
-        for root in roots where FileManager.default.fileExists(atPath: root.path) {
-            guard let enumerator = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: Array(keys),
-                errorHandler: { _, _ in isComplete = false; return true }) else {
-                isComplete = false
-                continue
-            }
+        for root in roots {
+            guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys))
+            else { continue }
             for case let url as URL in enumerator where url.pathExtension == "jsonl" {
                 guard let values = try? url.resourceValues(forKeys: keys), let size = values.fileSize else { continue }
                 files.append(CostLogFile(url: url, size: Int64(size),
                                          mtime: values.contentModificationDate?.timeIntervalSince1970 ?? 0))
             }
         }
-        return (files, isComplete)
+        return files
     }
 }
 
 extension CostUsageCache {
     /// Lines up tracked file state with the logs on disk, so every tracked file can resume from its offset.
-    nonisolated mutating func track(_ logs: [CostLogFile], listingIsComplete: Bool) {
-        if listingIsComplete {
-            forgetMissingFiles(keepingMovesTo: logs)
-        }
+    nonisolated mutating func track(_ logs: [CostLogFile], windowStart: Date) {
+        forgetMissingFiles(lastModifiedBefore: windowStart, keepingMovesTo: logs)
         // A log rewritten shorter may have lost lines that are already counted, so rebuild from scratch.
         if logs.contains(where: { log in files[log.url.path].map { log.size < $0.size } ?? false }) {
             files = [:]
@@ -44,9 +36,10 @@ extension CostUsageCache {
         }
     }
 
-    /// Their counted cost stays in the buckets. Codex archives a session by moving it to another folder under
-    /// the same name, so a moved log keeps its state instead of being counted again from the top.
-    nonisolated private mutating func forgetMissingFiles(keepingMovesTo logs: [CostLogFile]) {
+    /// A missing log's counted cost stays in the buckets. Codex archives a session by moving it to another
+    /// folder under the same name, so a moved log keeps its state instead of being counted again from the top.
+    nonisolated private mutating func forgetMissingFiles(lastModifiedBefore windowStart: Date,
+                                                         keepingMovesTo logs: [CostLogFile]) {
         let listedPaths = Set(logs.map(\.url.path))
         let missingPaths = files.keys.filter { !listedPaths.contains($0) }
         guard !missingPaths.isEmpty else { return }
@@ -54,23 +47,28 @@ extension CostUsageCache {
             .compactMapValues { $0.count == 1 ? $0[0] : nil }
         for log in logs where files[log.url.path] == nil {
             if let oldPath = movedFrom.removeValue(forKey: log.url.lastPathComponent) {
-                files[log.url.path] = files[oldPath]
+                files[log.url.path] = files.removeValue(forKey: oldPath)
             }
         }
+        // A log that comes back, or a root that was briefly unreadable, resumes from its offset. Only a log that
+        // can't hold lines in the window is forgotten, since reading it again from the top counts nothing.
+        let windowStartTime = windowStart.timeIntervalSince1970
         for path in missingPaths {
-            files[path] = nil
+            if let state = files[path], state.mtime < windowStartTime {
+                files[path] = nil
+            }
         }
     }
 }
 
 extension CostLogFiles {
     /// Calls `body` with each complete line from `startOffset` on and returns the offset just past the last one,
-    /// or nil when the file can't be read.
-    static func forEachLine(in url: URL, from startOffset: Int64, _ body: (UnsafeRawBufferPointer) -> Void) -> Int64? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+    /// or `startOffset` when there's nothing to read.
+    static func forEachLine(in url: URL, from startOffset: Int64, _ body: (UnsafeRawBufferPointer) -> Void) -> Int64 {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return startOffset }
         defer { try? handle.close() }
         if startOffset > 0 { try? handle.seek(toOffset: UInt64(startOffset)) }
-        guard let data = try? handle.readToEnd() else { return nil }
+        guard let data = try? handle.readToEnd() else { return startOffset }
         return data.withUnsafeBytes { bytes in
             guard let base = bytes.baseAddress else { return startOffset }
             var lineStart = 0
@@ -135,9 +133,12 @@ nonisolated enum CostLogLine {
     private static let dayLength = "yyyy-MM-dd".count
 
     /// The day a line's timestamp must reach to possibly fall in a window starting at `windowStart`.
-    static func cutoffDay(forWindowStart windowStart: Date, calendar: Calendar) -> [UInt8] {
-        let cutoff = calendar.date(byAdding: .day, value: -timeZoneSlackDays, to: windowStart) ?? windowStart
-        return Array(DailyCostReport.dayKey(cutoff, calendar: calendar).utf8)
+    /// Timestamps name Gregorian days, whatever calendar the window is counted in.
+    static func cutoffDay(forWindowStart windowStart: Date, timeZone: TimeZone) -> [UInt8] {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = timeZone
+        let cutoff = gregorian.date(byAdding: .day, value: -timeZoneSlackDays, to: windowStart) ?? windowStart
+        return Array(DailyCostReport.dayKey(cutoff, calendar: gregorian).utf8)
     }
 
     /// ISO8601DateFormatter goes through ICU on every call, which made it the slowest step of a scan.

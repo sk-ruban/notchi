@@ -119,12 +119,15 @@ final class ClaudeCostScannerTests: XCTestCase {
         XCTAssertEqual(second.buckets["2026-06-24"]?["claude-opus-4"]?.input, keptInput + deletedInput)
     }
 
-    func testDeletedLogIsDroppedFromTrackedFiles() throws {
+    func testDeletedLogLastModifiedBeforeWindowIsDroppedFromTrackedFiles() throws {
         let kept = try writeFile([line(msgId: "m1", reqId: "r1", input: 100, output: 0)])
         let root = kept.deletingLastPathComponent().deletingLastPathComponent()
         let deleted = root.appendingPathComponent("q/d.jsonl")
         try FileManager.default.createDirectory(at: deleted.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try (line(msgId: "m2", reqId: "r2", input: 50, output: 0) + "\n").data(using: .utf8)!.write(to: deleted)
+        try (line(msgId: "m2", reqId: "r2", input: 50, output: 0, day: "2026-04-01") + "\n").data(using: .utf8)!
+            .write(to: deleted)
+        try FileManager.default.setAttributes(
+            [.modificationDate: ISO8601DateFormatter().date(from: "2026-04-01T13:00:00Z")!], ofItemAtPath: deleted.path)
         let s = scanner(root: root)
         let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
         let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
@@ -133,6 +136,71 @@ final class ClaudeCostScannerTests: XCTestCase {
         let second = s.scan(cache: first, now: now)
 
         XCTAssertEqual(second.files.keys.map { URL(fileURLWithPath: $0).lastPathComponent }, [kept.lastPathComponent])
+    }
+
+    func testLogMovedAwayAndBackIsCountedOnce() throws {
+        let inputTokens = 100
+        let url = try writeFile([line(msgId: "m1", reqId: "r1", input: inputTokens, output: 0)])
+        let root = url.deletingLastPathComponent().deletingLastPathComponent()
+        let aside = root.deletingLastPathComponent().appendingPathComponent("aside.jsonl")
+        let s = scanner(root: root)
+        let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
+        let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
+
+        try FileManager.default.moveItem(at: url, to: aside)
+        let whileAway = s.scan(cache: first, now: now)
+        try FileManager.default.moveItem(at: aside, to: url)
+        let back = s.scan(cache: whileAway, now: now)
+
+        XCTAssertEqual(back.buckets["2026-06-24"]?["claude-opus-4"]?.input, inputTokens)
+    }
+
+    func testLogsUnderARootThatGoesMissingAreCountedOnceWhenItReturns() throws {
+        let inputTokens = 100
+        let url = try writeFile([line(msgId: "m1", reqId: "r1", input: inputTokens, output: 0)])
+        let root = url.deletingLastPathComponent().deletingLastPathComponent()
+        let aside = root.deletingLastPathComponent().appendingPathComponent("aside")
+        let s = scanner(root: root)
+        let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
+        let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
+
+        try FileManager.default.moveItem(at: root, to: aside)
+        let whileMissing = s.scan(cache: first, now: now)
+        try FileManager.default.moveItem(at: aside, to: root)
+        let back = s.scan(cache: whileMissing, now: now)
+
+        XCTAssertEqual(back.buckets["2026-06-24"]?["claude-opus-4"]?.input, inputTokens)
+    }
+
+    func testTrackedLogTouchedToAnOldDateStillCountsItsAppendedLine() throws {
+        let firstInput = 100
+        let laterInput = 50
+        let url = try writeFile([line(msgId: "m1", reqId: "r1", input: firstInput, output: 0)])
+        let s = scanner(root: url.deletingLastPathComponent().deletingLastPathComponent())
+        let now = ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!
+        let first = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]), now: now)
+
+        let fh = try FileHandle(forWritingTo: url); fh.seekToEndOfFile()
+        fh.write((line(msgId: "m2", reqId: "r2", input: laterInput, output: 0) + "\n").data(using: .utf8)!)
+        try fh.close()
+        try FileManager.default.setAttributes(
+            [.modificationDate: ISO8601DateFormatter().date(from: "2026-04-01T13:00:00Z")!], ofItemAtPath: url.path)
+        let second = s.scan(cache: first, now: now)
+
+        XCTAssertEqual(second.buckets["2026-06-24"]?["claude-opus-4"]?.input, firstInput + laterInput)
+    }
+
+    func testReplyIsCountedUnderABuddhistCalendar() throws {
+        let inputTokens = 100
+        let buddhistDayKey = "2569-06-24"
+        let url = try writeFile([line(msgId: "m1", reqId: "r1", input: inputTokens, output: 0)])
+        var cal = Calendar(identifier: .buddhist); cal.timeZone = TimeZone(identifier: "UTC")!
+        let s = ClaudeCostScanner(projectsRoots: [url.deletingLastPathComponent().deletingLastPathComponent()],
+                                  pricing: FlatPrice(), windowDays: 30, calendar: cal)
+        let out = s.scan(cache: CostUsageCache(version: CostUsageCache.currentVersion, files: [:], buckets: [:]),
+                         now: ISO8601DateFormatter().date(from: "2026-06-24T12:00:00Z")!)
+
+        XCTAssertEqual(out.buckets[buddhistDayKey]?["claude-opus-4"]?.input, inputTokens)
     }
 
     func testLogLastModifiedBeforeWindowIsTrackedUnread() throws {

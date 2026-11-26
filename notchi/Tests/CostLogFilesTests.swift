@@ -55,4 +55,40 @@ final class CostLogFilesTests: XCTestCase {
 
         XCTAssertEqual(lines, ["second"])
     }
+
+    func testForEachLineOfAnEmptyOrMissingFileReturnsTheStartOffset() throws {
+        let startOffset: Int64 = 7
+        let empty = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).jsonl")
+        let missing = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: empty) }
+        try Data().write(to: empty)
+
+        let offsets = [empty, missing].map { CostLogFiles.forEachLine(in: $0, from: startOffset) { _ in } }
+
+        XCTAssertEqual(offsets, [startOffset, startOffset])
+    }
+
+    private static let cutoffDay = Array("2026-05-24".utf8)
+
+    private func isDated(_ line: String) -> Bool {
+        Array(line.utf8).withUnsafeBytes { CostLogLine.isDated($0, before: Self.cutoffDay) }
+    }
+
+    func testLineDatedTheDayBeforeTheCutoffIsDated() {
+        XCTAssertTrue(isDated(#"{"timestamp":"2026-05-23T23:59:59.999Z"}"#))
+    }
+
+    func testLineDatedOnTheCutoffDayIsNotDated() {
+        XCTAssertFalse(isDated(#"{"timestamp":"2026-05-24T00:00:00.000Z"}"#))
+    }
+
+    func testLineWithAnyTimestampOnOrAfterTheCutoffIsNotDated() {
+        XCTAssertFalse(isDated(#"{"input":{"timestamp":"2020-01-01"},"timestamp":"2026-06-24T12:00:00Z"}"#))
+    }
+
+    func testLineWhoseTimestampIsSpacedNumericTruncatedOrMissingIsNotDated() {
+        let lines = [#"{"timestamp": "2020-01-01T00:00:00Z"}"#, #"{"timestamp":1577836800}"#,
+                     #"{"timestamp":"2020-0"#, #"{"type":"assistant"}"#]
+        XCTAssertEqual(lines.map(isDated), [false, false, false, false])
+    }
 }
