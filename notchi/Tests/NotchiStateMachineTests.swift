@@ -919,6 +919,42 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertEqual(SessionStore.shared.session(for: sessionKey)?.codexTitle, expectedTitle)
     }
 
+    func testEmotionDecayTimerStopsOnceEveryScoreHasDecayed() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setEmotionDecayIntervalForTesting(.milliseconds(5))
+        stateMachine.analyzeEmotion = { _ in (emotion: "happy", intensity: 1.0) }
+        let session = makeInteractiveSession(sessionId: "decay-idle-\(UUID().uuidString)")
+        stateMachine.handleEvent(makeEvent(
+            sessionId: session.rawSessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "thanks, great job"
+        ))
+        let recorded = await waitUntil(timeout: 2) { session.emotionState.scores[.happy, default: 0] > 0 }
+        XCTAssertTrue(recorded, "precondition: the prompt records a score")
+
+        _ = await waitUntil(timeout: 5) { !stateMachine.isEmotionDecayTimerRunningForTesting }
+
+        XCTAssertFalse(stateMachine.isEmotionDecayTimerRunningForTesting)
+    }
+
+    func testRecordedEmotionStartsTheIdleDecayTimer() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.analyzeEmotion = { _ in (emotion: "sad", intensity: 1.0) }
+        XCTAssertFalse(stateMachine.isEmotionDecayTimerRunningForTesting, "precondition: nothing to decay")
+        let session = makeInteractiveSession(sessionId: "decay-restart-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: session.rawSessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "this is still broken"
+        ))
+        _ = await waitUntil(timeout: 2) { session.emotionState.scores[.sad, default: 0] > 0 }
+
+        XCTAssertTrue(stateMachine.isEmotionDecayTimerRunningForTesting)
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
