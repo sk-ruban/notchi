@@ -16,6 +16,7 @@ final class NotchiStateMachine {
     private var pendingSyncTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingPositionMarks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingSessionStartTimes: [ProviderSessionKey: Date] = [:]
+    private var emotionAnalysisTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var processMonitorTask: Task<Void, Never>?
     private var codexThreadMetadataMonitorTask: Task<Void, Never>?
     private var codexThreadMetadataMonitorInterval: Duration?
@@ -31,7 +32,7 @@ final class NotchiStateMachine {
         ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
     }
     var isProcessAlive: (Int) -> Bool
-    var analyzeEmotion: (String) async -> (emotion: String, intensity: Double)? = { prompt in
+    var analyzeEmotion: @MainActor (String) async -> (emotion: String, intensity: Double)? = { prompt in
         await EmotionAnalyzer.shared.analyze(prompt)
     }
     var onCodexSessionsEnded: () -> Void = {
@@ -125,12 +126,10 @@ final class NotchiStateMachine {
 
             if session.isInteractive,
                event.provider.capabilities.supportsPromptEmotionAnalysis,
-               let prompt = event.userPrompt {
-                Task {
-                    guard let result = await analyzeEmotion(prompt) else { return }
-                    session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
-                    startEmotionDecayTimerIfNeeded()
-                }
+               let prompt = event.userPrompt,
+               !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               !SessionStore.isLocalSlashCommand(prompt) {
+                analyzeEmotion(of: prompt, for: session)
             }
 
             if session.isInteractive,
@@ -197,6 +196,20 @@ final class NotchiStateMachine {
         }
 
         session.resetSleepTimer()
+    }
+
+    private func analyzeEmotion(of prompt: String, for session: SessionData) {
+        let sessionKey = session.sessionKey
+        // A slow reply to an earlier prompt must not overwrite the mood of this one.
+        emotionAnalysisTasks.removeValue(forKey: sessionKey)?.cancel()
+        emotionAnalysisTasks[sessionKey] = Task {
+            let result = await analyzeEmotion(prompt)
+            guard !Task.isCancelled else { return }
+            emotionAnalysisTasks.removeValue(forKey: sessionKey)
+            guard let result else { return }
+            session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
+            startEmotionDecayTimerIfNeeded()
+        }
     }
 
     private func scheduleFileSync(sessionKey: ProviderSessionKey, transcriptPath: String) {
@@ -401,6 +414,7 @@ final class NotchiStateMachine {
         stopFileWatcher(sessionKey: sessionKey)
         pendingSyncTasks.removeValue(forKey: sessionKey)?.cancel()
         pendingPositionMarks.removeValue(forKey: sessionKey)?.cancel()
+        emotionAnalysisTasks.removeValue(forKey: sessionKey)?.cancel()
         SoundService.shared.clearCooldown(for: sessionKey)
         if !keepingTranscriptPosition {
             Task { await ConversationParser.shared.resetState(for: sessionKey) }
