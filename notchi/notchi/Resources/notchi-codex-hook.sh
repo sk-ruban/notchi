@@ -106,17 +106,41 @@ def input_has_attachments(data):
 def normalized_text(value):
     return value.strip() if isinstance(value, str) else ''
 
+TRANSCRIPT_TAIL_LINES = 200
+TRANSCRIPT_READ_CHUNK = 1024 * 1024
+
+def transcript_tail_lines(path):
+    # Reads backwards only as far as the last 200 lines, instead of loading a whole rollout
+    # (often tens of megabytes) on every prompt. Lines can be megabytes long (inline images).
+    with open(path, 'rb') as transcript:
+        start = transcript.seek(0, os.SEEK_END)
+        chunks = []
+        newlines = 0
+        # One more newline than lines needed, because the first piece read may start mid-line.
+        while start > 0 and newlines <= TRANSCRIPT_TAIL_LINES:
+            size = min(TRANSCRIPT_READ_CHUNK, start)
+            start -= size
+            transcript.seek(start)
+            chunk = transcript.read(size)
+            chunks.append(chunk)
+            newlines += chunk.count(b'\n')
+    lines = b''.join(reversed(chunks)).split(b'\n')
+    if lines and lines[-1] == b'':
+        lines.pop()
+    if start > 0:
+        lines.pop(0)
+    return [line.decode('utf-8', 'replace') for line in lines[-TRANSCRIPT_TAIL_LINES:]]
+
 def transcript_user_message_attachment_state(path, normalized_prompt):
     if not path:
         return None
 
     try:
-        with open(path, 'r', encoding='utf-8') as transcript:
-            lines = transcript.readlines()
+        lines = transcript_tail_lines(path)
     except Exception:
         return None
 
-    for line in reversed(lines[-200:]):
+    for line in reversed(lines):
         try:
             event = json.loads(line)
         except Exception:
