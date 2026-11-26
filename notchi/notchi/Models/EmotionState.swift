@@ -55,6 +55,10 @@ final class EmotionState {
         )
     }
 
+    var hasScores: Bool {
+        scores.values.contains { $0 > 0 }
+    }
+
     func decayAll() {
         var anyChanged = false
         for key in scores.keys {

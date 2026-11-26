@@ -12,6 +12,7 @@ final class NotchiStateMachine {
     let sessionStore = SessionStore.shared
 
     private var emotionDecayTimer: Task<Void, Never>?
+    private var emotionDecayInterval = EmotionState.decayInterval
     private var pendingSyncTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingPositionMarks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingSessionStartTimes: [ProviderSessionKey: Date] = [:]
@@ -30,6 +31,9 @@ final class NotchiStateMachine {
         ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
     }
     var isProcessAlive: (Int) -> Bool
+    var analyzeEmotion: (String) async -> (emotion: String, intensity: Double)? = { prompt in
+        await EmotionAnalyzer.shared.analyze(prompt)
+    }
     var onCodexSessionsEnded: () -> Void = {
         Task { await CodexUsageService.shared.refreshFromAPI() }
     }
@@ -47,7 +51,6 @@ final class NotchiStateMachine {
 
     private init() {
         isProcessAlive = Self.defaultProcessAlive
-        startEmotionDecayTimer()
     }
 
     func handleEvent(_ event: HookEvent) {
@@ -124,8 +127,9 @@ final class NotchiStateMachine {
                event.provider.capabilities.supportsPromptEmotionAnalysis,
                let prompt = event.userPrompt {
                 Task {
-                    guard let result = await EmotionAnalyzer.shared.analyze(prompt) else { return }
+                    guard let result = await analyzeEmotion(prompt) else { return }
                     session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
+                    startEmotionDecayTimerIfNeeded()
                 }
             }
 
@@ -441,13 +445,22 @@ final class NotchiStateMachine {
         watcher.source.cancel()
     }
 
-    private func startEmotionDecayTimer() {
-        emotionDecayTimer = Task {
+    private func startEmotionDecayTimerIfNeeded() {
+        guard emotionDecayTimer == nil else { return }
+        let interval = emotionDecayInterval
+        emotionDecayTimer = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: EmotionState.decayInterval)
-                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: interval)
+                guard let self, !Task.isCancelled else { return }
+                var hasScoresLeft = false
                 for session in sessionStore.sessions.values {
                     session.emotionState.decayAll()
+                    hasScoresLeft = hasScoresLeft || session.emotionState.hasScores
+                }
+                // Idle until the next recorded emotion restarts the timer.
+                guard hasScoresLeft else {
+                    emotionDecayTimer = nil
+                    return
                 }
             }
         }
@@ -631,6 +644,12 @@ final class NotchiStateMachine {
             ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
         }
         isProcessAlive = Self.defaultProcessAlive
+        analyzeEmotion = { prompt in
+            await EmotionAnalyzer.shared.analyze(prompt)
+        }
+        emotionDecayTimer?.cancel()
+        emotionDecayTimer = nil
+        emotionDecayInterval = EmotionState.decayInterval
         onCodexSessionsEnded = {
             Task { await CodexUsageService.shared.refreshFromAPI() }
         }
@@ -663,6 +682,14 @@ final class NotchiStateMachine {
 
     var codexThreadMetadataMonitorIntervalForTesting: Duration? {
         codexThreadMetadataMonitorInterval
+    }
+
+    var isEmotionDecayTimerRunningForTesting: Bool {
+        emotionDecayTimer != nil
+    }
+
+    func setEmotionDecayIntervalForTesting(_ interval: Duration) {
+        emotionDecayInterval = interval
     }
 
     func setCodexThreadMetadataAutoRefreshEnabledForTesting(_ enabled: Bool) {
