@@ -7,6 +7,8 @@ final class IslandSessionsTests: XCTestCase {
         try await super.setUp()
         // Keep session tests away from the real Claude config folders.
         SessionStore.shared.setClaudeAccountObserverForTesting { _, _ in }
+        // Keep the real last-used mascot preference out of tests.
+        SessionStore.shared.setLastUsedProviderRecorderForTesting { _ in }
     }
 
     override func tearDown() async throws {
