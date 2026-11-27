@@ -44,6 +44,7 @@ final class SessionStore {
     private var noteClaudeAccountSession: @MainActor (URL?, String?) -> Void = { directory, configDir in
         ClaudeAccountStore.shared.noteSession(directory: directory, rawConfigDir: configDir)
     }
+    private var recordLastUsedProvider: @MainActor (AgentProvider) -> Void = SessionStore.persistLastUsedProvider
     // T3 Code names a thread about a second after its first reply; reading again after a reply catches that.
     private static let defaultClaudeSessionNameRecheckDelay: Duration = .seconds(3)
     private var claudeSessionNameRecheckDelay = SessionStore.defaultClaudeSessionNameRecheckDelay
@@ -174,9 +175,7 @@ final class SessionStore {
     func process(_ event: HookEvent, sessionStartTimeOverride: Date? = nil) -> SessionData {
         let isInteractive = event.interactive ?? true
         // Remember the active provider so the next launch wave uses the last mascot.
-        if AppSettings.lastUsedAgentProvider != event.provider {
-            AppSettings.lastUsedAgentProvider = event.provider
-        }
+        recordLastUsedProvider(event.provider)
         let session = getOrCreateSession(
             sessionKey: event.sessionKey,
             cwd: event.cwd,
@@ -829,6 +828,10 @@ final class SessionStore {
         noteClaudeAccountSession = observer
     }
 
+    func setLastUsedProviderRecorderForTesting(_ recorder: @escaping @MainActor (AgentProvider) -> Void) {
+        recordLastUsedProvider = recorder
+    }
+
     func setClaudeSessionNameRecheckDelayForTesting(_ delay: Duration) {
         claudeSessionNameRecheckDelay = delay
     }
@@ -882,8 +885,15 @@ final class SessionStore {
         noteClaudeAccountSession = { directory, configDir in
             ClaudeAccountStore.shared.noteSession(directory: directory, rawConfigDir: configDir)
         }
+        recordLastUsedProvider = Self.persistLastUsedProvider
     }
 #endif
+
+    private static func persistLastUsedProvider(_ provider: AgentProvider) {
+        if AppSettings.lastUsedAgentProvider != provider {
+            AppSettings.lastUsedAgentProvider = provider
+        }
+    }
 
     private func postActiveSessionCountChange() {
         NotificationCenter.default.post(

@@ -7,6 +7,8 @@ final class SessionStoreTests: XCTestCase {
         try await super.setUp()
         // Keep session tests away from the real Claude config folders.
         SessionStore.shared.setClaudeAccountObserverForTesting { _, _ in }
+        // Keep the real last-used mascot preference out of tests.
+        SessionStore.shared.setLastUsedProviderRecorderForTesting { _ in }
     }
 
     override func tearDown() async throws {
@@ -14,6 +16,18 @@ final class SessionStoreTests: XCTestCase {
         sessionKeys.forEach { SessionStore.shared.dismissSession($0) }
         SessionStore.shared.resetTestingHooks()
         try await super.tearDown()
+    }
+
+    func testProcessingACodexEventRecordsCodexAsTheLastUsedProvider() {
+        let expectedProviders: [AgentProvider] = [.codex]
+        var recordedProviders: [AgentProvider] = []
+        SessionStore.shared.setLastUsedProviderRecorderForTesting { recordedProviders.append($0) }
+
+        _ = SessionStore.shared.process(
+            makeEvent(sessionId: "last-used-codex", provider: .codex, event: .sessionStarted, status: "waiting_for_input")
+        )
+
+        XCTAssertEqual(recordedProviders, expectedProviders)
     }
 
     func testCodexPermissionModeComesFromRolloutNotHookPayload() async throws {
