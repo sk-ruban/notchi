@@ -14,7 +14,7 @@ nonisolated struct CodexHookSetup: Equatable, Sendable {
     let readiness: CodexHookReadiness
 
     var launchCommand: String? {
-        executableURL.map { CodexHookStatusService.shellQuote($0.path) }
+        executableURL.map { HookFile.shellQuote($0.path) }
     }
 }
 
@@ -86,12 +86,8 @@ nonisolated enum CodexHookStatusService {
         return .approved
     }
 
-    static func shellQuote(_ value: String) -> String {
-        HookFile.shellQuote(value)
-    }
-
     static func launcherContents(executable: URL, home: URL) -> String {
-        "#!/bin/sh\ncd \(shellQuote(home.path)) || exit 1\nexec \(shellQuote(executable.path))\n"
+        "#!/bin/sh\ncd \(HookFile.shellQuote(home.path)) || exit 1\nexec \(HookFile.shellQuote(executable.path))\n"
     }
 
     static func writeLauncher(executable: URL) throws -> URL {
