@@ -587,8 +587,8 @@ final class EmotionAnalyzer {
         }
     }
 
-    static func manualEndpointURL(for provider: EmotionAnalysisProvider) -> URL? {
-        provider.endpointURL(fromBaseURL: AppSettings.apiBaseURL(for: provider))
+    static func manualEndpointURL(for provider: EmotionAnalysisProvider, in defaults: UserDefaults = .standard) -> URL? {
+        provider.endpointURL(fromBaseURL: AppSettings.apiBaseURL(for: provider, in: defaults))
     }
 
     private func resolveClaudeProvider() -> ClaudeEmotionAnalysisProvider? {

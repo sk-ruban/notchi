@@ -501,18 +501,22 @@ struct AppSettings {
         EmotionAnalysisCredentials.shared.setApiKey(key, for: provider)
     }
 
-    static func apiBaseURL(for provider: EmotionAnalysisProvider) -> String? {
-        let value = UserDefaults.standard.string(forKey: apiBaseURLKey(for: provider))?
+    static func apiBaseURL(for provider: EmotionAnalysisProvider, in defaults: UserDefaults = .standard) -> String? {
+        let value = defaults.string(forKey: apiBaseURLKey(for: provider))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return value?.isEmpty == false ? value : nil
     }
 
-    static func setApiBaseURL(_ baseURL: String?, for provider: EmotionAnalysisProvider) {
+    static func setApiBaseURL(
+        _ baseURL: String?,
+        for provider: EmotionAnalysisProvider,
+        in defaults: UserDefaults = .standard
+    ) {
         let trimmed = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let trimmed, !trimmed.isEmpty {
-            UserDefaults.standard.set(trimmed, forKey: apiBaseURLKey(for: provider))
+            defaults.set(trimmed, forKey: apiBaseURLKey(for: provider))
         } else {
-            UserDefaults.standard.removeObject(forKey: apiBaseURLKey(for: provider))
+            defaults.removeObject(forKey: apiBaseURLKey(for: provider))
         }
     }
 
