@@ -23,6 +23,8 @@ struct SettingsGeneralView: View {
                 )
             }
 
+            ScreenPickerRow(screenSelector: ScreenSelector.shared)
+
             Divider().background(Color.white.opacity(0.08))
 
             Button(action: { expandOnHover.toggle() }) {
@@ -38,6 +40,8 @@ struct SettingsGeneralView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            SleepRetirementSettingsView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
@@ -74,5 +78,56 @@ struct SettingsGeneralView: View {
 
     private func resetPanelToggleShortcut() {
         updatePanelToggleShortcut(.defaultTogglePanel)
+    }
+}
+
+private struct SleepRetirementSettingsView: View {
+    @AppStorage(AppSettings.sleepRetirementKey) private var retirementRaw = SleepRetirement.fiveHours.rawValue
+
+    private static let chipSpacing: CGFloat = 6
+    private static let chipCornerRadius: CGFloat = 6
+    private static let chipMinimumTextScale: CGFloat = 0.7
+
+    private var retirement: SleepRetirement { AppSettings.sleepRetirement(fromRaw: retirementRaw) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SettingsLayout.pickerInset) {
+            SettingsRowView(icon: "moon.zzz", title: "Retire Sleeping Sessions") {
+                Text(retirement.displayName)
+                    .panelFont(size: 11)
+                    .foregroundColor(TerminalColors.secondaryText)
+                    .lineLimit(1)
+            }
+
+            HStack(spacing: Self.chipSpacing) {
+                ForEach(SleepRetirement.allCases) { option in
+                    chip(option)
+                }
+            }
+        }
+    }
+
+    private func chip(_ option: SleepRetirement) -> some View {
+        let isSelected = retirement == option
+        return Button(action: { AppSettings.sleepRetirement = option }) {
+            Text(option.shortName)
+                .panelFont(size: 11, weight: .medium)
+                .foregroundColor(isSelected ? TerminalColors.primaryText : TerminalColors.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(Self.chipMinimumTextScale)
+                .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
+                .frame(maxWidth: .infinity)
+                .background(TerminalColors.subtleBackground)
+                .clipShape(RoundedRectangle(cornerRadius: Self.chipCornerRadius))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Self.chipCornerRadius)
+                        .stroke(isSelected ? TerminalColors.green : .clear, lineWidth: 1)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(option.displayName)
+        .accessibilityLabel(option.displayName)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

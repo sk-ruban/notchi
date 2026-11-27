@@ -608,6 +608,9 @@ struct NotchContentView: View {
         .easeInOut(duration: LaunchWaveTiming.preparationDuration)
     }
 
+    private static let islandBadgeLeadingInset: CGFloat = 30
+    private static let islandBadgeBottomInset: CGFloat = 6
+
     private var grassIslandOpacityAnimation: Animation {
         .easeOut(duration: SpriteHandoffTiming.collapseAnimationDuration)
     }
@@ -628,7 +631,7 @@ struct NotchContentView: View {
                 Color.black
                 if shouldRenderGrassIsland {
                     GrassIslandView(
-                        sessions: sessionStore.sortedSessions,
+                        sessions: sessionStore.islandSessions,
                         selectedSessionId: sessionStore.selectedSessionId,
                         hoveredSessionId: hoveredSessionId,
                         handoffSessionId: spriteHandoff?.sessionId,
@@ -645,7 +648,7 @@ struct NotchContentView: View {
         .overlay(alignment: .top) {
             if shouldShowGrassIsland {
                 GrassTapOverlay(
-                    sessions: sessionStore.sortedSessions,
+                    sessions: sessionStore.islandSessions,
                     hoveredSessionId: $hoveredSessionId,
                     handoffSessionId: spriteHandoff?.sessionId,
                     handoffProgress: spriteHandoffProgress,
@@ -656,6 +659,16 @@ struct NotchContentView: View {
                 )
                 .environment(\.panelScale, panelScale)
                 .frame(height: grassHeight, alignment: .bottom)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if shouldShowGrassIsland, sessionStore.hiddenIslandSessionCount > 0 {
+                IslandHiddenSessionsBadge(count: sessionStore.hiddenIslandSessionCount)
+                    .environment(\.panelScale, panelScale)
+                    // Mirrors the activity chevron's inset, clear of the notch's rounded edge.
+                    .padding(.leading, Self.islandBadgeLeadingInset)
+                    .padding(.bottom, Self.islandBadgeBottomInset)
+                    .frame(height: grassHeight, alignment: .bottom)
             }
         }
         .overlay(alignment: .topTrailing) {

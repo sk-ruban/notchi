@@ -11,8 +11,6 @@ struct SettingsAppearanceView: View {
 
             Divider().background(Color.white.opacity(0.08))
 
-            ScreenPickerRow(screenSelector: ScreenSelector.shared)
-
             PanelSizeSettingsView()
 
             MainUsageBarSettingsView()

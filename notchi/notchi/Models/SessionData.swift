@@ -540,6 +540,10 @@ final class SessionData: Identifiable {
         }
     }
 
+    func hasSlept(for duration: TimeInterval, now: Date) -> Bool {
+        task == .sleeping && now.timeIntervalSince(lastActivity) >= duration
+    }
+
     func endSession() {
         sleepTimer?.cancel()
         sleepTimer = nil

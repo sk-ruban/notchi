@@ -12,6 +12,7 @@ final class NotchiStateMachine {
     let sessionStore = SessionStore.shared
 
     private var emotionDecayTimer: Task<Void, Never>?
+    private var sleepRetirementTimer: Task<Void, Never>?
     private var pendingSyncTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingPositionMarks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingSessionStartTimes: [ProviderSessionKey: Date] = [:]
@@ -29,6 +30,7 @@ final class NotchiStateMachine {
         ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
     }
     var isProcessAlive: (Int) -> Bool
+    var sleepRetirementAge: () -> TimeInterval? = NotchiStateMachine.defaultSleepRetirementAge
     var onCodexSessionsEnded: () -> Void = {
         Task { await CodexUsageService.shared.refreshFromAPI() }
     }
@@ -40,11 +42,16 @@ final class NotchiStateMachine {
     private nonisolated static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
     private nonisolated static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
     private static let processMissLimit = 2
+    private static let sleepRetirementCheckInterval: Duration = .seconds(60)
+    private static let defaultSleepRetirementAge: () -> TimeInterval? = {
+        AppSettings.sleepRetirement.duration
+    }
     private static let pendingSessionStartMaxAge: TimeInterval = 10 * 60
 
     private init() {
         isProcessAlive = Self.defaultProcessAlive
         startEmotionDecayTimer()
+        startSleepRetirementTimer()
     }
 
     func handleEvent(_ event: HookEvent) {
@@ -449,6 +456,25 @@ final class NotchiStateMachine {
         }
     }
 
+    private func startSleepRetirementTimer() {
+        sleepRetirementTimer = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.sleepRetirementCheckInterval)
+                guard !Task.isCancelled else { return }
+                retireLongSleepingSessions()
+            }
+        }
+    }
+
+    /// Dismisses sessions that have slept too long; like any dismissed session, the next event brings one back.
+    func retireLongSleepingSessions(now: Date = Date()) {
+        guard let age = sleepRetirementAge() else { return }
+        let retired = sessionStore.sessions.values.filter { $0.hasSlept(for: age, now: now) }
+        for session in retired {
+            dismissSession(matchingStableId: session.id)
+        }
+    }
+
     private func refreshProcessMonitoring() {
         let shouldMonitor = sessionStore.sessions.values.contains { $0.monitoredProcessId != nil }
 
@@ -630,6 +656,7 @@ final class NotchiStateMachine {
         codexThreadMetadataAutoRefreshEnabled = true
         processMissCounts.removeAll()
         pendingSessionStartTimes.removeAll()
+        sleepRetirementAge = Self.defaultSleepRetirementAge
     }
 
 #if DEBUG
