@@ -10,7 +10,7 @@ final class EmotionAnalysisCredentials {
     private enum StoredKey: Equatable {
         case value(String)
         /// Unconfirmed when only a non-interactive read missed, which a locked item does too.
-        case missing(confirmed: Bool)
+        case missing(confirmed: Bool, checkedAt: Date)
     }
 
     private struct SettingsFileSignature: Equatable {
@@ -27,6 +27,10 @@ final class EmotionAnalysisCredentials {
     @ObservationIgnored private let writeKey: (String?, EmotionAnalysisProvider) -> Bool
     @ObservationIgnored private let claudeSettingsURL: () -> URL
     @ObservationIgnored private let loadClaudeSettings: (URL) -> ClaudeSettingsConfig?
+    @ObservationIgnored private let now: () -> Date
+
+    // A locked Keychain also misses a non-interactive read, so such a miss is checked again later.
+    static let unconfirmedMissRetryInterval: TimeInterval = 5 * 60
 
     init(
         readKey: @escaping (EmotionAnalysisProvider, Bool) -> String? = { provider, allowInteraction in
@@ -46,12 +50,14 @@ final class EmotionAnalysisCredentials {
             }
         },
         claudeSettingsURL: @escaping () -> URL = { ClaudeConfigDirectoryResolver.resolve().settingsURL },
-        loadClaudeSettings: @escaping (URL) -> ClaudeSettingsConfig? = { ClaudeSettingsConfig.load(from: $0) }
+        loadClaudeSettings: @escaping (URL) -> ClaudeSettingsConfig? = { ClaudeSettingsConfig.load(from: $0) },
+        now: @escaping () -> Date = Date.init
     ) {
         self.readKey = readKey
         self.writeKey = writeKey
         self.claudeSettingsURL = claudeSettingsURL
         self.loadClaudeSettings = loadClaudeSettings
+        self.now = now
     }
 
     // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
@@ -61,14 +67,15 @@ final class EmotionAnalysisCredentials {
         switch storedKeys[provider] {
         case .value(let key):
             return key
-        case .missing(let confirmed) where confirmed || !allowInteraction:
+        case .missing(let confirmed, let checkedAt)
+            where confirmed || (!allowInteraction && now().timeIntervalSince(checkedAt) < Self.unconfirmedMissRetryInterval):
             return nil
         case .missing, nil:
             break
         }
 
         let key = readKey(provider, allowInteraction)
-        storedKeys[provider] = key.map(StoredKey.value) ?? .missing(confirmed: allowInteraction)
+        storedKeys[provider] = key.map(StoredKey.value) ?? .missing(confirmed: allowInteraction, checkedAt: now())
         return key
     }
 
@@ -79,7 +86,7 @@ final class EmotionAnalysisCredentials {
         } else if let key, !key.isEmpty {
             storedKeys[provider] = .value(key)
         } else {
-            storedKeys[provider] = .missing(confirmed: true)
+            storedKeys[provider] = .missing(confirmed: true, checkedAt: now())
         }
         revision += 1
     }
