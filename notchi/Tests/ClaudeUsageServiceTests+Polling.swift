@@ -72,7 +72,7 @@ extension ClaudeUsageServiceTests {
     }
 
     func testSuccessfulFetchReenablesUsageFlag() async throws {
-        AppSettings.isUsageEnabled = false
+        usageSettings.isUsageEnabled = false
         let dependencies = makeDependencies(
             scheduler: PollSchedulerSpy(),
             resolveUserAgent: { "claude-code/2.1.77" },
@@ -85,7 +85,7 @@ extension ClaudeUsageServiceTests {
 
         await service.performFetch(with: "token")
 
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
     }
 
     func testSuccessfulFetchPublishesModelUsageFromSevenDaySonnet() async throws {

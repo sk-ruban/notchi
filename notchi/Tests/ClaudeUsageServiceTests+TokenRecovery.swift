@@ -24,7 +24,7 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.currentUsage = makeQuotaPeriod(utilization: 18)
 
         await service.performFetch(with: "old-token", consultCredentialMetadata: false)
@@ -78,7 +78,7 @@ extension ClaudeUsageServiceTests {
         XCTAssertEqual(service.error, "Claude authentication needs attention.")
         XCTAssertEqual(service.recoveryAction, .reconnect)
         XCTAssertTrue(scheduler.intervals.isEmpty)
-        XCTAssertFalse(AppSettings.isUsageEnabled)
+        XCTAssertFalse(usageSettings.isUsageEnabled)
     }
 
     func testConnectAndStartPollingKeepsUsageEnabledWhenUsageIsVisible() async throws {
@@ -96,13 +96,13 @@ extension ClaudeUsageServiceTests {
 
         let service = ClaudeUsageService(dependencies: dependencies)
         service.currentUsage = makeQuotaPeriod(utilization: 42)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
 
         service.connectAndStartPolling()
         await Task.yield()
         await Task.yield()
 
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(service.recoveryAction, .reconnect)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
         XCTAssertEqual(scheduler.intervals, [300])
@@ -181,7 +181,7 @@ extension ClaudeUsageServiceTests {
         XCTAssertEqual(environmentTokenCalls, 1)
         XCTAssertEqual(getCachedTokenCalls, 1)
         XCTAssertEqual(getOAuthCredentialCalls, [false])
-        XCTAssertFalse(AppSettings.isUsageEnabled)
+        XCTAssertFalse(usageSettings.isUsageEnabled)
     }
 
     func testSystemWakeKeepsUsageEnabledWhenKeychainBrieflyUnavailable() async throws {
@@ -198,7 +198,7 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
 
         service.startPolling()
         await Task.yield()
@@ -210,7 +210,7 @@ extension ClaudeUsageServiceTests {
         await Task.yield()
         await Task.yield()
 
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertTrue(service.isConnected)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 42)
     }
@@ -232,13 +232,13 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.startPolling()
         await Task.yield()
         await Task.yield()
 
         XCTAssertEqual(getCachedTokenCalls, 1)
-        XCTAssertFalse(AppSettings.isUsageEnabled)
+        XCTAssertFalse(usageSettings.isUsageEnabled)
         XCTAssertFalse(service.isConnected)
         XCTAssertTrue(scheduler.intervals.isEmpty)
     }
@@ -258,13 +258,13 @@ extension ClaudeUsageServiceTests {
 
         let service = ClaudeUsageService(dependencies: dependencies)
         service.currentUsage = makeQuotaPeriod(utilization: 42)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
 
         service.startPolling()
         await Task.yield()
         await Task.yield()
 
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertFalse(service.isConnected)
         XCTAssertNil(service.error)
         XCTAssertEqual(service.statusMessage, "Claude authentication needs attention.")
@@ -295,13 +295,13 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.startPolling()
         await Task.yield()
         await Task.yield()
 
         XCTAssertEqual(getOAuthCredentialCalls, [false])
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 29)
         XCTAssertEqual(service.recoveryAction, .none)
         XCTAssertEqual(scheduler.intervals, [60])
@@ -332,12 +332,12 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.startPolling()
         await Task.yield()
         await Task.yield()
 
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(service.error, "Start a Claude Code session to track usage")
         XCTAssertEqual(service.recoveryAction, .waitForClaudeCode)
         XCTAssertTrue(scheduler.intervals.isEmpty)
@@ -368,7 +368,7 @@ extension ClaudeUsageServiceTests {
 
         XCTAssertEqual(credentialReads, 0)
         XCTAssertEqual(service.currentUsage?.usagePercentage, 31)
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(scheduler.intervals, [60])
     }
 
@@ -404,7 +404,7 @@ extension ClaudeUsageServiceTests {
         XCTAssertEqual(service.currentUsage?.usagePercentage, 41)
         XCTAssertNil(service.error)
         XCTAssertEqual(service.recoveryAction, .none)
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(scheduler.intervals, [60])
     }
 
@@ -440,7 +440,7 @@ extension ClaudeUsageServiceTests {
         XCTAssertEqual(getOAuthCredentialCalls, [false])
         XCTAssertEqual(cachedTokens, ["silent-token"])
         XCTAssertEqual(service.currentUsage?.usagePercentage, 27)
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(scheduler.intervals, [60])
     }
 
@@ -503,7 +503,7 @@ extension ClaudeUsageServiceTests {
             )
 
             let service = ClaudeUsageService(dependencies: dependencies)
-            AppSettings.isUsageEnabled = true
+            usageSettings.isUsageEnabled = true
             service.recoveryAction = .waitForClaudeCode
             service.error = "Start a Claude Code session to track usage"
 
@@ -547,7 +547,7 @@ extension ClaudeUsageServiceTests {
             )
 
             let service = ClaudeUsageService(dependencies: dependencies)
-            AppSettings.isUsageEnabled = true
+            usageSettings.isUsageEnabled = true
             service.recoveryAction = .waitForClaudeCode
 
             for trigger in triggerOrder {
@@ -578,7 +578,7 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
 
         service.handleClaudeResumeTrigger(.sessionStart)
 
@@ -599,7 +599,7 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = false
+        usageSettings.isUsageEnabled = false
         service.recoveryAction = .waitForClaudeCode
 
         service.handleClaudeResumeTrigger(.userPromptSubmit)
@@ -624,7 +624,7 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.recoveryAction = .waitForClaudeCode
         service.error = "Start a Claude Code session to track usage"
 
@@ -679,7 +679,7 @@ extension ClaudeUsageServiceTests {
         XCTAssertNil(service.error)
         XCTAssertNil(service.statusMessage)
         XCTAssertEqual(service.recoveryAction, .none)
-        XCTAssertTrue(AppSettings.isUsageEnabled)
+        XCTAssertTrue(usageSettings.isUsageEnabled)
         XCTAssertEqual(scheduler.intervals, [60])
     }
 
@@ -1034,7 +1034,7 @@ extension ClaudeUsageServiceTests {
         )
         dependencies.getOAuthCredentials = { _ in await gate.read() }
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.currentUsage = makeQuotaPeriod(utilization: 18)
         service.connectAndStartPolling()
         await gate.waitForHeldReads(Self.oneHeldRead)

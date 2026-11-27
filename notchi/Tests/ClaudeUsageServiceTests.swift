@@ -82,11 +82,21 @@ final class RequestRecorder {
     }
 }
 
+/// Stands in for the usage switch and the extra-usage observation. The live dependencies keep them
+/// in the app's real UserDefaults, which every parallel test process (and the installed app) shares.
+final class UsageSettingsStub {
+    var isUsageEnabled = false
+    var extraUsageObservation: ClaudeExtraUsageObservation?
+
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+}
+
 @MainActor
 final class ClaudeUsageServiceTests: XCTestCase {
+    let usageSettings = UsageSettingsStub()
+
     override func tearDown() {
-        AppSettings.isUsageEnabled = false
-        AppSettings.claudeExtraUsageObservation = nil
         ClaudeConfigDirectoryResolver.resetTestingHooks()
         ClaudeCLIResolver.resetTestingHooks()
         super.tearDown()
@@ -107,7 +117,7 @@ final class ClaudeUsageServiceTests: XCTestCase {
         now: @escaping () -> Date = { Date() },
         fetchUsage: @escaping (URLRequest) async throws -> (Data, URLResponse)
     ) -> ClaudeUsageServiceDependencies {
-        ClaudeUsageServiceDependencies(
+        var dependencies = ClaudeUsageServiceDependencies(
             fetchUsage: fetchUsage,
             getOAuthTokenFromEnvironment: getOAuthTokenFromEnvironment,
             getCachedOAuthToken: getCachedOAuthToken,
@@ -125,6 +135,12 @@ final class ClaudeUsageServiceTests: XCTestCase {
                 scheduler.schedule(after: interval, handler: handler)
             }
         )
+        let usageSettings = usageSettings
+        dependencies.isUsageEnabled = { usageSettings.isUsageEnabled }
+        dependencies.setUsageEnabled = { usageSettings.isUsageEnabled = $0 }
+        dependencies.loadExtraUsageObservation = { usageSettings.extraUsageObservation }
+        dependencies.saveExtraUsageObservation = { usageSettings.extraUsageObservation = $0 }
+        return dependencies
     }
 
     func makeService(
