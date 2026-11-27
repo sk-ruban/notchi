@@ -46,7 +46,6 @@ extension NotchContentView {
         guard !Self.hasPlayedLaunchWave else { return }
 
         let provider = AppSettings.lastUsedAgentProvider
-        launchSpriteFamily = provider.spriteFamily
 
         isLaunchWavePreparing = true
 

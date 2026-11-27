@@ -96,7 +96,6 @@ struct NotchContentView: View {
     @State var launchGlowProgress: Double = 0
     @State var isLaunchWavePreparing = false
     @State var launchWave: LaunchWave?
-    @State var launchSpriteFamily = AppSettings.lastUsedAgentProvider.spriteFamily
 
     private var sessionStore: SessionStore {
         stateMachine.sessionStore
