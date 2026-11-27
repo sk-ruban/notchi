@@ -16,6 +16,17 @@ COST_DATA = re.compile(r"const modelCostData=(\[.*?\]);", re.S)
 JS_STRING_OR_BARE_DECIMAL = re.compile(r"`([^`]*)`|(?<=[:\[,])(-?)\.(\d)")
 REQUIRED_PREFIX = "swe-"
 PER_MILLION = 1_000_000
+# The table shows promo rates while an offer runs. These are the list prices the page's notes give
+# for those models as of 2026-11-26 (input, output, cache read, cache write per 1M tokens), so a
+# temporary discount isn't baked into the history. Drop an entry once its promo has ended.
+PROMO_LIST_PRICES = [
+    (re.compile(r"swe-2-flash-.+"), (0.10, 0.50, 0.01, 0.125)),
+    (re.compile(r"swe-2-1(-(low|medium|high|xhigh|max))?"), (2.00, 10.00, 0.20, 0.0)),
+    (re.compile(r"swe-2-(low|medium|high|xhigh|max)"), (3.00, 15.00, 0.30, 0.0)),
+    # The notes don't give Argon's list cache-write price; its promo one equals the input price.
+    (re.compile(r"gemini-4-argon-.+"), (4.00, 20.00, 0.20, 4.00)),
+    (re.compile(r"gemini-3-[78]-flash-.+"), (1.50, 7.50, 0.15, 1.50)),
+]
 
 
 def fetch_page():
@@ -54,6 +65,11 @@ def list_prices(rows):
         current = prices.get(row["model_uid"])
         if current is None or sum(price) > sum(current):
             prices[row["model_uid"]] = price
+    for uid in prices:
+        for pattern, list_price in PROMO_LIST_PRICES:
+            if pattern.fullmatch(uid):
+                prices[uid] = list_price
+                break
     return prices
 
 
@@ -76,7 +92,13 @@ def pricing_table(prices):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="print the table and its differences instead of writing it")
-    dry_run = parser.parse_args().dry_run
+    parser.add_argument(
+        "--merge",
+        action="store_true",
+        help="only add models the bundled table lacks, keeping every bundled model and price as is",
+    )
+    arguments = parser.parse_args()
+    dry_run = arguments.dry_run
 
     prices = list_prices(model_rows(fetch_page()))
     if not any(uid.startswith(REQUIRED_PREFIX) for uid in prices):
@@ -84,6 +106,9 @@ def main():
 
     models = pricing_table(prices)
     previous = json.loads(OUTPUT.read_text())["models"] if OUTPUT.exists() else {}
+    if arguments.merge:
+        # Older logs still name retired models, and an existing price may predate a promo.
+        models = dict(sorted({**models, **previous}.items()))
     table = json.dumps({"version": 1, "models": models}, indent=2) + "\n"
     if dry_run:
         print(table, end="")
