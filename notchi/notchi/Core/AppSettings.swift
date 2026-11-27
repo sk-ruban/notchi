@@ -453,19 +453,8 @@ struct AppSettings {
     }
 
     static var claudeExtraUsageObservation: ClaudeExtraUsageObservation? {
-        get {
-            guard let data = UserDefaults.standard.data(forKey: claudeExtraUsageObservationKey) else {
-                return nil
-            }
-            return try? JSONDecoder().decode(ClaudeExtraUsageObservation.self, from: data)
-        }
-        set {
-            if let newValue, let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: claudeExtraUsageObservationKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: claudeExtraUsageObservationKey)
-            }
-        }
+        get { decodedValue(ClaudeExtraUsageObservation.self, forKey: claudeExtraUsageObservationKey) }
+        set { setEncodedValue(newValue, forKey: claudeExtraUsageObservationKey) }
     }
 
     static var emotionAnalysisProvider: EmotionAnalysisProvider {
@@ -558,8 +547,7 @@ struct AppSettings {
 
     static var notificationSoundSelection: NotificationSoundSelection {
         get {
-            if let data = UserDefaults.standard.data(forKey: notificationSoundSelectionKey),
-               let selection = try? JSONDecoder().decode(NotificationSoundSelection.self, from: data) {
+            if let selection = decodedValue(NotificationSoundSelection.self, forKey: notificationSoundSelectionKey) {
                 return selection
             }
 
@@ -570,9 +558,7 @@ struct AppSettings {
             return .system(sound)
         }
         set {
-            if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: notificationSoundSelectionKey)
-            }
+            setEncodedValue(newValue, forKey: notificationSoundSelectionKey)
             if case .system(let sound) = newValue {
                 UserDefaults.standard.set(sound.rawValue, forKey: notificationSoundKey)
             }
@@ -582,17 +568,11 @@ struct AppSettings {
 
     static var customNotificationSounds: [CustomNotificationSound] {
         get {
-            guard let data = UserDefaults.standard.data(forKey: customNotificationSoundsKey),
-                  let sounds = try? JSONDecoder().decode([CustomNotificationSound].self, from: data) else {
-                return []
-            }
+            let sounds = decodedValue([CustomNotificationSound].self, forKey: customNotificationSoundsKey) ?? []
             return sounds.sorted { $0.createdAt > $1.createdAt }
         }
         set {
-            let newestFirst = newValue.sorted { $0.createdAt > $1.createdAt }
-            if let data = try? JSONEncoder().encode(newestFirst) {
-                UserDefaults.standard.set(data, forKey: customNotificationSoundsKey)
-            }
+            setEncodedValue(newValue.sorted { $0.createdAt > $1.createdAt }, forKey: customNotificationSoundsKey)
         }
     }
 
@@ -693,21 +673,8 @@ struct AppSettings {
     }
 
     private static var previousSoundSelection: NotificationSoundSelection? {
-        get {
-            guard let data = UserDefaults.standard.data(forKey: previousSoundSelectionKey) else {
-                return nil
-            }
-            return try? JSONDecoder().decode(NotificationSoundSelection.self, from: data)
-        }
-        set {
-            guard let newValue else {
-                UserDefaults.standard.removeObject(forKey: previousSoundSelectionKey)
-                return
-            }
-            if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: previousSoundSelectionKey)
-            }
-        }
+        get { decodedValue(NotificationSoundSelection.self, forKey: previousSoundSelectionKey) }
+        set { setEncodedValue(newValue, forKey: previousSoundSelectionKey) }
     }
 
     private static var previousSound: NotificationSound? {
@@ -723,6 +690,20 @@ struct AppSettings {
                 return
             }
             UserDefaults.standard.set(newValue.rawValue, forKey: previousSoundKey)
+        }
+    }
+
+    private static func decodedValue<Value: Decodable>(_ type: Value.Type, forKey key: String) -> Value? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    /// Removes the stored value when there is none to store or it can't be encoded.
+    private static func setEncodedValue<Value: Encodable>(_ value: Value?, forKey key: String) {
+        if let value, let data = try? JSONEncoder().encode(value) {
+            UserDefaults.standard.set(data, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
         }
     }
 }
