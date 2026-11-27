@@ -40,12 +40,7 @@ struct UsageRingView: View {
     }
 
     private var ringColor: Color {
-        let base: Color
-        switch clampedPercentage {
-        case ..<50: base = TerminalColors.green
-        case ..<80: base = TerminalColors.amber
-        default: base = TerminalColors.red
-        }
+        let base = TerminalColors.usageColor(forPercentUsed: clampedPercentage)
         return isStale ? base.opacity(0.5) : base
     }
 
