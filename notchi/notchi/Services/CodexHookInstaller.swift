@@ -5,6 +5,7 @@ nonisolated private let codexHookLogger = Logger(subsystem: "com.ruban.notchi", 
 
 struct CodexHookInstaller {
     nonisolated private static let hookScriptName = "notchi-codex-hook.sh"
+    nonisolated private static let hooksJSONWritingOptions: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
 
     nonisolated static var codexDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)
@@ -39,25 +40,12 @@ struct CodexHookInstaller {
             return false
         }
 
-        do {
-            try fileManager.createDirectory(at: hooksDirectoryURL, withIntermediateDirectories: true)
-        } catch {
-            codexHookLogger.error("Failed to create Codex hook directories: \(error.localizedDescription)")
-            return false
-        }
-
-        guard let bundled = Bundle.main.url(forResource: "notchi-codex-hook", withExtension: "sh") else {
-            codexHookLogger.error("Codex hook script not found in bundle")
-            return false
-        }
-
-        do {
-            let bundledData = try Data(contentsOf: bundled)
-            try HookFile.writeScriptIfNeeded(HookFile.installableScript(from: bundledData), to: hookScriptURL, fileManager: fileManager)
-        } catch {
-            codexHookLogger.error("Failed to install Codex hook script: \(error.localizedDescription)")
-            return false
-        }
+        guard HookFile.installBundledScript(
+            named: "notchi-codex-hook",
+            to: hookScriptURL,
+            agentName: "Codex",
+            logger: codexHookLogger
+        ) else { return false }
 
         return updateHookConfigs(hooksJSONAt: hooksJSONURL, configAt: configURL, command: hookCommand)
     }
@@ -71,62 +59,21 @@ struct CodexHookInstaller {
     nonisolated static func uninstall() {
         try? FileManager.default.removeItem(at: hookScriptURL)
 
-        let existingData = try? Data(contentsOf: hooksJSONURL)
-        guard let data = removeManagedHooksJSON(from: existingData) else {
-            if let existingData, !HookFile.isBlank(existingData),
-               (try? JSONSerialization.jsonObject(with: existingData)) == nil {
-                codexHookLogger.error("Skipped pruning Codex hooks.json on uninstall: file is not valid JSON; stale hook references may remain")
-            }
-            return
-        }
-
-        do {
-            try HookFile.writeConfig(data, to: hooksJSONURL)
-        } catch {
-            codexHookLogger.error("Failed to write Codex hooks.json on uninstall: \(error.localizedDescription)")
-        }
-    }
-
-    nonisolated static func removeManagedHooksJSON(from existingData: Data?) -> Data? {
-        guard let existingData,
-              var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any] else {
-            return nil
-        }
-
-        var updatedHooks: [String: Any] = [:]
-        for (event, value) in hooks {
-            guard let entries = value as? [[String: Any]] else {
-                updatedHooks[event] = value
-                continue
-            }
-
-            let prunedEntries = pruneManagedHooks(from: entries)
-            if !prunedEntries.isEmpty {
-                updatedHooks[event] = prunedEntries
-            }
-        }
-
-        if updatedHooks.isEmpty {
-            json.removeValue(forKey: "hooks")
-        } else {
-            json["hooks"] = updatedHooks
-        }
-
-        return try? JSONSerialization.data(
-            withJSONObject: json,
-            options: [.prettyPrinted, .sortedKeys]
+        HookConfigJSON.pruneManagedHooks(
+            inConfigAt: hooksJSONURL,
+            fileDescription: "Codex hooks.json",
+            isManaged: isManagedCommand,
+            options: hooksJSONWritingOptions,
+            logger: codexHookLogger
         )
     }
 
+    nonisolated static func removeManagedHooksJSON(from existingData: Data?) -> Data? {
+        HookConfigJSON.removeManagedHooks(from: existingData, isManaged: isManagedCommand, options: hooksJSONWritingOptions)
+    }
+
     nonisolated static func upsertHooksJSON(from existingData: Data?, command: String) -> Data? {
-        var json: [String: Any] = [:]
-        if let existingData, !HookFile.isBlank(existingData) {
-            guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
-                return nil
-            }
-            json = existing
-        }
+        guard var json = HookConfigJSON.editableObject(from: existingData) else { return nil }
 
         var hooks = json["hooks"] as? [String: Any] ?? [:]
 
@@ -138,36 +85,16 @@ struct CodexHookInstaller {
 
         for (event, desiredEntries) in desiredHookEvents {
             let existingEntries = hooks[event] as? [[String: Any]] ?? []
-            hooks[event] = pruneManagedHooks(from: existingEntries) + desiredEntries
+            hooks[event] = HookConfigJSON.pruneManagedHooks(from: existingEntries, isManaged: isManagedCommand) + desiredEntries
         }
 
         json["hooks"] = hooks
 
-        return try? JSONSerialization.data(
-            withJSONObject: json,
-            options: [.prettyPrinted, .sortedKeys]
-        )
+        return HookConfigJSON.serialize(json, options: hooksJSONWritingOptions)
     }
 
-    nonisolated private static func pruneManagedHooks(from entries: [[String: Any]]) -> [[String: Any]] {
-        entries.compactMap { entry in
-            guard let entryHooks = entry["hooks"] as? [[String: Any]] else {
-                return entry
-            }
-
-            let filteredHooks = entryHooks.filter { hook in
-                let existingCommand = hook["command"] as? String ?? ""
-                return !existingCommand.contains(hookScriptName)
-            }
-
-            guard !filteredHooks.isEmpty else {
-                return nil
-            }
-
-            var updatedEntry = entry
-            updatedEntry["hooks"] = filteredHooks
-            return updatedEntry
-        }
+    nonisolated private static func isManagedCommand(_ command: String) -> Bool {
+        command.contains(hookScriptName)
     }
 
     private nonisolated static let featureLine = "hooks = true"
@@ -215,21 +142,7 @@ struct CodexHookInstaller {
     }
 
     nonisolated static func isHookInstalled(in hooksData: Data?) -> Bool {
-        guard let hooksData,
-              let json = try? JSONSerialization.jsonObject(with: hooksData) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any] else {
-            return false
-        }
-
-        return hooks.values.contains { value in
-            guard let entries = value as? [[String: Any]] else { return false }
-            return entries.contains { entry in
-                guard let entryHooks = entry["hooks"] as? [[String: Any]] else { return false }
-                return entryHooks.contains { hook in
-                    (hook["command"] as? String)?.contains(hookScriptName) == true
-                }
-            }
-        }
+        HookConfigJSON.containsManagedHook(in: hooksData, isManaged: isManagedCommand)
     }
 
     nonisolated static func isFeatureEnabled(in configContents: String?) -> Bool {
