@@ -207,7 +207,8 @@ struct AppSettings {
         EmotionAnalysisCredentials.shared.apiKey(for: provider, allowInteraction: true)
     }
 
-    static func setApiKey(_ key: String?, for provider: EmotionAnalysisProvider) {
+    @discardableResult
+    static func setApiKey(_ key: String?, for provider: EmotionAnalysisProvider) -> Bool {
         EmotionAnalysisCredentials.shared.setApiKey(key, for: provider)
     }
 

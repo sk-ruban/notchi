@@ -18,6 +18,9 @@ struct EmotionAnalysisSettingsView: View {
     @State private var provider = AppSettings.emotionAnalysisProvider
     @State private var model = AppSettings.selectedEmotionAnalysisModel(for: AppSettings.emotionAnalysisProvider)
     @State private var apiKeyInput = AppSettings.apiKey(for: AppSettings.emotionAnalysisProvider) ?? ""
+    /// The field's text when it was loaded (set on appear) or last saved; only an edit away from it is
+    /// written back, so leaving a field a locked Keychain loaded empty can't delete the stored key.
+    @State private var savedApiKeyInput = ""
     @State private var baseURLInput = AppSettings.apiBaseURL(for: AppSettings.emotionAnalysisProvider) ?? ""
     @State private var isProviderPickerExpanded = false
     @State private var isModelPickerExpanded = false
@@ -71,6 +74,7 @@ struct EmotionAnalysisSettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            savedApiKeyInput = apiKeyInput
             hasClaudeCodeFallback = EmotionAnalysisCredentials.shared.claudeSettingsConfig() != nil
         }
         .onDisappear {
@@ -465,6 +469,7 @@ struct EmotionAnalysisSettingsView: View {
         AppSettings.emotionAnalysisProvider = newProvider
         model = AppSettings.selectedEmotionAnalysisModel(for: newProvider)
         apiKeyInput = AppSettings.apiKey(for: newProvider) ?? ""
+        savedApiKeyInput = apiKeyInput
         baseURLInput = AppSettings.apiBaseURL(for: newProvider) ?? ""
         customModelInput = ""
         resetTestState()
@@ -529,9 +534,17 @@ struct EmotionAnalysisSettingsView: View {
         self.provider == provider && apiKeyInput == apiKey && baseURLInput == baseURL
     }
 
+    static func isApiKeyEdited(input: String, loaded: String) -> Bool {
+        input.trimmingCharacters(in: .whitespacesAndNewlines) != loaded.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func saveApiKey(for provider: EmotionAnalysisProvider) {
+        guard Self.isApiKeyEdited(input: apiKeyInput, loaded: savedApiKeyInput) else { return }
         let trimmed = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        AppSettings.setApiKey(trimmed.isEmpty ? nil : trimmed, for: provider)
+        // A failed write stays an edit, so the next save tries again.
+        if AppSettings.setApiKey(trimmed.isEmpty ? nil : trimmed, for: provider) {
+            savedApiKeyInput = trimmed
+        }
     }
 
     private func saveBaseURL(for provider: EmotionAnalysisProvider) {
