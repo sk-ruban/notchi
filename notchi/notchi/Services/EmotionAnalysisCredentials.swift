@@ -9,8 +9,16 @@ final class EmotionAnalysisCredentials {
 
     private enum StoredKey: Equatable {
         case value(String)
-        /// Unconfirmed when only a non-interactive read missed, which a locked item does too.
-        case missing(confirmed: Bool, checkedAt: Date)
+        case missing(MissSource, checkedAt: Date)
+    }
+
+    private enum MissSource: Equatable {
+        /// The user cleared the key, so it is not read again.
+        case cleared
+        /// A locked Keychain misses this too, so an interactive read retries it straight away.
+        case nonInteractiveRead
+        /// A locked Keychain, or a cancelled or denied prompt; retried later rather than prompting again.
+        case interactiveRead
     }
 
     private struct SettingsFileSignature: Equatable {
@@ -29,7 +37,7 @@ final class EmotionAnalysisCredentials {
     @ObservationIgnored private let loadClaudeSettings: (URL) -> ClaudeSettingsConfig?
     @ObservationIgnored private let now: () -> Date
 
-    // A locked Keychain also misses a non-interactive read, so such a miss is checked again later.
+    // A miss can be a locked Keychain, so it is read again after this long.
     static let unconfirmedMissRetryInterval: TimeInterval = 5 * 60
 
     init(
@@ -67,28 +75,36 @@ final class EmotionAnalysisCredentials {
         switch storedKeys[provider] {
         case .value(let key):
             return key
-        case .missing(let confirmed, let checkedAt)
-            where confirmed || (!allowInteraction && now().timeIntervalSince(checkedAt) < Self.unconfirmedMissRetryInterval):
+        case .missing(.cleared, _):
+            return nil
+        case .missing(let source, let checkedAt)
+            where now().timeIntervalSince(checkedAt) < Self.unconfirmedMissRetryInterval
+                && (source == .interactiveRead || !allowInteraction):
             return nil
         case .missing, nil:
             break
         }
 
         let key = readKey(provider, allowInteraction)
-        storedKeys[provider] = key.map(StoredKey.value) ?? .missing(confirmed: allowInteraction, checkedAt: now())
+        let source: MissSource = allowInteraction ? .interactiveRead : .nonInteractiveRead
+        storedKeys[provider] = key.map(StoredKey.value) ?? .missing(source, checkedAt: now())
         return key
     }
 
-    func setApiKey(_ key: String?, for provider: EmotionAnalysisProvider) {
-        if !writeKey(key, provider) {
+    /// Returns false when the Keychain write failed.
+    @discardableResult
+    func setApiKey(_ key: String?, for provider: EmotionAnalysisProvider) -> Bool {
+        let didWrite = writeKey(key, provider)
+        if !didWrite {
             // Forget the cached key so the next read reports what the Keychain actually holds.
             storedKeys[provider] = nil
         } else if let key, !key.isEmpty {
             storedKeys[provider] = .value(key)
         } else {
-            storedKeys[provider] = .missing(confirmed: true, checkedAt: now())
+            storedKeys[provider] = .missing(.cleared, checkedAt: now())
         }
         revision += 1
+        return didWrite
     }
 
     /// Re-reads settings.json only when its size or modification time changed since the last read.

@@ -73,6 +73,36 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
         XCTAssertEqual(credentials.apiKey(for: .claude, allowInteraction: true), Self.storedKey)
     }
 
+    func testInteractiveMissIsRetriedOnceTheRetryIntervalPasses() {
+        // A locked Keychain or a cancelled access prompt also misses an interactive read.
+        var keychainUnlocked = false
+        let credentials = makeCredentials(keychain: { _ in keychainUnlocked ? Self.storedKey : nil })
+        XCTAssertNil(credentials.apiKey(for: .claude, allowInteraction: true), "precondition: the locked Keychain misses")
+
+        keychainUnlocked = true
+        currentTime += EmotionAnalysisCredentials.unconfirmedMissRetryInterval + 1
+
+        XCTAssertEqual(credentials.apiKey(for: .claude, allowInteraction: true), Self.storedKey)
+    }
+
+    func testInteractiveMissIsNotReadAgainWithinTheRetryInterval() {
+        // Each interactive read of a denied item would prompt again.
+        let expectedReadCount = 1
+        let credentials = makeCredentials(keychain: { _ in nil })
+        _ = credentials.apiKey(for: .claude, allowInteraction: true)
+
+        currentTime += EmotionAnalysisCredentials.unconfirmedMissRetryInterval - 1
+        _ = credentials.apiKey(for: .claude, allowInteraction: true)
+
+        XCTAssertEqual(keychainReads.count, expectedReadCount)
+    }
+
+    func testFailedSaveReportsFailure() {
+        let credentials = makeCredentials(keychain: { _ in nil }, keychainAcceptsWrites: false)
+
+        XCTAssertFalse(credentials.setApiKey(Self.savedKey, for: .claude))
+    }
+
     func testSavedKeyIsServedWithoutReadingTheKeychain() {
         let expectedReadCount = 0
         let credentials = makeCredentials(keychain: { _ in Self.storedKey })
