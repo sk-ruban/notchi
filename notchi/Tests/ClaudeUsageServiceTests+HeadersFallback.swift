@@ -567,7 +567,7 @@ extension ClaudeUsageServiceTests {
     func testStartPollingRestoresPersistedExtraUsageObservationForCurrentWindow() async throws {
         let scheduler = PollSchedulerSpy()
         let resetAt = "2099-01-01T01:00:00Z"
-        AppSettings.claudeExtraUsageObservation = ClaudeExtraUsageObservation(
+        usageSettings.extraUsageObservation = ClaudeExtraUsageObservation(
             extraUsage: .init(isEnabled: true, monthlyLimit: 2000, usedCredits: 313, utilization: 15.65),
             lastObservedExtraUsageCredits: 313,
             extraUsageResetMarker: resetAt,
@@ -592,7 +592,7 @@ extension ClaudeUsageServiceTests {
         )
 
         let service = ClaudeUsageService(dependencies: dependencies)
-        AppSettings.isUsageEnabled = true
+        usageSettings.isUsageEnabled = true
         service.startPolling()
         await Task.yield()
         await Task.yield()
