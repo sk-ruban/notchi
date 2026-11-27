@@ -112,11 +112,7 @@ struct UsageBarView: View {
     private var usageColor: Color {
         guard usage != nil else { return TerminalColors.dimmedText }
         if isStale { return TerminalColors.dimmedText }
-        switch effectivePercentage {
-        case ..<50: return TerminalColors.green
-        case ..<80: return TerminalColors.amber
-        default: return TerminalColors.red
-        }
+        return TerminalColors.usageColor(forPercentUsed: effectivePercentage)
     }
 
     var shouldShowExtraUsageIndicator: Bool {
