@@ -26,14 +26,6 @@ struct ClaudeSettingsConfig {
         }
     }
 
-    nonisolated static func loadFromDefaultLocation() -> ClaudeSettingsConfig? {
-        load(from: ClaudeConfigDirectoryResolver.resolve().settingsURL)
-    }
-
-    nonisolated static func existsAtDefaultLocation() -> Bool {
-        loadFromDefaultLocation() != nil
-    }
-
     nonisolated static func parse(from data: Data) throws -> ClaudeSettingsConfig? {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let env = json?["env"] as? [String: String] ?? [:]
@@ -406,6 +398,18 @@ private nonisolated struct EmotionAnalysisResponseParser {
     }
 }
 
+nonisolated enum EmotionAnalysisRequest {
+    // A mood that arrives after URLSession's 60 s default is stale; the reply is usually long done.
+    static let timeout: TimeInterval = 15
+
+    static func post(to url: URL) -> URLRequest {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        return request
+    }
+}
+
 protocol EmotionAnalysisProviding {
     var providerName: String { get }
     func analyze(prompt: String, systemPrompt: String) async throws -> (emotion: String, intensity: Double)
@@ -420,11 +424,9 @@ private struct ClaudeEmotionAnalysisProvider: EmotionAnalysisProviding {
     var providerName: String { "Claude" }
 
     func analyze(prompt: String, systemPrompt: String) async throws -> (emotion: String, intensity: Double) {
-        var request = URLRequest(url: apiURL)
-        request.httpMethod = "POST"
+        var request = EmotionAnalysisRequest.post(to: apiURL)
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
 
         let body: [String: Any] = [
             "model": model,
@@ -470,10 +472,8 @@ private struct OpenAIEmotionAnalysisProvider: EmotionAnalysisProviding {
     var providerName: String { "OpenAI" }
 
     func analyze(prompt: String, systemPrompt: String) async throws -> (emotion: String, intensity: Double) {
-        var request = URLRequest(url: apiURL)
-        request.httpMethod = "POST"
+        var request = EmotionAnalysisRequest.post(to: apiURL)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
 
         let body: [String: Any] = [
             "model": model,
@@ -544,6 +544,10 @@ final class EmotionAnalyzer {
         Reply with ONLY valid JSON: {"emotion": "...", "intensity": ...}
         """
     private static let testPrompt = "Thanks, this looks great!"
+    // Tone usually shows at the start or end of a prompt, so a pasted log or diff in the middle can go.
+    private static let analyzedPromptHeadLength = 1_500
+    private static let analyzedPromptTailLength = 500
+    private static let truncatedPromptSeparator = "\n…\n"
 
     private init() {}
 
@@ -558,13 +562,20 @@ final class EmotionAnalyzer {
 
         let start = ContinuousClock.now
         do {
-            let result = try await provider.analyze(prompt: prompt, systemPrompt: Self.systemPrompt)
+            let result = try await provider.analyze(prompt: Self.truncatedForAnalysis(prompt), systemPrompt: Self.systemPrompt)
             return result
         } catch {
+            // A newer prompt replaced this one; that's not a failure worth logging.
+            guard !Task.isCancelled else { return nil }
             let elapsed = ContinuousClock.now - start
             logger.error("\(provider.providerName, privacy: .public) API failed (\(elapsed, privacy: .public)): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    private static func truncatedForAnalysis(_ prompt: String) -> String {
+        guard prompt.count > analyzedPromptHeadLength + analyzedPromptTailLength else { return prompt }
+        return String(prompt.prefix(analyzedPromptHeadLength)) + truncatedPromptSeparator + String(prompt.suffix(analyzedPromptTailLength))
     }
 
     private func resolveProvider() -> EmotionAnalysisProviding? {
@@ -581,7 +592,7 @@ final class EmotionAnalyzer {
     }
 
     private func resolveClaudeProvider() -> ClaudeEmotionAnalysisProvider? {
-        if let apiKey = KeychainManager.getAnthropicApiKey(allowInteraction: false)?
+        if let apiKey = EmotionAnalysisCredentials.shared.apiKey(for: .claude)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !apiKey.isEmpty {
             guard let apiURL = Self.manualEndpointURL(for: .claude) else {
@@ -596,7 +607,7 @@ final class EmotionAnalyzer {
             )
         }
 
-        guard let config = ClaudeSettingsConfig.loadFromDefaultLocation() else {
+        guard let config = EmotionAnalysisCredentials.shared.claudeSettingsConfig() else {
             return nil
         }
 
@@ -611,7 +622,7 @@ final class EmotionAnalyzer {
     }
 
     private func resolveOpenAIProvider() -> OpenAIEmotionAnalysisProvider? {
-        guard let apiKey = KeychainManager.getOpenAIApiKey(allowInteraction: false)?
+        guard let apiKey = EmotionAnalysisCredentials.shared.apiKey(for: .openAI)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !apiKey.isEmpty,
               let apiURL = Self.manualEndpointURL(for: .openAI) else {
@@ -668,7 +679,7 @@ final class EmotionAnalyzer {
                 )
             }
 
-            if let config = ClaudeSettingsConfig.loadFromDefaultLocation() {
+            if let config = EmotionAnalysisCredentials.shared.claudeSettingsConfig() {
                 return ClaudeEmotionAnalysisProvider(
                     apiURL: config.apiURL,
                     apiKey: config.apiKey,

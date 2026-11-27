@@ -8,7 +8,9 @@ struct ClaudeOAuthCredentials: Equatable {
     let scopes: Set<String>
 }
 
-enum KeychainManager {
+// Claude credential reads wait on /usr/bin/security for up to 2 s, so usage services call them
+// from background executors instead of the project's MainActor default.
+nonisolated enum KeychainManager {
     private static let claudeCodeService = "Claude Code-credentials"
     private static let configDirHashLength = 8
     private static let notchiService = "com.ruban.notchi"
@@ -16,6 +18,7 @@ enum KeychainManager {
     private static let openAIApiKeyAccount = "openAIApiKey"
     private static let recentCredentialCacheTTL: TimeInterval = 5
     private static let securityCLIBackoffInterval: TimeInterval = 60
+    private static let securityCLITimeout: TimeInterval = 2
     private static let credentialReadLock = NSLock()
     private nonisolated(unsafe) static var recentCredentialCacheEntries: [String: ClaudeCredentialCacheEntry] = [:]
     private nonisolated(unsafe) static var lastSecurityCLIFailureAt: [String: Date] = [:]
@@ -147,29 +150,12 @@ enum KeychainManager {
         }
         #endif
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", service, "-w"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        let done = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in done.signal() }
-
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-
-        if done.wait(timeout: .now() + .seconds(2)) == .timedOut {
-            process.terminate()
-            return nil
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard !data.isEmpty,
+        let data = runProcessWithTimeout(
+            executablePath: "/usr/bin/security",
+            arguments: ["find-generic-password", "-s", service, "-w"],
+            commandTimeout: securityCLITimeout
+        )
+        guard let data, !data.isEmpty,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
@@ -286,7 +272,7 @@ enum KeychainManager {
         taskNowOverride = override
     }
 
-    static var keychainWritesForTesting = 0
+    nonisolated(unsafe) static var keychainWritesForTesting = 0
 
     static func _resetCredentialResolutionStateForTesting() {
         keychainWritesForTesting = 0

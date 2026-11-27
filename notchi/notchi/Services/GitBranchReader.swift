@@ -4,6 +4,7 @@ enum GitBranchReader {
     private nonisolated static let symbolicRefPrefix = "ref: refs/heads/"
     private nonisolated static let gitdirPrefix = "gitdir: "
     private nonisolated static let shortShaLength = 7
+    private nonisolated static let originHeadPrefix = "ref: refs/remotes/origin/"
 
     nonisolated static func branch(forRepositoryAt path: String) -> String? {
         guard !path.isEmpty, let gitDirectory = findGitDirectory(startingAt: URL(fileURLWithPath: path)) else {
@@ -18,6 +19,30 @@ enum GitBranchReader {
         }
         guard !trimmed.isEmpty else { return nil }
         return String(trimmed.prefix(shortShaLength))
+    }
+
+    /// The branch `origin/HEAD` points at, or nil when the clone doesn't record one.
+    nonisolated static func defaultBranch(forRepositoryAt path: String) -> String? {
+        guard !path.isEmpty, let gitDirectory = findGitDirectory(startingAt: URL(fileURLWithPath: path)) else {
+            return nil
+        }
+        let originHead = commonDirectory(of: gitDirectory).appendingPathComponent("refs/remotes/origin/HEAD")
+        guard let contents = try? String(contentsOf: originHead, encoding: .utf8) else { return nil }
+        let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix(originHeadPrefix), trimmed.count > originHeadPrefix.count else { return nil }
+        return String(trimmed.dropFirst(originHeadPrefix.count))
+    }
+
+    // A linked worktree's git directory keeps its own HEAD but shares refs with the main repository.
+    private nonisolated static func commonDirectory(of gitDirectory: URL) -> URL {
+        guard let contents = try? String(contentsOf: gitDirectory.appendingPathComponent("commondir"), encoding: .utf8) else {
+            return gitDirectory
+        }
+        let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return gitDirectory }
+        return trimmed.hasPrefix("/")
+            ? URL(fileURLWithPath: trimmed)
+            : gitDirectory.appendingPathComponent(trimmed).standardizedFileURL
     }
 
     private nonisolated static func findGitDirectory(startingAt start: URL) -> URL? {

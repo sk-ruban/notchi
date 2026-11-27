@@ -54,6 +54,37 @@ final class GitBranchReaderTests: XCTestCase {
         XCTAssertEqual(GitBranchReader.branch(forRepositoryAt: worktree.path), "feat/on-device-emotion-analysis")
     }
 
+    func testReadsDefaultBranchFromOriginHead() throws {
+        let expectedDefaultBranch = "develop"
+        try writeGitDir(at: root, head: "ref: refs/heads/feature\n")
+        try writeOriginHead(in: root.appendingPathComponent(".git"), contents: "ref: refs/remotes/origin/develop\n")
+
+        XCTAssertEqual(GitBranchReader.defaultBranch(forRepositoryAt: root.path), expectedDefaultBranch)
+    }
+
+    func testReadsWorktreeDefaultBranchFromTheSharedRepository() throws {
+        let expectedDefaultBranch = "main"
+        let commonGitDir = root.appendingPathComponent("main-repo/.git")
+        let worktreeGitDir = commonGitDir.appendingPathComponent("worktrees/feature")
+        try FileManager.default.createDirectory(at: worktreeGitDir, withIntermediateDirectories: true)
+        try "ref: refs/heads/feature\n"
+            .write(to: worktreeGitDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
+        try "../..\n".write(to: worktreeGitDir.appendingPathComponent("commondir"), atomically: true, encoding: .utf8)
+        try writeOriginHead(in: commonGitDir, contents: "ref: refs/remotes/origin/main\n")
+        let worktree = root.appendingPathComponent("worktrees/feature")
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try "gitdir: \(worktreeGitDir.path)\n"
+            .write(to: worktree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(GitBranchReader.defaultBranch(forRepositoryAt: worktree.path), expectedDefaultBranch)
+    }
+
+    func testDefaultBranchIsNilWithoutOriginHead() throws {
+        try writeGitDir(at: root, head: "ref: refs/heads/main\n")
+
+        XCTAssertNil(GitBranchReader.defaultBranch(forRepositoryAt: root.path))
+    }
+
     func testReturnsNilOutsideRepository() {
         XCTAssertNil(GitBranchReader.branch(forRepositoryAt: root.path))
     }
@@ -64,6 +95,12 @@ final class GitBranchReaderTests: XCTestCase {
 
     func testReturnsNilForEmptyPath() {
         XCTAssertNil(GitBranchReader.branch(forRepositoryAt: ""))
+    }
+
+    private func writeOriginHead(in gitDir: URL, contents: String) throws {
+        let remoteDir = gitDir.appendingPathComponent("refs/remotes/origin")
+        try FileManager.default.createDirectory(at: remoteDir, withIntermediateDirectories: true)
+        try contents.write(to: remoteDir.appendingPathComponent("HEAD"), atomically: true, encoding: .utf8)
     }
 
     private func writeGitDir(at directory: URL, head: String) throws {

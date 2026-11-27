@@ -488,6 +488,131 @@ final class ClaudeCLIResolverTests: XCTestCase {
         )
     }
 
+    // MARK: - Finding the CLI for the user agent
+
+    nonisolated private static let mockShell = "/mock/zsh"
+    nonisolated private static let knownClaudePath = "/opt/homebrew/bin/claude"
+    nonisolated private static let shellOnlyClaudePath = "/mock/nvm/bin/claude"
+    nonisolated private static let versionOutput = "2.1.92 (Claude Code)\n"
+    private static let expectedUserAgent = "claude-code/2.1.92"
+    nonisolated private static let shellLookup = ["-lc", "command -v claude"]
+    private static let probeOverlap: useconds_t = 100_000
+
+    /// Process calls the resolver makes, recorded from whichever thread runs it.
+    nonisolated private final class ProcessLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: [[String]] = []
+
+        var calls: [[String]] { lock.withLock { recorded } }
+
+        func record(_ executablePath: String, _ arguments: [String]) {
+            lock.withLock { recorded.append([executablePath] + arguments) }
+        }
+    }
+
+    private func useMockConfigDirectory() {
+        ClaudeConfigDirectoryResolver.testHooks = .init(
+            environment: { ["CLAUDE_CONFIG_DIR": "/mock/config"] },
+            isExecutableFile: { _ in false },
+            runProcess: { _, _, _ in nil }
+        )
+    }
+
+    func testResolveUserAgentSkipsTheShellLookupWhenAKnownPathAnswers() {
+        useMockConfigDirectory()
+        let log = ProcessLog()
+        ClaudeCLIResolver.testHooks = .init(
+            environment: { ["SHELL": Self.mockShell] },
+            isExecutableFile: { $0 == Self.mockShell || $0 == Self.knownClaudePath },
+            runProcess: { executablePath, arguments, _ in
+                log.record(executablePath, arguments)
+                return executablePath == Self.knownClaudePath ? Self.versionOutput : nil
+            }
+        )
+
+        _ = ClaudeCLIResolver.resolveUserAgent()
+
+        XCTAssertEqual(log.calls, [[Self.knownClaudePath, "--version"]])
+    }
+
+    func testResolveUserAgentFallsBackToTheShellLookupWhenNoKnownPathExists() {
+        useMockConfigDirectory()
+        let log = ProcessLog()
+        ClaudeCLIResolver.testHooks = .init(
+            environment: { ["SHELL": Self.mockShell] },
+            isExecutableFile: { $0 == Self.mockShell || $0 == Self.shellOnlyClaudePath },
+            runProcess: { executablePath, arguments, _ in
+                log.record(executablePath, arguments)
+                if arguments == Self.shellLookup { return Self.shellOnlyClaudePath + "\n" }
+                return executablePath == Self.shellOnlyClaudePath ? Self.versionOutput : nil
+            }
+        )
+
+        let userAgent = ClaudeCLIResolver.resolveUserAgent()
+
+        XCTAssertEqual(userAgent, Self.expectedUserAgent)
+        XCTAssertEqual(log.calls, [[Self.mockShell] + Self.shellLookup, [Self.shellOnlyClaudePath, "--version"]])
+    }
+
+    func testResolveUserAgentRunsTheVersionProbeOncePerProcess() {
+        useMockConfigDirectory()
+        let log = ProcessLog()
+        ClaudeCLIResolver.testHooks = .init(
+            environment: { [:] },
+            isExecutableFile: { $0 == Self.knownClaudePath },
+            runProcess: { executablePath, arguments, _ in
+                log.record(executablePath, arguments)
+                return Self.versionOutput
+            }
+        )
+
+        _ = ClaudeCLIResolver.resolveUserAgent()
+        let secondUserAgent = ClaudeCLIResolver.resolveUserAgent()
+
+        XCTAssertEqual(secondUserAgent, Self.expectedUserAgent)
+        XCTAssertEqual(log.calls, [[Self.knownClaudePath, "--version"]])
+    }
+
+    // Claude Code installed after a failed lookup is picked up without restarting notchi.
+    func testResolveUserAgentRetriesAfterNotFindingTheCLI() {
+        useMockConfigDirectory()
+        nonisolated final class InstallState: @unchecked Sendable {
+            var isInstalled = false
+        }
+        let install = InstallState()
+        ClaudeCLIResolver.testHooks = .init(
+            environment: { [:] },
+            isExecutableFile: { $0 == Self.knownClaudePath && install.isInstalled },
+            runProcess: { _, _, _ in Self.versionOutput }
+        )
+        _ = ClaudeCLIResolver.resolveUserAgent()
+
+        install.isInstalled = true
+
+        XCTAssertEqual(ClaudeCLIResolver.resolveUserAgent(), Self.expectedUserAgent)
+    }
+
+    // Every account's usage service asks at launch; they share one lookup instead of each spawning probes.
+    func testConcurrentUserAgentLookupsRunTheVersionProbeOnce() async {
+        useMockConfigDirectory()
+        let log = ProcessLog()
+        ClaudeCLIResolver.testHooks = .init(
+            environment: { [:] },
+            isExecutableFile: { $0 == Self.knownClaudePath },
+            runProcess: { executablePath, arguments, _ in
+                log.record(executablePath, arguments)
+                usleep(Self.probeOverlap)
+                return Self.versionOutput
+            }
+        )
+
+        async let first = Task.detached { ClaudeCLIResolver.resolveUserAgent() }.value
+        async let second = Task.detached { ClaudeCLIResolver.resolveUserAgent() }.value
+        _ = await (first, second)
+
+        XCTAssertEqual(log.calls, [[Self.knownClaudePath, "--version"]])
+    }
+
     func testExtractVersionIgnoresShellNoiseAndReturnsFirstVersionLine() {
         let version = ClaudeCLIResolver.extractVersion(
             from: """

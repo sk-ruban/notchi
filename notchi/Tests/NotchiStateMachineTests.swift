@@ -825,6 +825,214 @@ final class NotchiStateMachineTests: XCTestCase {
         XCTAssertEqual(resolverCalls.withLock { $0 }, 2)
     }
 
+    func testCodexThreadMetadataMonitorPollsAtIdleIntervalAfterCodexStop() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
+        let expectedIdleInterval: Duration = .seconds(45)
+        let sessionId = "codex-idle-monitor-\(UUID().uuidString)"
+        let transcriptPath = "/tmp/codex-idle-monitor.jsonl"
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+
+        XCTAssertEqual(stateMachine.codexThreadMetadataMonitorIntervalForTesting, expectedIdleInterval)
+    }
+
+    func testCodexThreadMetadataMonitorReturnsToActiveIntervalOnNextCodexPrompt() {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setCodexThreadMetadataAutoRefreshEnabledForTesting(false)
+        let expectedActiveInterval: Duration = .seconds(5)
+        let sessionId = "codex-active-monitor-\(UUID().uuidString)"
+        let transcriptPath = "/tmp/codex-active-monitor.jsonl"
+        let prompt = makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        )
+
+        stateMachine.handleEvent(prompt)
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+        stateMachine.handleEvent(prompt)
+
+        XCTAssertEqual(stateMachine.codexThreadMetadataMonitorIntervalForTesting, expectedActiveInterval)
+    }
+
+    func testCodexStopRefreshesThreadTitleBeforeTheNextIdlePoll() async {
+        let stateMachine = NotchiStateMachine.shared
+        let expectedTitle = "Renamed after the reply"
+        let sessionId = "codex-stop-title-\(UUID().uuidString)"
+        let sessionKey = ProviderSessionKey(provider: .codex, rawSessionId: sessionId)
+        let transcriptPath = "/tmp/codex-stop-title.jsonl"
+        SessionStore.shared.setCodexMetadataResolverForTesting { _ in
+            CodexThreadMetadata(title: "First title", archived: false)
+        }
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "hello"
+        ))
+        let resolvedFirstTitle = await waitUntil(timeout: 2) {
+            SessionStore.shared.session(for: sessionKey)?.codexTitle == "First title"
+        }
+        XCTAssertTrue(resolvedFirstTitle, "precondition: the first event resolves the thread")
+
+        SessionStore.shared.setCodexMetadataResolverForTesting { _ in
+            CodexThreadMetadata(title: expectedTitle, archived: false)
+        }
+        stateMachine.handleEvent(makeEvent(
+            sessionId: sessionId,
+            provider: .codex,
+            transcriptPath: transcriptPath,
+            event: .stop,
+            status: "waiting_for_input"
+        ))
+        _ = await waitUntil(timeout: 2) {
+            SessionStore.shared.session(for: sessionKey)?.codexTitle == expectedTitle
+        }
+
+        XCTAssertEqual(SessionStore.shared.session(for: sessionKey)?.codexTitle, expectedTitle)
+    }
+
+    func testEmotionDecayTimerStopsOnceEveryScoreHasDecayed() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.setEmotionDecayIntervalForTesting(.milliseconds(5))
+        stateMachine.analyzeEmotion = { _ in (emotion: "happy", intensity: 1.0) }
+        let session = makeInteractiveSession(sessionId: "decay-idle-\(UUID().uuidString)")
+        stateMachine.handleEvent(makeEvent(
+            sessionId: session.rawSessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "thanks, great job"
+        ))
+        let recorded = await waitUntil(timeout: 2) { session.emotionState.scores[.happy, default: 0] > 0 }
+        XCTAssertTrue(recorded, "precondition: the prompt records a score")
+
+        _ = await waitUntil(timeout: 5) { !stateMachine.isEmotionDecayTimerRunningForTesting }
+
+        XCTAssertFalse(stateMachine.isEmotionDecayTimerRunningForTesting)
+    }
+
+    func testRecordedEmotionStartsTheIdleDecayTimer() async throws {
+        let stateMachine = NotchiStateMachine.shared
+        stateMachine.analyzeEmotion = { _ in (emotion: "sad", intensity: 1.0) }
+        XCTAssertFalse(stateMachine.isEmotionDecayTimerRunningForTesting, "precondition: nothing to decay")
+        let session = makeInteractiveSession(sessionId: "decay-restart-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(
+            sessionId: session.rawSessionId,
+            event: .userPromptSubmitted,
+            status: "processing",
+            userPrompt: "this is still broken"
+        ))
+        _ = await waitUntil(timeout: 2) { session.emotionState.scores[.sad, default: 0] > 0 }
+
+        XCTAssertTrue(stateMachine.isEmotionDecayTimerRunningForTesting)
+    }
+
+    func testLocalSlashCommandPromptIsNotAnalyzed() async {
+        let expectedAnalyzedPrompts = ["hello"]
+        let stateMachine = NotchiStateMachine.shared
+        var analyzedPrompts: [String] = []
+        stateMachine.analyzeEmotion = { prompt in
+            analyzedPrompts.append(prompt)
+            return nil
+        }
+        let session = makeInteractiveSession(sessionId: "emotion-slash-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "/clear"))
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "hello"))
+        _ = await waitUntil(timeout: 2) { analyzedPrompts.contains("hello") }
+
+        XCTAssertEqual(analyzedPrompts, expectedAnalyzedPrompts)
+    }
+
+    func testBlankPromptIsNotAnalyzed() async {
+        let expectedAnalyzedPrompts = ["hello"]
+        let stateMachine = NotchiStateMachine.shared
+        var analyzedPrompts: [String] = []
+        stateMachine.analyzeEmotion = { prompt in
+            analyzedPrompts.append(prompt)
+            return nil
+        }
+        let session = makeInteractiveSession(sessionId: "emotion-blank-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: " \n "))
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "hello"))
+        _ = await waitUntil(timeout: 2) { analyzedPrompts.contains("hello") }
+
+        XCTAssertEqual(analyzedPrompts, expectedAnalyzedPrompts)
+    }
+
+    func testLateAnalysisOfAnEarlierPromptDoesNotRecordItsEmotion() async throws {
+        let expectedHappyScore = 0.0
+        let stateMachine = NotchiStateMachine.shared
+        var releaseFirstAnalysis: CheckedContinuation<Void, Never>?
+        stateMachine.analyzeEmotion = { prompt in
+            guard prompt == "first" else { return (emotion: "sad", intensity: 1.0) }
+            await withCheckedContinuation { releaseFirstAnalysis = $0 }
+            return (emotion: "happy", intensity: 1.0)
+        }
+        let session = makeInteractiveSession(sessionId: "emotion-cancel-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "first"))
+        let firstStarted = await waitUntil(timeout: 2) { releaseFirstAnalysis != nil }
+        XCTAssertTrue(firstStarted, "precondition: the first analysis is in flight")
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "second"))
+        let secondRecorded = await waitUntil(timeout: 2) { session.emotionState.scores[.sad, default: 0] > 0 }
+        XCTAssertTrue(secondRecorded, "precondition: the second prompt's emotion is recorded")
+        releaseFirstAnalysis?.resume()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(session.emotionState.scores[.happy], expectedHappyScore)
+    }
+
+    func testSkippedPromptStillDropsTheEarlierPromptsLateEmotion() async throws {
+        let expectedHappyScore = 0.0
+        let stateMachine = NotchiStateMachine.shared
+        var releaseFirstAnalysis: CheckedContinuation<Void, Never>?
+        stateMachine.analyzeEmotion = { _ in
+            await withCheckedContinuation { releaseFirstAnalysis = $0 }
+            return (emotion: "happy", intensity: 1.0)
+        }
+        let session = makeInteractiveSession(sessionId: "emotion-skip-cancel-\(UUID().uuidString)")
+
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "first"))
+        let firstStarted = await waitUntil(timeout: 2) { releaseFirstAnalysis != nil }
+        XCTAssertTrue(firstStarted, "precondition: the first analysis is in flight")
+        // A newer prompt that isn't analyzed itself still starts a new turn.
+        stateMachine.handleEvent(makeEvent(sessionId: session.rawSessionId, event: .userPromptSubmitted, status: "processing", userPrompt: "/clear"))
+        releaseFirstAnalysis?.resume()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(session.emotionState.scores[.happy, default: 0], expectedHappyScore)
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

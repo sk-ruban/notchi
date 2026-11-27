@@ -468,16 +468,6 @@ struct AppSettings {
         }
     }
 
-    static var anthropicApiKey: String? {
-        get { KeychainManager.getAnthropicApiKey(allowInteraction: true) }
-        set { KeychainManager.setAnthropicApiKey(newValue) }
-    }
-
-    static var openAIApiKey: String? {
-        get { KeychainManager.getOpenAIApiKey(allowInteraction: true) }
-        set { KeychainManager.setOpenAIApiKey(newValue) }
-    }
-
     static var emotionAnalysisProvider: EmotionAnalysisProvider {
         get {
             if let rawValue = UserDefaults.standard.string(forKey: emotionAnalysisProviderKey),
@@ -485,10 +475,10 @@ struct AppSettings {
                 return provider
             }
 
-            let hasAnthropicKey = KeychainManager.getAnthropicApiKey(allowInteraction: false)?
+            let hasAnthropicKey = EmotionAnalysisCredentials.shared.apiKey(for: .claude)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty == false
-            let hasOpenAIKey = KeychainManager.getOpenAIApiKey(allowInteraction: false)?
+            let hasOpenAIKey = EmotionAnalysisCredentials.shared.apiKey(for: .openAI)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty == false
 
@@ -504,21 +494,11 @@ struct AppSettings {
     }
 
     static func apiKey(for provider: EmotionAnalysisProvider) -> String? {
-        switch provider {
-        case .claude:
-            anthropicApiKey
-        case .openAI:
-            openAIApiKey
-        }
+        EmotionAnalysisCredentials.shared.apiKey(for: provider, allowInteraction: true)
     }
 
     static func setApiKey(_ key: String?, for provider: EmotionAnalysisProvider) {
-        switch provider {
-        case .claude:
-            anthropicApiKey = key
-        case .openAI:
-            openAIApiKey = key
-        }
+        EmotionAnalysisCredentials.shared.setApiKey(key, for: provider)
     }
 
     static func apiBaseURL(for provider: EmotionAnalysisProvider) -> String? {

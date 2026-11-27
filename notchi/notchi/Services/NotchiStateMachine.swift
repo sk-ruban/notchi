@@ -13,11 +13,14 @@ final class NotchiStateMachine {
 
     private var emotionDecayTimer: Task<Void, Never>?
     private var sleepRetirementTimer: Task<Void, Never>?
+    private var emotionDecayInterval = EmotionState.decayInterval
     private var pendingSyncTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingPositionMarks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingSessionStartTimes: [ProviderSessionKey: Date] = [:]
+    private var emotionAnalysisTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var processMonitorTask: Task<Void, Never>?
     private var codexThreadMetadataMonitorTask: Task<Void, Never>?
+    private var codexThreadMetadataMonitorInterval: Duration?
     private var codexThreadMetadataRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshTask: Task<Void, Never>?
     private var codexCompactionSignalRefreshGeneration = 0
@@ -31,6 +34,9 @@ final class NotchiStateMachine {
     }
     var isProcessAlive: (Int) -> Bool
     var sleepRetirementAge: () -> TimeInterval? = NotchiStateMachine.defaultSleepRetirementAge
+    var analyzeEmotion: @MainActor (String) async -> (emotion: String, intensity: Double)? = { prompt in
+        await EmotionAnalyzer.shared.analyze(prompt)
+    }
     var onCodexSessionsEnded: () -> Void = {
         Task { await CodexUsageService.shared.refreshFromAPI() }
     }
@@ -38,7 +44,9 @@ final class NotchiStateMachine {
     private static let syncDebounce: Duration = .milliseconds(100)
     private static let waitingClearGuard: TimeInterval = 2.0
     private static let processMonitorInterval: Duration = .seconds(2)
-    private static let codexThreadMetadataMonitorInterval: Duration = .seconds(5)
+    private static let codexThreadMetadataActiveMonitorInterval: Duration = .seconds(5)
+    // Each poll spawns sqlite3; archive, delete and title changes on idle threads can wait longer.
+    private static let codexThreadMetadataIdleMonitorInterval: Duration = .seconds(45)
     private nonisolated static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
     private nonisolated static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
     private static let processMissLimit = 2
@@ -50,12 +58,11 @@ final class NotchiStateMachine {
 
     private init() {
         isProcessAlive = Self.defaultProcessAlive
-        startEmotionDecayTimer()
-        startSleepRetirementTimer()
     }
 
     func handleEvent(_ event: HookEvent) {
         trimPendingSessionStartTimes()
+        startSleepRetirementTimerIfNeeded()
 
         let transcriptPath = ConversationParser.resolvedTranscriptPath(
             for: event.provider,
@@ -124,13 +131,14 @@ final class NotchiStateMachine {
                 startFileWatcher(sessionKey: event.sessionKey, transcriptPath: transcriptPath)
             }
 
+            // A new turn retires the previous prompt's mood, even when this prompt isn't analyzed.
+            emotionAnalysisTasks.removeValue(forKey: event.sessionKey)?.cancel()
             if session.isInteractive,
                event.provider.capabilities.supportsPromptEmotionAnalysis,
-               let prompt = event.userPrompt {
-                Task {
-                    guard let result = await EmotionAnalyzer.shared.analyze(prompt) else { return }
-                    session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
-                }
+               let prompt = event.userPrompt,
+               !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               !SessionStore.isLocalSlashCommand(prompt) {
+                analyzeEmotion(of: prompt, for: session)
             }
 
             if session.isInteractive,
@@ -199,6 +207,18 @@ final class NotchiStateMachine {
         session.resetSleepTimer()
     }
 
+    private func analyzeEmotion(of prompt: String, for session: SessionData) {
+        let sessionKey = session.sessionKey
+        emotionAnalysisTasks[sessionKey] = Task {
+            let result = await analyzeEmotion(prompt)
+            guard !Task.isCancelled else { return }
+            emotionAnalysisTasks.removeValue(forKey: sessionKey)
+            guard let result else { return }
+            session.emotionState.recordEmotion(result.emotion, intensity: result.intensity, prompt: prompt)
+            startEmotionDecayTimerIfNeeded()
+        }
+    }
+
     private func scheduleFileSync(sessionKey: ProviderSessionKey, transcriptPath: String) {
         pendingSyncTasks[sessionKey]?.cancel()
         pendingSyncTasks[sessionKey] = Task {
@@ -225,6 +245,7 @@ final class NotchiStateMachine {
                 for: sessionKey,
                 hasActiveWatcher: fileWatchers[sessionKey] != nil
             )
+            refreshCodexThreadMetadataMonitoring()
 
             pendingSyncTasks.removeValue(forKey: sessionKey)
         }
@@ -400,6 +421,7 @@ final class NotchiStateMachine {
         stopFileWatcher(sessionKey: sessionKey)
         pendingSyncTasks.removeValue(forKey: sessionKey)?.cancel()
         pendingPositionMarks.removeValue(forKey: sessionKey)?.cancel()
+        emotionAnalysisTasks.removeValue(forKey: sessionKey)?.cancel()
         SoundService.shared.clearCooldown(for: sessionKey)
         if !keepingTranscriptPosition {
             Task { await ConversationParser.shared.resetState(for: sessionKey) }
@@ -444,24 +466,39 @@ final class NotchiStateMachine {
         watcher.source.cancel()
     }
 
-    private func startEmotionDecayTimer() {
-        emotionDecayTimer = Task {
+    private func startEmotionDecayTimerIfNeeded() {
+        guard emotionDecayTimer == nil else { return }
+        let interval = emotionDecayInterval
+        emotionDecayTimer = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: EmotionState.decayInterval)
-                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: interval)
+                guard let self, !Task.isCancelled else { return }
+                var hasScoresLeft = false
                 for session in sessionStore.sessions.values {
                     session.emotionState.decayAll()
+                    hasScoresLeft = hasScoresLeft || session.emotionState.hasScores
+                }
+                // Idle until the next recorded emotion restarts the timer.
+                guard hasScoresLeft else {
+                    emotionDecayTimer = nil
+                    return
                 }
             }
         }
     }
 
-    private func startSleepRetirementTimer() {
-        sleepRetirementTimer = Task {
+    private func startSleepRetirementTimerIfNeeded() {
+        guard sleepRetirementTimer == nil else { return }
+        sleepRetirementTimer = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: Self.sleepRetirementCheckInterval)
-                guard !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled else { return }
                 retireLongSleepingSessions()
+                // Idle until the next event restarts the timer.
+                guard !sessionStore.sessions.isEmpty else {
+                    sleepRetirementTimer = nil
+                    return
+                }
             }
         }
     }
@@ -495,22 +532,34 @@ final class NotchiStateMachine {
     }
 
     private func refreshCodexThreadMetadataMonitoring() {
-        let shouldMonitor = sessionStore.sessions.values.contains { $0.isCodexThreadBacked }
+        let codexSessions = sessionStore.sessions.values.filter(\.isCodexThreadBacked)
 
-        if shouldMonitor {
-            guard codexThreadMetadataMonitorTask == nil else { return }
+        if !codexSessions.isEmpty {
+            let interval = codexSessions.contains(where: \.isProcessing)
+                ? Self.codexThreadMetadataActiveMonitorInterval
+                : Self.codexThreadMetadataIdleMonitorInterval
+            guard interval != codexThreadMetadataMonitorInterval else { return }
+
+            let finishedTurn = codexThreadMetadataMonitorInterval == Self.codexThreadMetadataActiveMonitorInterval
+            codexThreadMetadataMonitorTask?.cancel()
+            codexThreadMetadataMonitorInterval = interval
             codexThreadMetadataMonitorTask = Task { [weak self] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: Self.codexThreadMetadataMonitorInterval)
+                    try? await Task.sleep(for: interval)
                     guard !Task.isCancelled else { return }
                     self?.reconcileCodexThreadMetadata()
                 }
+            }
+            // Codex often names a thread around the end of its first turn; don't make that wait for the idle poll.
+            if finishedTurn, codexThreadMetadataAutoRefreshEnabled {
+                scheduleCodexThreadMetadataRefresh()
             }
         } else {
             // Only the monitoring-to-idle transition means the last Codex session ended.
             let wasMonitoring = codexThreadMetadataMonitorTask != nil
             codexThreadMetadataMonitorTask?.cancel()
             codexThreadMetadataMonitorTask = nil
+            codexThreadMetadataMonitorInterval = nil
             codexThreadMetadataRefreshTask?.cancel()
             codexThreadMetadataRefreshTask = nil
             cancelCodexCompactionSignalRefresh()
@@ -641,6 +690,16 @@ final class NotchiStateMachine {
             ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
         }
         isProcessAlive = Self.defaultProcessAlive
+        analyzeEmotion = { prompt in
+            await EmotionAnalyzer.shared.analyze(prompt)
+        }
+        emotionAnalysisTasks.values.forEach { $0.cancel() }
+        emotionAnalysisTasks.removeAll()
+        emotionDecayTimer?.cancel()
+        emotionDecayTimer = nil
+        sleepRetirementTimer?.cancel()
+        sleepRetirementTimer = nil
+        emotionDecayInterval = EmotionState.decayInterval
         onCodexSessionsEnded = {
             Task { await CodexUsageService.shared.refreshFromAPI() }
         }
@@ -648,6 +707,7 @@ final class NotchiStateMachine {
         processMonitorTask = nil
         codexThreadMetadataMonitorTask?.cancel()
         codexThreadMetadataMonitorTask = nil
+        codexThreadMetadataMonitorInterval = nil
         codexThreadMetadataRefreshTask?.cancel()
         codexThreadMetadataRefreshTask = nil
         cancelCodexCompactionSignalRefresh()
@@ -669,6 +729,18 @@ final class NotchiStateMachine {
         sessionStore.refreshCodexCompactionSignalsForTesting()
         endClosedCodexSessions(closedSessions)
         refreshCodexThreadMetadataMonitoring()
+    }
+
+    var codexThreadMetadataMonitorIntervalForTesting: Duration? {
+        codexThreadMetadataMonitorInterval
+    }
+
+    var isEmotionDecayTimerRunningForTesting: Bool {
+        emotionDecayTimer != nil
+    }
+
+    func setEmotionDecayIntervalForTesting(_ interval: Duration) {
+        emotionDecayInterval = interval
     }
 
     func setCodexThreadMetadataAutoRefreshEnabledForTesting(_ enabled: Bool) {

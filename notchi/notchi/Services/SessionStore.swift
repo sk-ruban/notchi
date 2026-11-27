@@ -523,7 +523,8 @@ final class SessionStore {
 
     func codexCompactionSignalRequests() -> [CodexCompactionSignalRequest] {
         sessions.values.compactMap { session in
-            guard session.isCodexThreadBacked else { return nil }
+            // Compaction only shows while a turn runs, so idle threads don't need the logs query.
+            guard session.isCodexThreadBacked, session.isProcessing else { return nil }
             return CodexCompactionSignalRequest(
                 sessionKey: session.sessionKey,
                 threadId: session.rawSessionId

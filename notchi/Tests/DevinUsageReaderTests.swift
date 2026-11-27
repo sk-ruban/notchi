@@ -1,4 +1,5 @@
 import Foundation
+import os
 import XCTest
 @testable import notchi
 
@@ -215,6 +216,109 @@ final class DevinUsageReaderTests: XCTestCase {
             .path
 
         XCTAssertNil(DevinUsageReader.readUsage(databasePath: missingPath, now: Self.now))
+    }
+
+    func testUnchangedDatabaseIsQueriedOnlyOnce() throws {
+        let expectedQueryCount = 1
+        let databaseURL = try Self.makePlaceholderDatabase()
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+        let queryCount = OSAllocatedUnfairLock(initialState: 0)
+        let runQuery = Self.countingQuery(queryCount, returning: Self.encodedUserStatus(dailyRemaining: 99))
+
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+
+        XCTAssertEqual(queryCount.withLock { $0 }, expectedQueryCount)
+    }
+
+    func testUnchangedDatabaseStillRollsOverAPassedDailyReset() throws {
+        let expectedDailyPercentage = 0
+        let databaseURL = try Self.makePlaceholderDatabase()
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+        let runQuery = Self.countingQuery(
+            OSAllocatedUnfairLock(initialState: 0),
+            returning: Self.encodedUserStatus(dailyRemaining: 10)
+        )
+        let afterDailyReset = Date(timeIntervalSince1970: TimeInterval(Self.dailyResetUnix + 1))
+
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+        let usage = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: afterDailyReset, runQuery: runQuery)
+
+        XCTAssertEqual(usage?.daily?.usagePercentage, expectedDailyPercentage)
+    }
+
+    func testFailedQueryIsRetriedWhileTheDatabaseIsUnchanged() throws {
+        let expectedQueryCount = 2
+        let databaseURL = try Self.makePlaceholderDatabase()
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+        let queryCount = OSAllocatedUnfairLock(initialState: 0)
+        let failingQuery: @Sendable (String, String) -> String? = { _, _ in
+            queryCount.withLock { $0 += 1 }
+            return nil
+        }
+
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: failingQuery)
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: failingQuery)
+
+        XCTAssertEqual(queryCount.withLock { $0 }, expectedQueryCount)
+    }
+
+    func testChangedDatabaseIsQueriedAgain() throws {
+        let expectedQueryCount = 2
+        let databaseURL = try Self.makePlaceholderDatabase()
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+        let queryCount = OSAllocatedUnfairLock(initialState: 0)
+        let runQuery = Self.countingQuery(queryCount, returning: Self.encodedUserStatus(dailyRemaining: 99))
+
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+        try Data("changed page".utf8).write(to: databaseURL)
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+
+        XCTAssertEqual(queryCount.withLock { $0 }, expectedQueryCount)
+    }
+
+    func testNewWriteAheadLogIsQueriedAgain() throws {
+        let expectedDailyPercentage = 40
+        let databaseURL = try Self.makePlaceholderDatabase()
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+        let encoded = OSAllocatedUnfairLock(initialState: Self.encodedUserStatus(dailyRemaining: 99))
+        let runQuery: @Sendable (String, String) -> String? = { _, _ in encoded.withLock { $0 } }
+
+        _ = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+        let updatedStatus = Self.encodedUserStatus(dailyRemaining: 60)
+        encoded.withLock { $0 = updatedStatus }
+        try Data("wal frame".utf8).write(to: URL(fileURLWithPath: databaseURL.path + "-wal"))
+        let usage = DevinUsageReader.readUsage(databasePath: databaseURL.path, now: Self.now, runQuery: runQuery)
+
+        XCTAssertEqual(usage?.daily?.usagePercentage, expectedDailyPercentage)
+    }
+
+    private static func encodedUserStatus(dailyRemaining: UInt64) -> String {
+        userStatus(planStatus: planStatus(
+            dailyRemaining: dailyRemaining,
+            weeklyRemaining: 60,
+            dailyReset: dailyResetUnix,
+            weeklyReset: weeklyResetUnix
+        )).base64EncodedString()
+    }
+
+    private nonisolated static func countingQuery(
+        _ count: OSAllocatedUnfairLock<Int>,
+        returning encoded: String
+    ) -> @Sendable (String, String) -> String? {
+        { _, _ in
+            count.withLock { $0 += 1 }
+            return encoded
+        }
+    }
+
+    private static func makePlaceholderDatabase() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let databaseURL = directory.appendingPathComponent("state.vscdb")
+        try Data("page".utf8).write(to: databaseURL)
+        return databaseURL
     }
 
     // MARK: - Protobuf fixtures

@@ -467,6 +467,66 @@ final class HookScriptImportIsolationTests: XCTestCase {
         XCTAssertEqual(envelope.hasAttachments, true)
     }
 
+    // The hook sleeps 50 ms between its five reads of a transcript that hasn't recorded the prompt yet.
+    private static let codexTranscriptPollingDelay: TimeInterval = 0.2
+    // Half the polling delay: far above one read of a small transcript, far enough below the wait that noise can't hide it.
+    private static let codexTranscriptLookupWithoutPollingLimit: TimeInterval = codexTranscriptPollingDelay / 2
+    // The fastest of a few runs keeps a slow process launch from passing for, or hiding, the polling delay.
+    private static let hookTimingSampleCount = 3
+
+    private static let codexTaskStartedLine = #"{"type":"event_msg","payload":{"type":"task_started"}}"#
+    private static let codexTaskCompleteLine = #"{"type":"event_msg","payload":{"type":"task_complete"}}"#
+    private static let codexUserMessageItemLine = #"{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"UserMessage","content":[{"type":"text","text":"an earlier prompt"}]}}}"#
+    private static let codexAgentMessageItemLine = #"{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"AgentMessage","text":"done"}}}"#
+
+    private func fastestCodexPromptHookRun(_ prompt: String, transcriptLines: [String], sessionId: String) async throws -> TimeInterval {
+        let transcript = try XCTUnwrap(stagingDirectory).appendingPathComponent("\(sessionId).jsonl")
+        try Data((transcriptLines.joined(separator: "\n") + "\n").utf8).write(to: transcript)
+        let socketPath = uniqueSocketPath()
+        try await startServer(at: socketPath, recorder: EventRecorder())
+        let script = try stageScript(named: "notchi-codex-hook", socketPath: socketPath)
+        let workspace = try makeShadowedWorkspace()
+        let payload = #"{"hook_event_name":"UserPromptSubmit","session_id":"\#(sessionId)","cwd":"/tmp","transcript_path":"\#(transcript.path)","prompt":"\#(prompt)"}"#
+
+        var fastest = TimeInterval.infinity
+        for _ in 0..<Self.hookTimingSampleCount {
+            let start = Date()
+            _ = try runHook(script: script, workingDirectory: workspace.directory, payload: payload)
+            fastest = min(fastest, Date().timeIntervalSince(start))
+        }
+        return fastest
+    }
+
+    func testCodexHookAddsLessThanHalfItsTranscriptPollingDelayForAPromptAfterAUserMessageItem() async throws {
+        try skipUnlessStdlibPythonRuns()
+        // Current Codex records a prompt as a UserMessage item only after UserPromptSubmit hooks finish.
+        let transcriptLines = [
+            Self.codexTaskStartedLine,
+            Self.codexUserMessageItemLine,
+            Self.codexAgentMessageItemLine,
+            Self.codexTaskCompleteLine,
+            Self.codexTaskStartedLine,
+        ]
+
+        // A blank prompt skips the transcript lookup, so it times everything else the hook does.
+        let withoutLookup = try await fastestCodexPromptHookRun("", transcriptLines: transcriptLines, sessionId: "codex-item-baseline")
+        let withLookup = try await fastestCodexPromptHookRun("a new prompt", transcriptLines: transcriptLines, sessionId: "codex-item-prompt")
+
+        XCTAssertLessThan(withLookup - withoutLookup, Self.codexTranscriptLookupWithoutPollingLimit)
+    }
+
+    func testCodexHookTakesAtLeastItsTranscriptPollingDelayWaitingForAPromptMissingFromAUserMessageEventTranscript() async throws {
+        try skipUnlessStdlibPythonRuns()
+
+        let elapsed = try await fastestCodexPromptHookRun(
+            "a new prompt",
+            transcriptLines: [Self.codexFillerLine, codexPromptLine("an earlier prompt")],
+            sessionId: "codex-event-waits"
+        )
+
+        XCTAssertGreaterThanOrEqual(elapsed, Self.codexTranscriptPollingDelay)
+    }
+
     func testBundledHooksRunPythonInIsolatedMode() throws {
         for name in Self.bundledHookNames {
             let script = try String(contentsOf: bundledScriptURL(named: name), encoding: .utf8)
