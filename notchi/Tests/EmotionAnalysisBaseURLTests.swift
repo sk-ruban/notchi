@@ -6,22 +6,13 @@ final class EmotionAnalysisBaseURLTests: XCTestCase {
     private static let defaultClaudeEndpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     private static let defaultOpenAIEndpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
 
-    @MainActor
-    override func setUp() {
-        super.setUp()
-        clearStoredBaseURLs()
-    }
+    // A throwaway store per test: the standard one is the installed app's real preferences.
+    private let suiteName = "EmotionAnalysisBaseURLTests-\(UUID().uuidString)"
+    private lazy var defaults = UserDefaults(suiteName: suiteName)!
 
-    @MainActor
     override func tearDown() {
-        clearStoredBaseURLs()
+        defaults.removePersistentDomain(forName: suiteName)
         super.tearDown()
-    }
-
-    @MainActor
-    private func clearStoredBaseURLs() {
-        AppSettings.setApiBaseURL(nil, for: .claude)
-        AppSettings.setApiBaseURL(nil, for: .openAI)
     }
 
     func testEndpointURLDefaultsWhenBaseURLMissing() {
@@ -88,37 +79,37 @@ final class EmotionAnalysisBaseURLTests: XCTestCase {
 
     @MainActor
     func testApiBaseURLRoundTripIsProviderScoped() {
-        AppSettings.setApiBaseURL("https://claude-relay.example.com", for: .claude)
-        AppSettings.setApiBaseURL("https://openai-relay.example.com", for: .openAI)
+        AppSettings.setApiBaseURL("https://claude-relay.example.com", for: .claude, in: defaults)
+        AppSettings.setApiBaseURL("https://openai-relay.example.com", for: .openAI, in: defaults)
 
-        XCTAssertEqual(AppSettings.apiBaseURL(for: .claude), "https://claude-relay.example.com")
-        XCTAssertEqual(AppSettings.apiBaseURL(for: .openAI), "https://openai-relay.example.com")
+        XCTAssertEqual(AppSettings.apiBaseURL(for: .claude, in: defaults), "https://claude-relay.example.com")
+        XCTAssertEqual(AppSettings.apiBaseURL(for: .openAI, in: defaults), "https://openai-relay.example.com")
     }
 
     @MainActor
     func testApiBaseURLStoresTrimmedValueAndClearsWhenEmpty() {
-        AppSettings.setApiBaseURL("  https://relay.example.com  ", for: .claude)
-        XCTAssertEqual(AppSettings.apiBaseURL(for: .claude), "https://relay.example.com")
+        AppSettings.setApiBaseURL("  https://relay.example.com  ", for: .claude, in: defaults)
+        XCTAssertEqual(AppSettings.apiBaseURL(for: .claude, in: defaults), "https://relay.example.com")
 
-        AppSettings.setApiBaseURL("   ", for: .claude)
-        XCTAssertNil(AppSettings.apiBaseURL(for: .claude))
+        AppSettings.setApiBaseURL("   ", for: .claude, in: defaults)
+        XCTAssertNil(AppSettings.apiBaseURL(for: .claude, in: defaults))
 
-        AppSettings.setApiBaseURL(nil, for: .claude)
-        XCTAssertNil(AppSettings.apiBaseURL(for: .claude))
+        AppSettings.setApiBaseURL(nil, for: .claude, in: defaults)
+        XCTAssertNil(AppSettings.apiBaseURL(for: .claude, in: defaults))
     }
 
     @MainActor
     func testManualEndpointURLUsesStoredBaseURLAndFallsBackToDefault() {
-        XCTAssertEqual(EmotionAnalyzer.manualEndpointURL(for: .claude), Self.defaultClaudeEndpoint)
+        XCTAssertEqual(EmotionAnalyzer.manualEndpointURL(for: .claude, in: defaults), Self.defaultClaudeEndpoint)
 
-        AppSettings.setApiBaseURL("https://relay.example.com", for: .claude)
+        AppSettings.setApiBaseURL("https://relay.example.com", for: .claude, in: defaults)
         XCTAssertEqual(
-            EmotionAnalyzer.manualEndpointURL(for: .claude),
+            EmotionAnalyzer.manualEndpointURL(for: .claude, in: defaults),
             URL(string: "https://relay.example.com/v1/messages")
         )
 
-        AppSettings.setApiBaseURL("https://", for: .claude)
-        XCTAssertNil(EmotionAnalyzer.manualEndpointURL(for: .claude))
+        AppSettings.setApiBaseURL("https://", for: .claude, in: defaults)
+        XCTAssertNil(EmotionAnalyzer.manualEndpointURL(for: .claude, in: defaults))
     }
 
     @MainActor
