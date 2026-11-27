@@ -84,6 +84,9 @@ final class ClaudeUsageService {
     private var pollScheduleGeneration: UInt64 = 0
     /// The latest connect owns `isLoading`, so an older one finishing can't clear a newer one's spinner.
     private var connectGeneration: UInt64 = 0
+    /// Bumped only when polling is stopped from outside, so a background fetch that finishes or fails
+    /// during a connect's credential read can't cancel the connect.
+    private var externalStopGeneration: UInt64 = 0
     private var consecutiveRateLimits = 0
     private var cachedToken: String?
     private var preferHeadersFallback = false
@@ -119,7 +122,7 @@ final class ClaudeUsageService {
         preferHeadersFallback = false
         oauthRecheckCounter = 0
         stopPolling()
-        let generation = pollScheduleGeneration
+        let stop = externalStopGeneration
         connectGeneration &+= 1
         let connect = connectGeneration
 
@@ -131,7 +134,7 @@ final class ClaudeUsageService {
                 allowsCredentialRecovery: true,
                 prefersRecoveredCredentials: true
             )
-            guard pollScheduleGeneration == generation else { return }
+            guard externalStopGeneration == stop else { return }
             guard let resolution else {
                 presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
                 if currentUsage != nil {
@@ -326,6 +329,12 @@ final class ClaudeUsageService {
     }
 
     func stopPolling() {
+        externalStopGeneration &+= 1
+        haltPolling()
+    }
+
+    /// Stops the poll timer without cancelling a connect; for the service's own error paths.
+    private func haltPolling() {
         pollTimer?.invalidate()
         pollTimer = nil
         pollScheduleGeneration &+= 1
@@ -389,7 +398,7 @@ final class ClaudeUsageService {
     private func fetchUsage() async {
         guard let accessToken = cachedToken else {
             logger.warning("No cached token available, stopping polling")
-            stopPolling()
+            haltPolling()
             return
         }
 
@@ -450,7 +459,7 @@ final class ClaudeUsageService {
 
         guard let userAgent = await resolveUserAgent() else {
             presentReconnectRequired(message: String(localized: "Install Claude Code CLI to continue"))
-            stopPolling()
+            haltPolling()
             return
         }
 
@@ -540,7 +549,7 @@ final class ClaudeUsageService {
                 await recoverFromEmptyHeadersFallback(afterOAuth403With: accessToken, userInitiated: userInitiated)
             } else {
                 presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
-                stopPolling()
+                haltPolling()
             }
         }
     }
@@ -795,7 +804,7 @@ final class ClaudeUsageService {
     private func refreshActiveHeadersFallback(with accessToken: String) async {
         guard let userAgent = await resolveUserAgent() else {
             presentReconnectRequired(message: String(localized: "Install Claude Code CLI to continue"))
-            stopPolling()
+            haltPolling()
             return
         }
 
@@ -830,11 +839,11 @@ final class ClaudeUsageService {
 
         case let .reconnect(message):
             presentReconnectRequired(message: message)
-            stopPolling()
+            haltPolling()
 
         case let .waitForClaudeCode(message):
             presentWaitForClaudeCode(message: message)
-            stopPolling()
+            haltPolling()
         }
     }
 
@@ -871,7 +880,7 @@ final class ClaudeUsageService {
 
         if usesCredentialMetadata, credentialsRequireReconnect(credentials) {
             presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
-            stopPolling()
+            haltPolling()
             return .handled
         }
 
@@ -898,7 +907,7 @@ final class ClaudeUsageService {
             }
 
             presentWaitForClaudeCode(message: String(localized: "Start a Claude Code session to track usage"))
-            stopPolling()
+            haltPolling()
             return .handled
         }
 
@@ -944,7 +953,7 @@ final class ClaudeUsageService {
         }
 
         presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
-        stopPolling()
+        haltPolling()
     }
 
     private func handleOAuthForbidden(data: Data, response: HTTPURLResponse) -> FetchResult {
@@ -958,7 +967,7 @@ final class ClaudeUsageService {
                 "OAuth 403 requires reconnect - errorType: \(errorTypeLog, privacy: .public), requestID: \(requestIDLog, privacy: .public), message: \(rawMessage, privacy: .public)"
             )
             presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
-            stopPolling()
+            haltPolling()
             return .handled
 
         case let .enterpriseFallback(errorType, requestID):
@@ -1225,7 +1234,7 @@ final class ClaudeUsageService {
         if !didAttemptHeadersFallbackInOAuthBackoff {
             guard let userAgent = await resolveUserAgent() else {
                 presentReconnectRequired(message: String(localized: "Install Claude Code CLI to continue"))
-                stopPolling()
+                haltPolling()
                 return
             }
 

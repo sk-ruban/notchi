@@ -1052,6 +1052,62 @@ extension ClaudeUsageServiceTests {
         XCTAssertEqual(recorder.paths, [Self.oauthUsagePath])
     }
 
+    // e.g. the account removed, or the app quitting, while Connect reads credentials.
+    func testStoppingDuringAConnectSendsNoUsageRequest() async throws {
+        let scheduler = PollSchedulerSpy()
+        let recorder = RequestRecorder()
+        let gate = CredentialReadGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { request in
+                recorder.record(request)
+                return (self.makeSuccessPayload(utilization: 30), self.makeResponse(statusCode: 200))
+            }
+        )
+        dependencies.getOAuthCredentials = { _ in await gate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+
+        service.connectAndStartPolling()
+        await gate.waitForHeldReads(Self.oneHeldRead)
+        service.stopPolling()
+        gate.release(returning: makeCredentials(accessToken: "fresh-token", scopes: ["user:profile"]))
+        for _ in 0..<Self.settleYields { await Task.yield() }
+
+        XCTAssertEqual(recorder.paths, [])
+    }
+
+    func testBackgroundFetchFinishingDuringAConnectStillLetsTheConnectFetch() async throws {
+        let expectedPaths = [Self.oauthUsagePath, Self.oauthUsagePath]
+        let scheduler = PollSchedulerSpy()
+        let recorder = RequestRecorder()
+        let credentialGate = CredentialReadGate()
+        let responseGate = HeldUsageResponseGate()
+        var dependencies = makeDependencies(
+            scheduler: scheduler,
+            resolveUserAgent: { "claude-code/2.1.77" },
+            fetchUsage: { request in
+                let isBackgroundFetch = recorder.record(request) == Self.oauthUsagePath && recorder.paths.count == 1
+                if isBackgroundFetch { await responseGate.hold() }
+                return (self.makeSuccessPayload(utilization: 30), self.makeResponse(statusCode: 200))
+            }
+        )
+        dependencies.getOAuthCredentials = { _ in await credentialGate.read() }
+        let service = ClaudeUsageService(dependencies: dependencies)
+
+        // A poll is waiting on the network when the user presses Connect.
+        let backgroundFetch = Task { await service.performFetch(with: "cached-token", consultCredentialMetadata: false) }
+        await responseGate.waitForHeldResponse()
+        service.connectAndStartPolling()
+        await credentialGate.waitForHeldReads(Self.oneHeldRead)
+        responseGate.release()
+        await backgroundFetch.value
+        credentialGate.release(returning: makeCredentials(accessToken: "fresh-token", scopes: ["user:profile"]))
+        for _ in 0..<Self.settleYields { await Task.yield() }
+
+        XCTAssertEqual(recorder.paths, expectedPaths)
+    }
+
     // e.g. an account switched off while its usage service was starting.
     func testStopPollingDuringStartupCredentialReadSendsNoUsageRequest() async throws {
         let scheduler = PollSchedulerSpy()
@@ -1082,6 +1138,35 @@ extension ClaudeUsageServiceTests {
     private static let settleYields = 10
     private static let selfHealRetryInterval: TimeInterval = 300
     private static let oauthUsagePath = "/api/oauth/usage"
+}
+
+/// Holds a usage response, as a slow network would, until released.
+final class HeldUsageResponseGate {
+    private static let heldResponseTimeout: Duration = .seconds(2)
+    private static let heldResponsePollInterval: Duration = .milliseconds(5)
+    private var heldResponses: [CheckedContinuation<Void, Never>] = []
+
+    // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+    nonisolated deinit {}
+
+    func hold() async {
+        await withCheckedContinuation { heldResponses.append($0) }
+    }
+
+    /// Fails the test if no usage response is held in time.
+    func waitForHeldResponse(file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = ContinuousClock.now + Self.heldResponseTimeout
+        while heldResponses.isEmpty, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: Self.heldResponsePollInterval)
+        }
+        if heldResponses.isEmpty { XCTFail("Expected a held usage response", file: file, line: line) }
+    }
+
+    func release() {
+        let responses = heldResponses
+        heldResponses.removeAll()
+        responses.forEach { $0.resume() }
+    }
 }
 
 /// Stands in for a slow /usr/bin/security read: holds every credential read until released.
