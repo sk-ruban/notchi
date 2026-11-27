@@ -36,47 +36,7 @@ nonisolated struct ProviderConfig: Sendable {
 nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Sendable {
     private struct Snapshot: Codable {
         let version: Int
-        let models: [String: ClaudeModelPricingDTO]
-    }
-
-    private struct ClaudeModelPricingDTO: Codable {
-        let inputPerToken: Double
-        let outputPerToken: Double
-        let cacheCreationPerToken: Double
-        let cacheReadPerToken: Double
-        let cacheCreation1hPerToken: Double?
-        let thresholdTokens: Int?
-        let inputPerTokenAboveThreshold: Double?
-        let outputPerTokenAboveThreshold: Double?
-        let cacheCreationPerTokenAboveThreshold: Double?
-        let cacheReadPerTokenAboveThreshold: Double?
-
-        init(from pricing: ClaudeModelPricing) {
-            inputPerToken = pricing.inputPerToken
-            outputPerToken = pricing.outputPerToken
-            cacheCreationPerToken = pricing.cacheCreationPerToken
-            cacheReadPerToken = pricing.cacheReadPerToken
-            cacheCreation1hPerToken = pricing.cacheCreation1hPerToken
-            thresholdTokens = pricing.thresholdTokens
-            inputPerTokenAboveThreshold = pricing.inputPerTokenAboveThreshold
-            outputPerTokenAboveThreshold = pricing.outputPerTokenAboveThreshold
-            cacheCreationPerTokenAboveThreshold = pricing.cacheCreationPerTokenAboveThreshold
-            cacheReadPerTokenAboveThreshold = pricing.cacheReadPerTokenAboveThreshold
-        }
-
-        func toPricing() -> ClaudeModelPricing {
-            ClaudeModelPricing(
-                inputPerToken: inputPerToken,
-                outputPerToken: outputPerToken,
-                cacheCreationPerToken: cacheCreationPerToken,
-                cacheReadPerToken: cacheReadPerToken,
-                cacheCreation1hPerToken: cacheCreation1hPerToken,
-                thresholdTokens: thresholdTokens,
-                inputPerTokenAboveThreshold: inputPerTokenAboveThreshold,
-                outputPerTokenAboveThreshold: outputPerTokenAboveThreshold,
-                cacheCreationPerTokenAboveThreshold: cacheCreationPerTokenAboveThreshold,
-                cacheReadPerTokenAboveThreshold: cacheReadPerTokenAboveThreshold)
-        }
+        let models: [String: ClaudeModelPricing]
     }
 
     private struct ModelsDev: Decodable {
@@ -150,14 +110,14 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
               let data = try? Data(contentsOf: url),
               let snap = try? JSONDecoder().decode(Snapshot.self, from: data)
         else { return [:] }
-        return snap.models.mapValues { $0.toPricing() }
+        return snap.models
     }
 
     private static func loadSnapshot(url: URL) -> [String: ClaudeModelPricing]? {
         guard let data = try? Data(contentsOf: url),
               let snap = try? JSONDecoder().decode(Snapshot.self, from: data)
         else { return nil }
-        return snap.models.mapValues { $0.toPricing() }
+        return snap.models
     }
 
     static func defaultSnapshotURL(for config: ProviderConfig) -> URL? {
@@ -242,8 +202,7 @@ nonisolated final class PricingCatalog: ClaudePricingProviding, @unchecked Senda
 
     private func persistSnapshot(_ updated: [String: ClaudeModelPricing]) {
         guard let url = snapshotURL else { return }
-        let dtos = updated.mapValues { ClaudeModelPricingDTO(from: $0) }
-        let snap = Snapshot(version: 1, models: dtos)
+        let snap = Snapshot(version: 1, models: updated)
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

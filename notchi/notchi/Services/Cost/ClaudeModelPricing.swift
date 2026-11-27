@@ -1,6 +1,7 @@
 import Foundation
 
-nonisolated struct ClaudeModelPricing: Equatable, Sendable {
+// Property names are the JSON keys of pricing snapshots and the bundled fallbacks; renaming one breaks them.
+nonisolated struct ClaudeModelPricing: Codable, Equatable, Sendable {
     let inputPerToken: Double
     let outputPerToken: Double
     let cacheCreationPerToken: Double
