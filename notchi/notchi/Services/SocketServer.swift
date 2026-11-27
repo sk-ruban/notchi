@@ -38,6 +38,7 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
     private let socketPath: String
     private let clientReadTimeout: TimeInterval
     private var serverSocket: Int32 = -1
+    private var ownsSocketPath = false
     private var acceptSource: DispatchSourceRead?
     private var eventHandler: AgentHookEnvelopeHandler?
     private var pendingStartRetry: DispatchWorkItem?
@@ -122,6 +123,7 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
             serverSocket = -1
             return
         }
+        ownsSocketPath = true
 
         if chmod(socketPath, 0o600) != 0 {
             logger.warning("Failed to restrict socket permissions: \(errno)")
@@ -266,6 +268,9 @@ nonisolated final class SocketServer: AgentHookEventSource, @unchecked Sendable 
             serverSocket = -1
         }
 
+        // A copy that never bound must not delete the path another notchi is listening on.
+        guard ownsSocketPath else { return }
+        ownsSocketPath = false
         unlink(socketPath)
     }
 
