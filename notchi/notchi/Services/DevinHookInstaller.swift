@@ -6,6 +6,7 @@ nonisolated private let devinHookLogger = Logger(subsystem: "com.ruban.notchi", 
 struct DevinHookInstaller {
     nonisolated private static let hookScriptName = "notchi-devin-hook.sh"
     nonisolated private static let legacyClaudeHookScriptName = "notchi-hook.sh"
+    nonisolated private static let configWritingOptions: JSONSerialization.WritingOptions = [.prettyPrinted, .sortedKeys]
 
     nonisolated static let supportedEvents = [
         "SessionStart",
@@ -43,25 +44,12 @@ struct DevinHookInstaller {
             return false
         }
 
-        do {
-            try fileManager.createDirectory(at: hooksDirectoryURL, withIntermediateDirectories: true)
-        } catch {
-            devinHookLogger.error("Failed to create Devin hook directory: \(error.localizedDescription)")
-            return false
-        }
-
-        guard let bundled = Bundle.main.url(forResource: "notchi-devin-hook", withExtension: "sh") else {
-            devinHookLogger.error("Devin hook script not found in bundle")
-            return false
-        }
-
-        do {
-            let bundledData = try Data(contentsOf: bundled)
-            try HookFile.writeScriptIfNeeded(HookFile.installableScript(from: bundledData), to: hookScriptURL, fileManager: fileManager)
-        } catch {
-            devinHookLogger.error("Failed to install Devin hook script: \(error.localizedDescription)")
-            return false
-        }
+        guard HookFile.installBundledScript(
+            named: "notchi-devin-hook",
+            to: hookScriptURL,
+            agentName: "Devin",
+            logger: devinHookLogger
+        ) else { return false }
 
         let existingData = try? Data(contentsOf: configURL)
         guard let data = upsertConfig(from: existingData, command: hookScriptURL.path) else {
@@ -83,20 +71,13 @@ struct DevinHookInstaller {
     nonisolated static func uninstall() {
         try? FileManager.default.removeItem(at: hookScriptURL)
 
-        let existingData = try? Data(contentsOf: configURL)
-        guard let data = removeManagedHooks(from: existingData) else {
-            if let existingData, !HookFile.isBlank(existingData),
-               (try? JSONSerialization.jsonObject(with: existingData)) == nil {
-                devinHookLogger.error("Skipped pruning Devin config.json on uninstall: file is not valid JSON; stale hook references may remain")
-            }
-            return
-        }
-
-        do {
-            try writeConfig(data, to: configURL)
-        } catch {
-            devinHookLogger.error("Failed to write Devin config.json on uninstall: \(error.localizedDescription)")
-        }
+        HookConfigJSON.pruneManagedHooks(
+            inConfigAt: configURL,
+            fileDescription: "Devin config.json",
+            isManaged: isManagedCommand,
+            options: configWritingOptions,
+            logger: devinHookLogger
+        )
     }
 
     nonisolated static func isInstalled() -> Bool {
@@ -111,53 +92,22 @@ struct DevinHookInstaller {
     }
 
     nonisolated static func upsertConfig(from existingData: Data?, command: String) -> Data? {
-        var json: [String: Any] = [:]
-        if let existingData, !HookFile.isBlank(existingData) {
-            guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
-                return nil
-            }
-            json = existing
-        }
+        guard var json = HookConfigJSON.editableObject(from: existingData) else { return nil }
 
         var hooks = json["hooks"] as? [String: Any] ?? [:]
         let hookGroup: [String: Any] = ["hooks": [["type": "command", "command": command]]]
 
         for event in supportedEvents {
             let existingEntries = hooks[event] as? [[String: Any]] ?? []
-            hooks[event] = pruneManagedHooks(from: existingEntries) + [hookGroup]
+            hooks[event] = HookConfigJSON.pruneManagedHooks(from: existingEntries, isManaged: isManagedCommand) + [hookGroup]
         }
 
         json["hooks"] = hooks
-        return serialize(json)
+        return HookConfigJSON.serialize(json, options: configWritingOptions)
     }
 
     nonisolated static func removeManagedHooks(from existingData: Data?) -> Data? {
-        guard let existingData,
-              var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any] else {
-            return nil
-        }
-
-        var updatedHooks: [String: Any] = [:]
-        for (event, value) in hooks {
-            guard let entries = value as? [[String: Any]] else {
-                updatedHooks[event] = value
-                continue
-            }
-
-            let prunedEntries = pruneManagedHooks(from: entries)
-            if !prunedEntries.isEmpty {
-                updatedHooks[event] = prunedEntries
-            }
-        }
-
-        if updatedHooks.isEmpty {
-            json.removeValue(forKey: "hooks")
-        } else {
-            json["hooks"] = updatedHooks
-        }
-
-        return serialize(json)
+        HookConfigJSON.removeManagedHooks(from: existingData, isManaged: isManagedCommand, options: configWritingOptions)
     }
 
     nonisolated static func isHookInstalled(in configData: Data?) -> Bool {
@@ -182,26 +132,6 @@ struct DevinHookInstaller {
         try HookFile.writeConfig(data, to: url, fileManager: fileManager)
     }
 
-    nonisolated private static func pruneManagedHooks(from entries: [[String: Any]]) -> [[String: Any]] {
-        entries.compactMap { entry in
-            guard let entryHooks = entry["hooks"] as? [[String: Any]] else {
-                return entry
-            }
-
-            let filteredHooks = entryHooks.filter { hook in
-                !isManagedCommand(hook["command"] as? String ?? "")
-            }
-
-            guard !filteredHooks.isEmpty else {
-                return nil
-            }
-
-            var updatedEntry = entry
-            updatedEntry["hooks"] = filteredHooks
-            return updatedEntry
-        }
-    }
-
     nonisolated private static func isManagedCommand(_ command: String) -> Bool {
         [hookScriptName, legacyClaudeHookScriptName].contains(scriptName(of: command))
     }
@@ -209,9 +139,5 @@ struct DevinHookInstaller {
     nonisolated private static func scriptName(of command: String) -> String {
         let path = command.trimmingCharacters(in: CharacterSet(charactersIn: "\"'").union(.whitespaces))
         return (path as NSString).lastPathComponent
-    }
-
-    nonisolated private static func serialize(_ json: [String: Any]) -> Data? {
-        try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
     }
 }

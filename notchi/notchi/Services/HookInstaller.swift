@@ -8,6 +8,10 @@ struct HookInstaller {
     nonisolated private static let sharedHookScriptRelativePath = "Library/Application Support/Notchi/hooks/notchi-hook.sh"
     nonisolated private static let claudeAccountDirectoryPrefix = ".claude"
     nonisolated private static let settingsFileName = "settings.json"
+    nonisolated private static let hookScriptName = "notchi-hook.sh"
+    // Claude settings have always been written with unescaped slashes; changing it would rewrite users' files.
+    nonisolated private static let settingsWritingOptions: JSONSerialization.WritingOptions =
+        [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
 
     /// Exits quietly when the script is gone (notchi uninstalled, settings synced to another Mac),
     /// and `exec` keeps the script's stdout and exit status for Claude Code.
@@ -63,7 +67,13 @@ struct HookInstaller {
 
     nonisolated static func removeHooks(fromAccount directory: URL) {
         try? FileManager.default.removeItem(at: legacyScriptURL(forAccount: directory))
-        pruneManagedHooks(inSettingsAt: directory.appendingPathComponent(settingsFileName))
+        HookConfigJSON.pruneManagedHooks(
+            inConfigAt: directory.appendingPathComponent(settingsFileName),
+            fileDescription: "Claude settings.json",
+            isManaged: isManagedCommand,
+            options: settingsWritingOptions,
+            logger: logger
+        )
     }
 
     nonisolated static func isHookInstalled(inAccount directory: URL) -> Bool {
@@ -87,20 +97,7 @@ struct HookInstaller {
     }
 
     nonisolated private static func installSharedScript() -> Bool {
-        guard let bundled = Bundle.main.url(forResource: "notchi-hook", withExtension: "sh"),
-              let bundledData = try? Data(contentsOf: bundled) else {
-            logger.error("Hook script not found in bundle")
-            return false
-        }
-        let sharedScript = sharedHookScriptURL()
-        do {
-            try FileManager.default.createDirectory(at: sharedScript.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try HookFile.writeScriptIfNeeded(HookFile.installableScript(from: bundledData), to: sharedScript)
-            return true
-        } catch {
-            logger.error("Failed to install hook script: \(error.localizedDescription)")
-            return false
-        }
+        HookFile.installBundledScript(named: "notchi-hook", to: sharedHookScriptURL(), agentName: "Claude", logger: logger)
     }
 
     /// Switches other accounts that run notchi to the shared command, and leaves the shim at their old
@@ -129,7 +126,7 @@ struct HookInstaller {
     nonisolated private static func legacyScriptURL(forAccount directory: URL) -> URL {
         directory
             .appendingPathComponent("hooks", isDirectory: true)
-            .appendingPathComponent("notchi-hook.sh")
+            .appendingPathComponent(hookScriptName)
     }
 
     /// Settings of other Claude config dirs (`~/.claude-personal` etc.) that already run notchi's hook,
@@ -157,13 +154,7 @@ struct HookInstaller {
 
     /// Nil when existing settings can't be parsed, so a hand-edited file is never replaced wholesale.
     nonisolated static func upsertHookSettings(from existingData: Data?, command: String) -> Data? {
-        var json: [String: Any] = [:]
-        if let existingData, !HookFile.isBlank(existingData) {
-            guard let existing = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
-                return nil
-            }
-            json = existing
-        }
+        guard var json = HookConfigJSON.editableObject(from: existingData) else { return nil }
 
         let hookEntry: [[String: Any]] = [["type": "command", "command": command]]
         let withMatcher: [[String: Any]] = [["matcher": "*", "hooks": hookEntry]]
@@ -197,7 +188,7 @@ struct HookInstaller {
                     var didUpdateEntry = false
                     for hookIndex in entryHooks.indices {
                         let cmd = entryHooks[hookIndex]["command"] as? String ?? ""
-                        guard cmd.contains("notchi-hook.sh") else { continue }
+                        guard isManagedCommand(cmd) else { continue }
 
                         foundExistingHook = true
                         didUpdateEntry = true
@@ -224,14 +215,7 @@ struct HookInstaller {
 
         json["hooks"] = hooks
 
-        return serialize(json)
-    }
-
-    nonisolated private static func serialize(_ json: [String: Any]) -> Data? {
-        try? JSONSerialization.data(
-            withJSONObject: json,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        )
+        return HookConfigJSON.serialize(json, options: settingsWritingOptions)
     }
 
     /// False when `transform` declines (nil) or the write fails.
@@ -259,21 +243,7 @@ struct HookInstaller {
     }
 
     nonisolated static func isHookInstalled(in settingsData: Data?) -> Bool {
-        guard let settingsData,
-              let json = try? JSONSerialization.jsonObject(with: settingsData) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any] else {
-            return false
-        }
-
-        return hooks.values.contains { value in
-            guard let entries = value as? [[String: Any]] else { return false }
-            return entries.contains { entry in
-                guard let entryHooks = entry["hooks"] as? [[String: Any]] else { return false }
-                return entryHooks.contains { hook in
-                    (hook["command"] as? String)?.contains("notchi-hook.sh") == true
-                }
-            }
-        }
+        HookConfigJSON.containsManagedHook(in: settingsData, isManaged: isManagedCommand)
     }
 
     /// True while any Claude account runs notchi.
@@ -310,68 +280,11 @@ struct HookInstaller {
         ClaudeAccountStore.forgetAccountsWithNotchi()
     }
 
-    nonisolated private static func pruneManagedHooks(inSettingsAt settings: URL) {
-        let existingData = try? Data(contentsOf: settings)
-        guard let data = removeManagedHookSettings(from: existingData) else {
-            if let existingData, !HookFile.isBlank(existingData),
-               (try? JSONSerialization.jsonObject(with: existingData)) == nil {
-                logger.error("Skipped pruning Claude settings.json on uninstall: file is not valid JSON; stale hook references may remain")
-            }
-            return
-        }
-        try? writeSettings(data, to: settings)
-    }
-
-    // WHY: Prune only Notchi-managed hook commands instead of dropping the whole
-    // matcher entry, so an unrelated hook a user added to the same event entry
-    // survives toggling Notchi off. Mirrors CodexHookInstaller's prune behavior.
     nonisolated static func removeManagedHookSettings(from existingData: Data?) -> Data? {
-        guard let existingData,
-              var json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any] else {
-            return nil
-        }
-
-        var updatedHooks: [String: Any] = [:]
-        for (event, value) in hooks {
-            guard let entries = value as? [[String: Any]] else {
-                updatedHooks[event] = value
-                continue
-            }
-
-            let prunedEntries = pruneManagedHooks(from: entries)
-            if !prunedEntries.isEmpty {
-                updatedHooks[event] = prunedEntries
-            }
-        }
-
-        if updatedHooks.isEmpty {
-            json.removeValue(forKey: "hooks")
-        } else {
-            json["hooks"] = updatedHooks
-        }
-
-        return serialize(json)
+        HookConfigJSON.removeManagedHooks(from: existingData, isManaged: isManagedCommand, options: settingsWritingOptions)
     }
 
-    nonisolated private static func pruneManagedHooks(from entries: [[String: Any]]) -> [[String: Any]] {
-        entries.compactMap { entry in
-            guard let entryHooks = entry["hooks"] as? [[String: Any]] else {
-                return entry
-            }
-
-            let filteredHooks = entryHooks.filter { hook in
-                let command = hook["command"] as? String ?? ""
-                return !command.contains("notchi-hook.sh")
-            }
-
-            guard !filteredHooks.isEmpty else {
-                return nil
-            }
-
-            var updatedEntry = entry
-            updatedEntry["hooks"] = filteredHooks
-            return updatedEntry
-        }
+    nonisolated private static func isManagedCommand(_ command: String) -> Bool {
+        command.contains(hookScriptName)
     }
 }

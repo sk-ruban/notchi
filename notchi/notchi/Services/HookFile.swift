@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 nonisolated enum HookFile {
     static let executablePermissions: Int16 = 0o755
@@ -33,6 +34,31 @@ nonisolated enum HookFile {
             [.posixPermissions: executablePermissions],
             ofItemAtPath: url.path
         )
+    }
+
+    /// Installs the app's bundled `<resource>.sh` at `url`; false, logged, when it can't.
+    static func installBundledScript(named resource: String, to url: URL, agentName: String, logger: Logger) -> Bool {
+        let fileManager = FileManager.default
+        do {
+            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to create \(agentName, privacy: .public) hook directory: \(error.localizedDescription)")
+            return false
+        }
+
+        guard let bundled = Bundle.main.url(forResource: resource, withExtension: "sh") else {
+            logger.error("\(agentName, privacy: .public) hook script not found in bundle")
+            return false
+        }
+
+        do {
+            let bundledData = try Data(contentsOf: bundled)
+            try writeScriptIfNeeded(installableScript(from: bundledData), to: url, fileManager: fileManager)
+            return true
+        } catch {
+            logger.error("Failed to install \(agentName, privacy: .public) hook script: \(error.localizedDescription)")
+            return false
+        }
     }
 
     /// Writes atomically through symlinks (dotfiles), keeping the file's permissions.
