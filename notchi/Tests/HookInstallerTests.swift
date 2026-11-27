@@ -390,6 +390,34 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "{\"a\":1}")
     }
 
+    func testSettingsWriteFollowsARelativeLinkUpThroughASymlinkedDirectory() throws {
+        // ~/.claude -> dotfiles/claude, and settings.json -> ../shared/settings.json, which only
+        // resolves to dotfiles/shared when ".." is taken from the real directory.
+        let home = try makeHome()
+        let dotfiles = home.appendingPathComponent("dotfiles")
+        let realConfigDirectory = dotfiles.appendingPathComponent("claude")
+        let sharedSettings = dotfiles.appendingPathComponent("shared/settings.json")
+        try FileManager.default.createDirectory(at: realConfigDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: sharedSettings.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("{}".utf8).write(to: sharedSettings)
+        try FileManager.default.createSymbolicLink(
+            atPath: realConfigDirectory.appendingPathComponent("settings.json").path,
+            withDestinationPath: "../shared/settings.json"
+        )
+        let linkedConfigDirectory = home.appendingPathComponent(".claude")
+        try FileManager.default.createSymbolicLink(at: linkedConfigDirectory, withDestinationURL: realConfigDirectory)
+
+        try HookInstaller.writeSettings(
+            Data("{\"a\":1}".utf8),
+            to: linkedConfigDirectory.appendingPathComponent("settings.json")
+        )
+
+        XCTAssertEqual(try String(contentsOf: sharedSettings, encoding: .utf8), "{\"a\":1}")
+    }
+
     func testUnreadableSettingsAreNotReplacedWithOnlyNotchiHooks() {
         let settingsWithComment = Data("""
             {

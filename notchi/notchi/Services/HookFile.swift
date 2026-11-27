@@ -82,7 +82,9 @@ nonisolated enum HookFile {
         var target = url
         for _ in 0..<maxSymlinkHops {
             guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: target.path) else { break }
-            target = URL(fileURLWithPath: destination, relativeTo: target.deletingLastPathComponent()).standardizedFileURL
+            // A relative link's ".." is taken from the real directory, which may itself be a symlink.
+            let linkDirectory = target.deletingLastPathComponent().resolvingSymlinksInPath()
+            target = URL(fileURLWithPath: destination, relativeTo: linkDirectory).standardizedFileURL
         }
         return target
     }
