@@ -24,7 +24,7 @@ final class EmotionAnalysisCredentials {
     @ObservationIgnored private var storedKeys: [EmotionAnalysisProvider: StoredKey] = [:]
     @ObservationIgnored private var claudeSettings: (signature: SettingsFileSignature, config: ClaudeSettingsConfig?)?
     @ObservationIgnored private let readKey: (EmotionAnalysisProvider, Bool) -> String?
-    @ObservationIgnored private let writeKey: (String?, EmotionAnalysisProvider) -> Void
+    @ObservationIgnored private let writeKey: (String?, EmotionAnalysisProvider) -> Bool
     @ObservationIgnored private let claudeSettingsURL: () -> URL
     @ObservationIgnored private let loadClaudeSettings: (URL) -> ClaudeSettingsConfig?
 
@@ -37,7 +37,7 @@ final class EmotionAnalysisCredentials {
                 KeychainManager.getOpenAIApiKey(allowInteraction: allowInteraction)
             }
         },
-        writeKey: @escaping (String?, EmotionAnalysisProvider) -> Void = { key, provider in
+        writeKey: @escaping (String?, EmotionAnalysisProvider) -> Bool = { key, provider in
             switch provider {
             case .claude:
                 KeychainManager.setAnthropicApiKey(key)
@@ -73,8 +73,10 @@ final class EmotionAnalysisCredentials {
     }
 
     func setApiKey(_ key: String?, for provider: EmotionAnalysisProvider) {
-        writeKey(key, provider)
-        if let key, !key.isEmpty {
+        if !writeKey(key, provider) {
+            // Forget the cached key so the next read reports what the Keychain actually holds.
+            storedKeys[provider] = nil
+        } else if let key, !key.isEmpty {
             storedKeys[provider] = .value(key)
         } else {
             storedKeys[provider] = .missing(confirmed: true)

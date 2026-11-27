@@ -78,6 +78,14 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
         XCTAssertEqual(keychainWrites, expectedWrites)
     }
 
+    func testFailedSaveServesTheKeyTheKeychainStillHolds() {
+        let credentials = makeCredentials(keychain: { _ in Self.storedKey }, keychainAcceptsWrites: false)
+
+        credentials.setApiKey(Self.savedKey, for: .claude)
+
+        XCTAssertEqual(credentials.apiKey(for: .claude, allowInteraction: true), Self.storedKey)
+    }
+
     func testSavingAKeyChangesTheRevision() {
         let expectedRevision = 1
         let credentials = makeCredentials(keychain: { _ in nil })
@@ -136,13 +144,19 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
         settingsDirectory.appendingPathComponent("settings.json")
     }
 
-    private func makeCredentials(keychain: @escaping (Bool) -> String?) -> EmotionAnalysisCredentials {
+    private func makeCredentials(
+        keychain: @escaping (Bool) -> String?,
+        keychainAcceptsWrites: Bool = true
+    ) -> EmotionAnalysisCredentials {
         EmotionAnalysisCredentials(
             readKey: { [unowned self] provider, allowInteraction in
                 keychainReads.append((provider, allowInteraction))
                 return keychain(allowInteraction)
             },
-            writeKey: { [unowned self] key, _ in keychainWrites.append(key) },
+            writeKey: { [unowned self] key, _ in
+                keychainWrites.append(key)
+                return keychainAcceptsWrites
+            },
             claudeSettingsURL: { [unowned self] in settingsURL },
             loadClaudeSettings: { [unowned self] url in
                 settingsLoads += 1
