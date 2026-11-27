@@ -13,9 +13,11 @@ struct AppSettings {
     static let expandedPanelScaleKey = "expandedPanelScale"
     static let mainUsageBarPeriodKey = "mainUsageBarPeriod"
 
+    private static let notificationSoundKey = "notificationSound"
     private static let notificationSoundSelectionKey = "notificationSoundSelection"
     private static let customNotificationSoundsKey = "customNotificationSounds"
     static let isMutedKey = "isMuted"
+    private static let previousSoundKey = "previousNotificationSound"
     private static let previousSoundSelectionKey = "previousNotificationSoundSelection"
     private static let isUsageEnabledKey = "isUsageEnabled"
     private static let claudeExtraUsageObservationKey = "claudeExtraUsageObservation"
@@ -266,10 +268,21 @@ struct AppSettings {
 
     static var notificationSoundSelection: NotificationSoundSelection {
         get {
-            decodedValue(NotificationSoundSelection.self, forKey: notificationSoundSelectionKey) ?? .defaultValue
+            if let selection = decodedValue(NotificationSoundSelection.self, forKey: notificationSoundSelectionKey) {
+                return selection
+            }
+
+            guard let rawValue = UserDefaults.standard.string(forKey: notificationSoundKey),
+                  let sound = NotificationSound(rawValue: rawValue) else {
+                return .defaultValue
+            }
+            return .system(sound)
         }
         set {
             setEncodedValue(newValue, forKey: notificationSoundSelectionKey)
+            if case .system(let sound) = newValue {
+                UserDefaults.standard.set(sound.rawValue, forKey: notificationSoundKey)
+            }
             UserDefaults.standard.set(newValue == .system(.none), forKey: isMutedKey)
         }
     }
@@ -366,10 +379,15 @@ struct AppSettings {
 
     static func toggleMute() {
         if isMuted {
-            notificationSoundSelection = previousSoundSelection ?? .defaultValue
+            notificationSoundSelection = previousSoundSelection ?? previousSound.map(NotificationSoundSelection.system) ?? .defaultValue
             isMuted = false
         } else {
             previousSoundSelection = notificationSoundSelection
+            if case .system(let sound) = notificationSoundSelection {
+                previousSound = sound
+            } else {
+                previousSound = nil
+            }
             notificationSoundSelection = .system(.none)
             isMuted = true
         }
@@ -378,6 +396,22 @@ struct AppSettings {
     private static var previousSoundSelection: NotificationSoundSelection? {
         get { decodedValue(NotificationSoundSelection.self, forKey: previousSoundSelectionKey) }
         set { setEncodedValue(newValue, forKey: previousSoundSelectionKey) }
+    }
+
+    private static var previousSound: NotificationSound? {
+        get {
+            guard let rawValue = UserDefaults.standard.string(forKey: previousSoundKey) else {
+                return nil
+            }
+            return NotificationSound(rawValue: rawValue)
+        }
+        set {
+            guard let newValue else {
+                UserDefaults.standard.removeObject(forKey: previousSoundKey)
+                return
+            }
+            UserDefaults.standard.set(newValue.rawValue, forKey: previousSoundKey)
+        }
     }
 
     private static func decodedValue<Value: Decodable>(_ type: Value.Type, forKey key: String) -> Value? {
