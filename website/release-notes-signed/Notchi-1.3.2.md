@@ -1,0 +1,38 @@
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
+-->
+# Notchi 1.3.2
+
+This release keeps a busy island readable, shows your exact usage when you're close to the limit, and makes notchi faster and lighter on battery, with a round of fixes.
+
+## Island and Sessions
+
+- Shows at most 7 sprites on the island: the selected session first, then sessions waiting on you, then working ones. A "+N" pill counts the rest, and the session list still shows everything
+- Retires sessions that have been asleep longer than a chosen time (30 minutes to 24 hours, or Off; 5 hours by default). A retired session comes back on its next event. The setting is in General, where the screen picker now lives too
+- Ends Claude and Devin sessions whose process has exited, instead of leaving them on the island
+- Picks up a session that starts in the middle of a turn
+
+## Usage and Cost
+
+- Shows the usage percentage inside the collapsed ring from 90%, and "!" at 100%
+- Breaks down Claude spend by account on the All tab
+- Prices 82 more Devin models
+- Keeps cost history when a log is deleted or archived, and no longer counts a reply twice
+- Connecting Claude usage no longer gets lost when a background refresh finishes at the same moment
+
+## Performance
+
+- Faster agent hooks: they read the process list only when needed and send less tool input
+- Pauses animations while the notch can't be seen, cutting idle CPU and energy use
+- Reads Claude credentials, the Claude CLI and accounts off the main thread, so the notch stays responsive
+- Checks Codex, Devin, GitHub pull requests and moods less often while nothing is happening
+- Faster cost scans
+
+## Fixes
+
+- Fixes crashes on macOS 15 when the sound picker or a question prompt closes, and when answering a hook that had already hung up
+- Keeps your mood-analysis API key when the Keychain is locked, instead of turning mood analysis off or deleting the key
+- Writes hooks correctly through symlinked config folders (dotfiles), and never overwrites an unreadable Codex `hooks.json`
+- Releases a permission request once the agent moves on
+- Keeps the mute bell in sync with the sound setting
+- Translates text that still showed in English, and labels icon-only buttons for VoiceOver
