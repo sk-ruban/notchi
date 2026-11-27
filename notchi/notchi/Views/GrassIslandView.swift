@@ -306,8 +306,7 @@ private struct GrassSpriteView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isAnimationPaused) private var isAnimationPaused
     @Environment(\.panelScale) private var panelScale
-    @State private var stateMirrorKey: String?
-    @State private var stateMirrored = false
+    @State private var mirroring = SpriteMirroring()
 
     private let swayDuration: Double = 2.0
     private let glowColor = Color(red: 0.4, green: 0.7, blue: 1.0)
@@ -323,7 +322,7 @@ private struct GrassSpriteView: View {
         let motion = GrassSpriteMotion(state: state, reduceMotion: reduceMotion)
         let spriteSize = SpriteLayout.size * SpriteLayout.spriteScale(panelScale: panelScale)
         return TimelineView(.animation(minimumInterval: motion.frameInterval, paused: isAnimationPaused || !motion.isAnimating)) { timeline in
-            let presentation = spriteSheetPresentation(at: timeline.date)
+            let presentation = mirroring.spriteSheetPresentation(state: state, seed: sessionId, at: timeline.date)
             SpriteSheetView(
                 spriteSheet: presentation.spriteSheetName,
                 frameCount: state.frameCount,
@@ -352,30 +351,6 @@ private struct GrassSpriteView: View {
                 y: yOffset + bobOffset(at: timeline.date, duration: motion.bobDuration, amplitude: motion.bobAmplitude)
             )
         }
-        .onAppear(perform: updateStateMirroring)
-        .onChange(of: mirrorKey) { _, _ in updateStateMirroring() }
-    }
-
-    private func spriteSheetPresentation(at date: Date) -> SpriteSheetPresentation {
-        state.spriteSheetPresentation(isMirrored: isMirrored(at: date))
-    }
-
-    private var mirrorKey: String {
-        "\(sessionId)|\(state.spriteSheetName)"
-    }
-
-    private func isMirrored(at date: Date) -> Bool {
-        SpriteMirrorPolicy.isMirrored(
-            state: state,
-            seed: sessionId,
-            date: date,
-            stateMirrored: stateMirrored
-        )
-    }
-
-    private func updateStateMirroring() {
-        guard stateMirrorKey != mirrorKey else { return }
-        stateMirrorKey = mirrorKey
-        stateMirrored = SpriteMirrorPolicy.initialMirroring(seed: mirrorKey)
+        .spriteMirroring($mirroring, seed: sessionId, state: state)
     }
 }
