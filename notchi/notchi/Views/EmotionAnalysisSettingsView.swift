@@ -111,23 +111,16 @@ struct EmotionAnalysisSettingsView: View {
 
     private var providerSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: {
+            SettingsPickerHeader(
+                icon: "switch.2",
+                title: "Provider",
+                value: providerLabel,
+                isExpanded: isProviderPickerExpanded,
+                valueLineLimit: 1
+            ) {
                 blurAPIKeyField()
                 isProviderPickerExpanded.toggle()
-            }) {
-                SettingsRowView(icon: "switch.2", title: "Provider") {
-                    HStack(spacing: 4) {
-                        Text(providerLabel)
-                            .panelFont(size: 11)
-                            .foregroundColor(TerminalColors.secondaryText)
-                            .lineLimit(1)
-                        Image(systemName: isProviderPickerExpanded ? "chevron.up" : "chevron.down")
-                            .panelFont(size: 9)
-                            .foregroundColor(TerminalColors.dimmedText)
-                    }
-                }
             }
-            .buttonStyle(.plain)
 
             if isProviderPickerExpanded {
                 providerPicker
@@ -138,32 +131,11 @@ struct EmotionAnalysisSettingsView: View {
     private var providerPicker: some View {
         SettingsPicker(rowCount: EmotionAnalysisProvider.allCases.count) {
             ForEach(EmotionAnalysisProvider.allCases) { option in
-                providerRow(option)
+                SettingsPickerOption(title: option.displayName, isSelected: provider == option) {
+                    selectProvider(option)
+                }
             }
         }
-    }
-
-    private func providerRow(_ option: EmotionAnalysisProvider) -> some View {
-        Button(action: { selectProvider(option) }) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(provider == option ? TerminalColors.green : Color.clear)
-                    .frame(width: 6, height: 6)
-
-                Text(option.displayName)
-                    .panelFont(size: 11, weight: .medium)
-                    .foregroundColor(provider == option ? TerminalColors.primaryText : TerminalColors.secondaryText)
-                    .lineLimit(1)
-
-                Spacer()
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .background(provider == option ? TerminalColors.hoverBackground : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private var apiKeySection: some View {
@@ -363,24 +335,17 @@ struct EmotionAnalysisSettingsView: View {
     private var modelSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Button(action: {
+                SettingsPickerHeader(
+                    icon: "cpu",
+                    title: "Model",
+                    value: model.displayName,
+                    isExpanded: isModelPickerExpanded,
+                    valueLineLimit: 1,
+                    valueTruncationMode: .middle
+                ) {
                     blurAPIKeyField()
                     isModelPickerExpanded.toggle()
-                }) {
-                    SettingsRowView(icon: "cpu", title: "Model") {
-                        HStack(spacing: 4) {
-                            Text(model.displayName)
-                                .panelFont(size: 11)
-                                .foregroundColor(TerminalColors.secondaryText)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Image(systemName: isModelPickerExpanded ? "chevron.up" : "chevron.down")
-                                .panelFont(size: 9)
-                                .foregroundColor(TerminalColors.dimmedText)
-                        }
-                    }
                 }
-                .buttonStyle(.plain)
 
                 if hasCustomEndpoint {
                     refreshModelsButton
@@ -431,7 +396,9 @@ struct EmotionAnalysisSettingsView: View {
     private var modelPicker: some View {
         SettingsPicker(rowCount: modelOptions.count + (hasCustomEndpoint ? 1 : 0)) {
             ForEach(modelOptions) { option in
-                modelRow(option)
+                SettingsPickerOption(title: option.displayName, isSelected: model == option) {
+                    selectModel(option)
+                }
             }
             if hasCustomEndpoint {
                 customModelRow
@@ -477,30 +444,6 @@ struct EmotionAnalysisSettingsView: View {
     private var hasCustomModelInput: Bool {
         !customModelInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-
-    private func modelRow(_ option: EmotionAnalysisModel) -> some View {
-        Button(action: { selectModel(option) }) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(model == option ? TerminalColors.green : Color.clear)
-                    .frame(width: 6, height: 6)
-
-                Text(option.displayName)
-                    .panelFont(size: 11, weight: .medium)
-                    .foregroundColor(model == option ? TerminalColors.primaryText : TerminalColors.secondaryText)
-                    .lineLimit(1)
-
-                Spacer()
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .background(model == option ? TerminalColors.hoverBackground : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
 
     private var canTest: Bool {
         hasApiKey || (provider == .claude && hasClaudeCodeFallback)

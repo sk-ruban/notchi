@@ -58,63 +58,31 @@ private struct PanelSizeSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: { isExpanded.toggle() }) {
-                SettingsRowView(icon: "arrow.up.left.and.arrow.down.right", title: "Panel Size") {
-                    HStack(spacing: 4) {
-                        Text(scale.displayName)
-                            .panelFont(size: 11)
-                            .foregroundColor(TerminalColors.secondaryText)
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .panelFont(size: 9)
-                            .foregroundColor(TerminalColors.dimmedText)
-                    }
-                }
+            SettingsPickerHeader(
+                icon: "arrow.up.left.and.arrow.down.right",
+                title: "Panel Size",
+                value: scale.displayName,
+                isExpanded: isExpanded
+            ) {
+                isExpanded.toggle()
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: SettingsLayout.pickerRowSpacing) {
+                SettingsPicker(rowCount: ExpandedPanelScale.allCases.count) {
                     ForEach(ExpandedPanelScale.allCases) { option in
-                        optionRow(option)
+                        SettingsPickerOption(
+                            title: option.displayName,
+                            isSelected: scale == option,
+                            hint: option == .automatic ? resolvedName(for: option) : nil
+                        ) {
+                            AppSettings.expandedPanelScale = option
+                            isExpanded = false
+                        }
                     }
                 }
-                .padding(.vertical, SettingsLayout.pickerInset)
-                .background(TerminalColors.subtleBackground)
-                .cornerRadius(8)
-                .padding(.top, SettingsLayout.pickerInset)
             }
         }
         .animation(.spring(response: 0.3), value: isExpanded)
-    }
-
-    private func optionRow(_ option: ExpandedPanelScale) -> some View {
-        let isSelected = scale == option
-        return Button(action: {
-            AppSettings.expandedPanelScale = option
-            isExpanded = false
-        }) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isSelected ? TerminalColors.green : Color.clear)
-                    .frame(width: 6, height: 6)
-                Text(option.displayName)
-                    .panelFont(size: 11, weight: .medium)
-                    .foregroundColor(isSelected ? TerminalColors.primaryText : TerminalColors.secondaryText)
-                    .lineLimit(1)
-                Spacer()
-                if option == .automatic {
-                    Text(resolvedName(for: option))
-                        .panelFont(size: 9)
-                        .foregroundColor(TerminalColors.dimmedText)
-                }
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .background(isSelected ? TerminalColors.hoverBackground : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -126,54 +94,27 @@ private struct MainUsageBarSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: { isExpanded.toggle() }) {
-                SettingsRowView(icon: "chart.bar.xaxis", title: "Main Usage Bar") {
-                    HStack(spacing: 4) {
-                        Text(period.displayName)
-                            .panelFont(size: 11)
-                            .foregroundColor(TerminalColors.secondaryText)
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .panelFont(size: 9)
-                            .foregroundColor(TerminalColors.dimmedText)
-                    }
-                }
+            SettingsPickerHeader(
+                icon: "chart.bar.xaxis",
+                title: "Main Usage Bar",
+                value: period.displayName,
+                isExpanded: isExpanded
+            ) {
+                isExpanded.toggle()
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
                 SettingsPicker(rowCount: MainUsageBarPeriod.allCases.count) {
                     ForEach(MainUsageBarPeriod.allCases) { option in
-                        optionRow(option)
+                        SettingsPickerOption(title: option.displayName, isSelected: period == option) {
+                            AppSettings.mainUsageBarPeriod = option
+                            isExpanded = false
+                        }
                     }
                 }
             }
         }
         .animation(.spring(response: 0.3), value: isExpanded)
-    }
-
-    private func optionRow(_ option: MainUsageBarPeriod) -> some View {
-        let isSelected = period == option
-        return Button(action: {
-            AppSettings.mainUsageBarPeriod = option
-            isExpanded = false
-        }) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isSelected ? TerminalColors.green : Color.clear)
-                    .frame(width: 6, height: 6)
-                Text(option.displayName)
-                    .panelFont(size: 11, weight: .medium)
-                    .foregroundColor(isSelected ? TerminalColors.primaryText : TerminalColors.secondaryText)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .background(isSelected ? TerminalColors.hoverBackground : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -201,19 +142,14 @@ private struct NotchLayoutSettingsView: View {
     private func sideRow(_ side: Side, icon: String, title: LocalizedStringKey, isExpanded: Binding<Bool>) -> some View {
         let selection = side == .left ? left : right
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: { isExpanded.wrappedValue.toggle() }) {
-                SettingsRowView(icon: icon, title: title) {
-                    HStack(spacing: 4) {
-                        Text(selection.displayName)
-                            .panelFont(size: 11)
-                            .foregroundColor(TerminalColors.secondaryText)
-                        Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                            .panelFont(size: 9)
-                            .foregroundColor(TerminalColors.dimmedText)
-                    }
-                }
+            SettingsPickerHeader(
+                icon: icon,
+                title: title,
+                value: selection.displayName,
+                isExpanded: isExpanded.wrappedValue
+            ) {
+                isExpanded.wrappedValue.toggle()
             }
-            .buttonStyle(.plain)
 
             if isExpanded.wrappedValue {
                 picker(side)
@@ -233,30 +169,13 @@ private struct NotchLayoutSettingsView: View {
         let selection = side == .left ? left : right
         let other = side == .left ? right : left
         let isSelected = selection == option
-        let hint = pickHint(option: option, isSelected: isSelected, other: other)
-        return Button(action: { select(option, for: side) }) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isSelected ? TerminalColors.green : Color.clear)
-                    .frame(width: 6, height: 6)
-                Text(option.displayName)
-                    .panelFont(size: 11, weight: .medium)
-                    .foregroundColor(isSelected ? TerminalColors.primaryText : TerminalColors.secondaryText)
-                    .lineLimit(1)
-                Spacer()
-                if let hint {
-                    Text(hint)
-                        .panelFont(size: 9)
-                        .foregroundColor(TerminalColors.dimmedText)
-                }
-            }
-            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
-            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
-            .background(isSelected ? TerminalColors.hoverBackground : Color.clear)
-            .cornerRadius(4)
-            .contentShape(Rectangle())
+        return SettingsPickerOption(
+            title: option.displayName,
+            isSelected: isSelected,
+            hint: pickHint(option: option, isSelected: isSelected, other: other)
+        ) {
+            select(option, for: side)
         }
-        .buttonStyle(.plain)
     }
 
     private func pickHint(option: NotchSlotContent, isSelected: Bool, other: NotchSlotContent) -> String? {
