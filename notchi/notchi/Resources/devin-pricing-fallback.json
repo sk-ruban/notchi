@@ -319,6 +319,96 @@
       "cacheCreationPerToken": 1.25e-05,
       "cacheReadPerToken": 2.5e-07
     },
+    "claude-fable-5-2-high": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-fable-5-2-high-fast": {
+      "inputPerToken": 1.6e-05,
+      "outputPerToken": 8e-05,
+      "cacheCreationPerToken": 2e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-fable-5-2-low": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-fable-5-2-low-fast": {
+      "inputPerToken": 1.6e-05,
+      "outputPerToken": 8e-05,
+      "cacheCreationPerToken": 2e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-fable-5-2-max": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-fable-5-2-max-fast": {
+      "inputPerToken": 1.6e-05,
+      "outputPerToken": 8e-05,
+      "cacheCreationPerToken": 2e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-fable-5-2-medium": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-fable-5-2-medium-fast": {
+      "inputPerToken": 1.6e-05,
+      "outputPerToken": 8e-05,
+      "cacheCreationPerToken": 2e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-fable-5-2-xhigh": {
+      "inputPerToken": 8e-06,
+      "outputPerToken": 4e-05,
+      "cacheCreationPerToken": 1e-05,
+      "cacheReadPerToken": 2e-07
+    },
+    "claude-fable-5-2-xhigh-fast": {
+      "inputPerToken": 1.6e-05,
+      "outputPerToken": 8e-05,
+      "cacheCreationPerToken": 2e-05,
+      "cacheReadPerToken": 4e-07
+    },
+    "claude-haiku-5-5-high": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "claude-haiku-5-5-low": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "claude-haiku-5-5-max": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "claude-haiku-5-5-medium": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "claude-haiku-5-5-xhigh": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
     "claude-opus-4-6": {
       "inputPerToken": 5e-06,
       "outputPerToken": 2.5e-05,
@@ -577,6 +667,36 @@
       "cacheCreationPerToken": 3.75e-06,
       "cacheReadPerToken": 3e-07
     },
+    "claude-sonnet-5-5-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "claude-sonnet-5-5-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "claude-sonnet-5-5-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "claude-sonnet-5-5-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "claude-sonnet-5-5-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
     "claude-sonnet-5-high": {
       "inputPerToken": 2e-06,
       "outputPerToken": 1e-05,
@@ -606,6 +726,30 @@
       "outputPerToken": 1e-05,
       "cacheCreationPerToken": 2.5e-06,
       "cacheReadPerToken": 2e-07
+    },
+    "deepseek-v4-1-flash-1017-high": {
+      "inputPerToken": 2.2e-07,
+      "outputPerToken": 6.6e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7e-09
+    },
+    "deepseek-v4-1-flash-1017-low": {
+      "inputPerToken": 2.2e-07,
+      "outputPerToken": 6.6e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7e-09
+    },
+    "deepseek-v4-1-flash-1017-max": {
+      "inputPerToken": 2.2e-07,
+      "outputPerToken": 6.6e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7e-09
+    },
+    "deepseek-v4-1-flash-1017-none": {
+      "inputPerToken": 2.2e-07,
+      "outputPerToken": 6.6e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 7e-09
     },
     "deepseek-v4-flash-high": {
       "inputPerToken": 1.4e-07,
@@ -737,6 +881,48 @@
       "inputPerToken": 1.5e-06,
       "outputPerToken": 7.5e-06,
       "cacheCreationPerToken": 1.5e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-4-argon-high": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 4e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gemini-4-argon-low": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 4e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gemini-4-argon-medium": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 4e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gemini-4-neon-high": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-4-neon-low": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-4-neon-medium": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3e-06,
+      "cacheReadPerToken": 1.5e-07
+    },
+    "gemini-4-neon-xhigh": {
+      "inputPerToken": 3e-06,
+      "outputPerToken": 1.5e-05,
+      "cacheCreationPerToken": 3e-06,
       "cacheReadPerToken": 1.5e-07
     },
     "glm-5-2": {
@@ -1231,11 +1417,137 @@
       "cacheCreationPerToken": 5e-06,
       "cacheReadPerToken": 4e-07
     },
+    "gpt-6-1-sol-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-sol-high-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-1-sol-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-sol-low-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-1-sol-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-sol-max-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-1-sol-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-sol-medium-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-1-sol-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-sol-xhigh-priority": {
+      "inputPerToken": 4e-06,
+      "outputPerToken": 2e-05,
+      "cacheCreationPerToken": 5e-06,
+      "cacheReadPerToken": 2e-07
+    },
+    "gpt-6-1-terra-high": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "gpt-6-1-terra-high-priority": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-terra-low": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "gpt-6-1-terra-low-priority": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-terra-max": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "gpt-6-1-terra-max-priority": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-terra-medium": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "gpt-6-1-terra-medium-priority": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
+    "gpt-6-1-terra-xhigh": {
+      "inputPerToken": 1e-06,
+      "outputPerToken": 5e-06,
+      "cacheCreationPerToken": 1.25e-06,
+      "cacheReadPerToken": 5e-08
+    },
+    "gpt-6-1-terra-xhigh-priority": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 2.5e-06,
+      "cacheReadPerToken": 1e-07
+    },
     "gpt-6-astra-high": {
       "inputPerToken": 1e-05,
       "outputPerToken": 5e-05,
       "cacheCreationPerToken": 1.25e-05,
       "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-high-priority": {
+      "inputPerToken": 2e-05,
+      "outputPerToken": 0.0001,
+      "cacheCreationPerToken": 2.5e-05,
+      "cacheReadPerToken": 2e-06
     },
     "gpt-6-astra-low": {
       "inputPerToken": 1e-05,
@@ -1243,11 +1555,23 @@
       "cacheCreationPerToken": 1.25e-05,
       "cacheReadPerToken": 1e-06
     },
+    "gpt-6-astra-low-priority": {
+      "inputPerToken": 2e-05,
+      "outputPerToken": 0.0001,
+      "cacheCreationPerToken": 2.5e-05,
+      "cacheReadPerToken": 2e-06
+    },
     "gpt-6-astra-max": {
       "inputPerToken": 1e-05,
       "outputPerToken": 5e-05,
       "cacheCreationPerToken": 1.25e-05,
       "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-max-priority": {
+      "inputPerToken": 2e-05,
+      "outputPerToken": 0.0001,
+      "cacheCreationPerToken": 2.5e-05,
+      "cacheReadPerToken": 2e-06
     },
     "gpt-6-astra-medium": {
       "inputPerToken": 1e-05,
@@ -1255,11 +1579,23 @@
       "cacheCreationPerToken": 1.25e-05,
       "cacheReadPerToken": 1e-06
     },
+    "gpt-6-astra-medium-priority": {
+      "inputPerToken": 2e-05,
+      "outputPerToken": 0.0001,
+      "cacheCreationPerToken": 2.5e-05,
+      "cacheReadPerToken": 2e-06
+    },
     "gpt-6-astra-xhigh": {
       "inputPerToken": 1e-05,
       "outputPerToken": 5e-05,
       "cacheCreationPerToken": 1.25e-05,
       "cacheReadPerToken": 1e-06
+    },
+    "gpt-6-astra-xhigh-priority": {
+      "inputPerToken": 2e-05,
+      "outputPerToken": 0.0001,
+      "cacheCreationPerToken": 2.5e-05,
+      "cacheReadPerToken": 2e-06
     },
     "gpt-6-luna-high": {
       "inputPerToken": 1e-07,
@@ -1447,6 +1783,30 @@
       "cacheCreationPerToken": 0.0,
       "cacheReadPerToken": 3e-07
     },
+    "grok-4-7-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "grok-4-7-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "grok-4-7-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "grok-4-7-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 6e-06,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
     "inkling-high": {
       "inputPerToken": 1.4e-06,
       "outputPerToken": 4.4e-06,
@@ -1495,6 +1855,30 @@
       "cacheCreationPerToken": 0.0,
       "cacheReadPerToken": 1.9e-07
     },
+    "kimi-k3-1-pro-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "kimi-k3-1-pro-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "kimi-k3-1-pro-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "kimi-k3-1-pro-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
     "kimi-k3-high": {
       "inputPerToken": 3e-06,
       "outputPerToken": 1.5e-05,
@@ -1512,6 +1896,24 @@
       "outputPerToken": 1.5e-05,
       "cacheCreationPerToken": 0.0,
       "cacheReadPerToken": 3e-07
+    },
+    "nemotron-3-5-super-high": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 4e-08
+    },
+    "nemotron-3-5-super-medium": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 4e-08
+    },
+    "nemotron-3-5-super-none": {
+      "inputPerToken": 2e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 4e-08
     },
     "nemotron-3-ultra-high": {
       "inputPerToken": 6e-07,
@@ -1590,6 +1992,96 @@
       "outputPerToken": 2.5e-06,
       "cacheCreationPerToken": 0.0,
       "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1-high": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1-high-lightning": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "swe-2-1-lightning": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "swe-2-1-low": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1-low-lightning": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "swe-2-1-max": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1-max-lightning": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "swe-2-1-medium": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1-medium-lightning": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "swe-2-1-xhigh": {
+      "inputPerToken": 2e-06,
+      "outputPerToken": 1e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 2e-07
+    },
+    "swe-2-1-xhigh-lightning": {
+      "inputPerToken": 5e-06,
+      "outputPerToken": 2.5e-05,
+      "cacheCreationPerToken": 0.0,
+      "cacheReadPerToken": 5e-07
+    },
+    "swe-2-flash-high": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "swe-2-flash-max": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
+    },
+    "swe-2-flash-medium": {
+      "inputPerToken": 1e-07,
+      "outputPerToken": 5e-07,
+      "cacheCreationPerToken": 1.25e-07,
+      "cacheReadPerToken": 1e-08
     },
     "swe-2-high": {
       "inputPerToken": 7.5e-07,
