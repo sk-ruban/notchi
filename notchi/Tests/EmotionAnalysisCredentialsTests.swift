@@ -10,6 +10,7 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
     private var keychainReads: [(provider: EmotionAnalysisProvider, allowInteraction: Bool)] = []
     private var keychainWrites: [String?] = []
     private var settingsLoads = 0
+    private var currentTime = Date(timeIntervalSince1970: 1_800_000_000)
     private var settingsDirectory: URL!
 
     override func setUpWithError() throws {
@@ -38,6 +39,28 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
 
         _ = credentials.apiKey(for: .openAI)
         _ = credentials.apiKey(for: .openAI)
+
+        XCTAssertEqual(keychainReads.count, expectedReadCount)
+    }
+
+    func testNonInteractiveMissIsRetriedOnceTheRetryIntervalPasses() {
+        var keychainUnlocked = false
+        let credentials = makeCredentials(keychain: { _ in keychainUnlocked ? Self.storedKey : nil })
+        XCTAssertNil(credentials.apiKey(for: .claude), "precondition: the locked Keychain misses")
+
+        keychainUnlocked = true
+        currentTime += EmotionAnalysisCredentials.unconfirmedMissRetryInterval + 1
+
+        XCTAssertEqual(credentials.apiKey(for: .claude), Self.storedKey)
+    }
+
+    func testNonInteractiveMissIsNotRetriedWithinTheRetryInterval() {
+        let expectedReadCount = 1
+        let credentials = makeCredentials(keychain: { _ in nil })
+        _ = credentials.apiKey(for: .claude)
+
+        currentTime += EmotionAnalysisCredentials.unconfirmedMissRetryInterval - 1
+        _ = credentials.apiKey(for: .claude)
 
         XCTAssertEqual(keychainReads.count, expectedReadCount)
     }
@@ -161,7 +184,8 @@ final class EmotionAnalysisCredentialsTests: XCTestCase {
             loadClaudeSettings: { [unowned self] url in
                 settingsLoads += 1
                 return ClaudeSettingsConfig.load(from: url)
-            }
+            },
+            now: { [unowned self] in currentTime }
         )
     }
 
