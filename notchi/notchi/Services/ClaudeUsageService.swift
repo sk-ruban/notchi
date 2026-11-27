@@ -242,9 +242,6 @@ final class ClaudeUsageService {
         allowsCredentialRecovery: Bool,
         prefersRecoveredCredentials: Bool = false
     ) async -> ClaudeUsageAccessTokenResolution? {
-        var recoveredCredentials: ClaudeOAuthCredentials?
-        var attemptedCredentialRecovery = false
-
         // Trim here even though the live dependency trims too, because tests
         // and custom dependencies may inject raw values.
         if let environmentToken = dependencies.getOAuthTokenFromEnvironment()?
@@ -253,35 +250,30 @@ final class ClaudeUsageService {
             return ClaudeUsageAccessTokenResolution(token: environmentToken, source: .environment, credentials: nil)
         }
 
-        if prefersRecoveredCredentials, allowsCredentialRecovery {
-            attemptedCredentialRecovery = true
-            recoveredCredentials = await dependencies.getOAuthCredentials(false)
-            if let silentCredentials = recoveredCredentials {
-                let recoveredToken = silentCredentials.accessToken
-                dependencies.cacheOAuthToken(recoveredToken)
-                return ClaudeUsageAccessTokenResolution(token: recoveredToken, source: .recoveredFromCredentials, credentials: silentCredentials)
-            }
+        let recoversBeforeCachedToken = prefersRecoveredCredentials && allowsCredentialRecovery
+        if recoversBeforeCachedToken, let recovered = await recoverAccessTokenFromCredentials() {
+            return recovered
         }
 
         if let cachedToken = dependencies.getCachedOAuthToken() {
             return ClaudeUsageAccessTokenResolution(token: cachedToken, source: .cached, credentials: nil)
         }
 
-        guard allowsCredentialRecovery else {
+        // A recovery that already failed above isn't read again.
+        guard allowsCredentialRecovery, !recoversBeforeCachedToken else {
             return nil
         }
 
-        if !attemptedCredentialRecovery {
-            recoveredCredentials = await dependencies.getOAuthCredentials(false)
-        }
+        return await recoverAccessTokenFromCredentials()
+    }
 
-        if let silentCredentials = recoveredCredentials {
-            let recoveredToken = silentCredentials.accessToken
-            dependencies.cacheOAuthToken(recoveredToken)
-            return ClaudeUsageAccessTokenResolution(token: recoveredToken, source: .recoveredFromCredentials, credentials: silentCredentials)
+    private func recoverAccessTokenFromCredentials() async -> ClaudeUsageAccessTokenResolution? {
+        guard let silentCredentials = await dependencies.getOAuthCredentials(false) else {
+            return nil
         }
-
-        return nil
+        let recoveredToken = silentCredentials.accessToken
+        dependencies.cacheOAuthToken(recoveredToken)
+        return ClaudeUsageAccessTokenResolution(token: recoveredToken, source: .recoveredFromCredentials, credentials: silentCredentials)
     }
 
     func retryNow() {
@@ -877,9 +869,7 @@ final class ClaudeUsageService {
             effectiveAccessToken = accessToken
         }
 
-        if usesCredentialMetadata,
-           !credentials.scopes.isEmpty,
-           !credentials.scopes.contains("user:profile") {
+        if usesCredentialMetadata, credentialsRequireReconnect(credentials) {
             presentReconnectRequired(message: String(localized: "Claude authentication needs attention."))
             stopPolling()
             return .handled
@@ -1231,20 +1221,11 @@ final class ClaudeUsageService {
     }
 
     private func presentOAuthBackoffState(remaining: TimeInterval) {
-        clearPendingResumeReconnect()
-        recoveryAction = .retry
         let roundedDelay = Int(ceil(remaining))
-
-        if currentUsage == nil, currentWeeklyUsage == nil, currentModelUsage == nil {
-            error = String(localized: "Rate limited, retrying in \(roundedDelay)s")
-            statusMessage = nil
-            isUsageStale = false
-            return
-        }
-
-        error = nil
-        statusMessage = String(localized: "Updating in \(roundedDelay)s")
-        isUsageStale = true
+        presentRetryableIssue(
+            noUsageMessage: String(localized: "Rate limited, retrying in \(roundedDelay)s"),
+            staleMessage: String(localized: "Updating in \(roundedDelay)s")
+        )
     }
 
     private func handleRetryDuringOAuthBackoff(with accessToken: String, remaining: TimeInterval) async {
@@ -1420,6 +1401,25 @@ final class ClaudeUsageService {
     private func presentRetryableIssue(noUsageMessage: String, staleMessage: String) {
         clearPendingResumeReconnect()
         recoveryAction = .retry
+        presentIssueMessage(noUsageMessage: noUsageMessage, staleMessage: staleMessage)
+    }
+
+    private func presentReconnectRequired(message: String) {
+        clearPendingResumeReconnect()
+        recoveryAction = .reconnect
+        isConnected = false
+        presentIssueMessage(noUsageMessage: message, staleMessage: message)
+    }
+
+    private func presentWaitForClaudeCode(message: String) {
+        clearPendingResumeReconnect()
+        recoveryAction = .waitForClaudeCode
+        isConnected = false
+        presentIssueMessage(noUsageMessage: message, staleMessage: message)
+    }
+
+    /// Without usage to show the issue is the error; otherwise it's a status beside the stale usage.
+    private func presentIssueMessage(noUsageMessage: String, staleMessage: String) {
         if currentUsage == nil, currentWeeklyUsage == nil, currentModelUsage == nil {
             error = noUsageMessage
             statusMessage = nil
@@ -1427,36 +1427,6 @@ final class ClaudeUsageService {
         } else {
             error = nil
             statusMessage = staleMessage
-            isUsageStale = true
-        }
-    }
-
-    private func presentReconnectRequired(message: String) {
-        clearPendingResumeReconnect()
-        recoveryAction = .reconnect
-        isConnected = false
-        if currentUsage == nil, currentWeeklyUsage == nil, currentModelUsage == nil {
-            error = message
-            statusMessage = nil
-            isUsageStale = false
-        } else {
-            error = nil
-            statusMessage = message
-            isUsageStale = true
-        }
-    }
-
-    private func presentWaitForClaudeCode(message: String) {
-        clearPendingResumeReconnect()
-        recoveryAction = .waitForClaudeCode
-        isConnected = false
-        if currentUsage == nil, currentWeeklyUsage == nil, currentModelUsage == nil {
-            error = message
-            statusMessage = nil
-            isUsageStale = false
-        } else {
-            error = nil
-            statusMessage = message
             isUsageStale = true
         }
     }
