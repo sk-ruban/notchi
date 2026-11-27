@@ -9,8 +9,7 @@ struct SessionSpriteView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isAnimationPaused) private var isAnimationPaused
-    @State private var stateMirrorKey: String?
-    @State private var stateMirrored = false
+    @State private var mirroring = SpriteMirroring()
     @State private var animatedVerticalOffset: CGFloat = 0
 
     private var bobAmplitude: CGFloat {
@@ -34,7 +33,7 @@ struct SessionSpriteView: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: state.motionFrameInterval, paused: isAnimationPaused || (bobAmplitude == 0 && trembleAmplitude == 0))) { timeline in
-            let presentation = spriteSheetPresentation(at: timeline.date)
+            let presentation = mirroring.spriteSheetPresentation(state: state, seed: mirrorSeed, at: timeline.date)
             SpriteSheetView(
                 spriteSheet: presentation.spriteSheetName,
                 frameCount: state.frameCount,
@@ -51,11 +50,10 @@ struct SessionSpriteView: View {
             )
             .offset(y: animatedVerticalOffset)
         }
+        .spriteMirroring($mirroring, seed: mirrorSeed, state: state)
         .onAppear {
-            updateStateMirroring()
             animatedVerticalOffset = spriteVerticalOffset
         }
-        .onChange(of: mirrorKey) { _, _ in updateStateMirroring() }
         .onChange(of: spriteVerticalOffset) { _, newValue in
             if reduceMotion {
                 animatedVerticalOffset = newValue
@@ -65,34 +63,11 @@ struct SessionSpriteView: View {
         }
     }
 
-    private func spriteSheetPresentation(at date: Date) -> SpriteSheetPresentation {
-        state.spriteSheetPresentation(isMirrored: isMirrored(at: date))
-    }
-
-    private var mirrorKey: String {
-        "\(mirrorSeed)|\(state.spriteSheetName)"
-    }
-
     private var effectiveAnimationStartDate: Date {
         guard repeatsAnimation, animationStartDate == SpriteAnimationPhase.sharedLoopAnchor else {
             return animationStartDate
         }
 
         return SpriteAnimationPhase.variedLoopAnchor(for: mirrorSeed, spriteSheet: state.spriteSheetName)
-    }
-
-    private func isMirrored(at date: Date) -> Bool {
-        SpriteMirrorPolicy.isMirrored(
-            state: state,
-            seed: mirrorSeed,
-            date: date,
-            stateMirrored: stateMirrored
-        )
-    }
-
-    private func updateStateMirroring() {
-        guard stateMirrorKey != mirrorKey else { return }
-        stateMirrorKey = mirrorKey
-        stateMirrored = SpriteMirrorPolicy.initialMirroring(seed: mirrorKey)
     }
 }
