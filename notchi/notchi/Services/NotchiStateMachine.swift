@@ -12,6 +12,7 @@ final class NotchiStateMachine {
     let sessionStore = SessionStore.shared
 
     private var emotionDecayTimer: Task<Void, Never>?
+    private var sleepRetirementTimer: Task<Void, Never>?
     private var emotionDecayInterval = EmotionState.decayInterval
     private var pendingSyncTasks: [ProviderSessionKey: Task<Void, Never>] = [:]
     private var pendingPositionMarks: [ProviderSessionKey: Task<Void, Never>] = [:]
@@ -32,6 +33,7 @@ final class NotchiStateMachine {
         ClaudeUsageServices.shared.handleClaudeResumeTrigger(trigger)
     }
     var isProcessAlive: (Int) -> Bool
+    var sleepRetirementAge: () -> TimeInterval? = NotchiStateMachine.defaultSleepRetirementAge
     var analyzeEmotion: @MainActor (String) async -> (emotion: String, intensity: Double)? = { prompt in
         await EmotionAnalyzer.shared.analyze(prompt)
     }
@@ -48,6 +50,10 @@ final class NotchiStateMachine {
     private nonisolated static let codexCompactionSignalRefreshDebounce: Duration = .milliseconds(150)
     private nonisolated static let codexCompactionSignalMinRefreshInterval: Duration = .seconds(2)
     private static let processMissLimit = 2
+    private static let sleepRetirementCheckInterval: Duration = .seconds(60)
+    private static let defaultSleepRetirementAge: () -> TimeInterval? = {
+        AppSettings.sleepRetirement.duration
+    }
     private static let pendingSessionStartMaxAge: TimeInterval = 10 * 60
 
     private init() {
@@ -56,6 +62,7 @@ final class NotchiStateMachine {
 
     func handleEvent(_ event: HookEvent) {
         trimPendingSessionStartTimes()
+        startSleepRetirementTimerIfNeeded()
 
         let transcriptPath = ConversationParser.resolvedTranscriptPath(
             for: event.provider,
@@ -480,6 +487,31 @@ final class NotchiStateMachine {
         }
     }
 
+    private func startSleepRetirementTimerIfNeeded() {
+        guard sleepRetirementTimer == nil else { return }
+        sleepRetirementTimer = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.sleepRetirementCheckInterval)
+                guard let self, !Task.isCancelled else { return }
+                retireLongSleepingSessions()
+                // Idle until the next event restarts the timer.
+                guard !sessionStore.sessions.isEmpty else {
+                    sleepRetirementTimer = nil
+                    return
+                }
+            }
+        }
+    }
+
+    /// Dismisses sessions that have slept too long; like any dismissed session, the next event brings one back.
+    func retireLongSleepingSessions(now: Date = Date()) {
+        guard let age = sleepRetirementAge() else { return }
+        let retired = sessionStore.sessions.values.filter { $0.hasSlept(for: age, now: now) }
+        for session in retired {
+            dismissSession(matchingStableId: session.id)
+        }
+    }
+
     private func refreshProcessMonitoring() {
         let shouldMonitor = sessionStore.sessions.values.contains { $0.monitoredProcessId != nil }
 
@@ -665,6 +697,8 @@ final class NotchiStateMachine {
         emotionAnalysisTasks.removeAll()
         emotionDecayTimer?.cancel()
         emotionDecayTimer = nil
+        sleepRetirementTimer?.cancel()
+        sleepRetirementTimer = nil
         emotionDecayInterval = EmotionState.decayInterval
         onCodexSessionsEnded = {
             Task { await CodexUsageService.shared.refreshFromAPI() }
@@ -682,6 +716,7 @@ final class NotchiStateMachine {
         codexThreadMetadataAutoRefreshEnabled = true
         processMissCounts.removeAll()
         pendingSessionStartTimes.removeAll()
+        sleepRetirementAge = Self.defaultSleepRetirementAge
     }
 
 #if DEBUG

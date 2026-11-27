@@ -68,6 +68,39 @@ final class SessionStore {
         }
     }
 
+    static let islandSessionLimit = 7
+
+    /// The sessions that get a sprite on the island: the selected one, those waiting on the user, the busy ones, then the most recent.
+    var islandSessions: [SessionData] {
+        Self.islandSessions(from: Array(sessions.values), selected: selectedSessionKey)
+    }
+
+    /// How many sessions the island leaves out, for its "+N" marker.
+    var hiddenIslandSessionCount: Int {
+        sessions.count - islandSessions.count
+    }
+
+    static func islandSessions(
+        from sessions: [SessionData],
+        selected: ProviderSessionKey? = nil,
+        limit: Int = islandSessionLimit
+    ) -> [SessionData] {
+        func relevanceRank(_ session: SessionData) -> Int {
+            if session.sessionKey == selected { return 0 }
+            if session.task == .waiting { return 1 }
+            return session.isProcessing ? 2 : 3
+        }
+        let byRelevance = sessions.sorted { lhs, rhs in
+            let lhsRank = relevanceRank(lhs)
+            let rhsRank = relevanceRank(rhs)
+            if lhsRank != rhsRank {
+                return lhsRank < rhsRank
+            }
+            return lhs.lastActivity > rhs.lastActivity
+        }
+        return Array(byRelevance.prefix(limit))
+    }
+
     var activeSessionCount: Int {
         sessions.count
     }

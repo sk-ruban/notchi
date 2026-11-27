@@ -157,6 +157,27 @@ struct GrassIslandView: View {
 
 }
 
+/// The "+N" marker for sessions the island leaves out; it sits in an overlay so its tooltip can receive hover.
+struct IslandHiddenSessionsBadge: View {
+    let count: Int
+
+    private static let fontSize: CGFloat = 10
+
+    static func tooltip(count: Int, bundle: Bundle = .main) -> String {
+        String(localized: "+\(count) sessions", bundle: bundle)
+    }
+
+    var body: some View {
+        Text(verbatim: "+\(count)")
+            .panelFont(size: Self.fontSize, weight: .bold, design: .rounded)
+            .foregroundColor(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.black.opacity(0.45), in: Capsule())
+            .help(Self.tooltip(count: count))
+    }
+}
+
 // MARK: - Interaction layer (placed in .overlay for reliable hit testing)
 
 struct GrassTapOverlay: View {
