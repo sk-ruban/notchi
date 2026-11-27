@@ -110,15 +110,11 @@ nonisolated final class DevinCostScanner {
         guard rows.last == Self.endOfRowsMarker[...] else { return nil }
         rows.removeLast()
 
-        let isoFractional = ISO8601DateFormatter()
-        isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let isoPlain = ISO8601DateFormatter()
-
         return rows.compactMap { row in
             let fields = row.split(separator: Character(CodexFileSystem.sqliteSeparator), omittingEmptySubsequences: false)
                 .map(String.init)
             guard fields.count == 7 else { return nil }
-            let generatedAt = isoFractional.date(from: fields[0]) ?? isoPlain.date(from: fields[0])
+            let generatedAt = ISO8601Timestamps.date(from: fields[0])
             guard let date = generatedAt ?? TimeInterval(fields[1]).map(Date.init(timeIntervalSince1970:)) else {
                 return nil
             }
