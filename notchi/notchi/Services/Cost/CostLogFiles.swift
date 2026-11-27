@@ -61,7 +61,7 @@ extension CostUsageCache {
     }
 }
 
-extension CostLogFiles {
+nonisolated extension CostLogFiles {
     /// Calls `body` with each complete line from `startOffset` on and returns the offset just past the last one,
     /// or `startOffset` when there's nothing to read.
     static func forEachLine(in url: URL, from startOffset: Int64, _ body: (UnsafeRawBufferPointer) -> Void) -> Int64 {

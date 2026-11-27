@@ -57,9 +57,10 @@ final class CostHistoryStore {
                     let loaded = CostUsageCacheStore.load(url: cacheURL)
                     return (loaded, loaded)
                 }()
-                var updated = scan(latest.reconciled(withPricingSignature: sig, timeZoneIdentifier: timeZoneID), now)
-                updated.pricingSignature = sig
-                updated.timeZoneIdentifier = timeZoneID
+                var scanned = scan(latest.reconciled(withPricingSignature: sig, timeZoneIdentifier: timeZoneID), now)
+                scanned.pricingSignature = sig
+                scanned.timeZoneIdentifier = timeZoneID
+                let updated = scanned
                 let isSaved = updated == saved || CostUsageCacheStore.save(updated, to: cacheURL)
                 caches.withLock { $0 = (updated, isSaved ? updated : saved) }
                 return updated.buckets
