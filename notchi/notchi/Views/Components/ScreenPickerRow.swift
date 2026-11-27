@@ -29,15 +29,11 @@ struct ScreenPickerRow: View {
 
                 Spacer()
 
-                HStack(spacing: 4) {
-                    Text(currentSelectionLabel)
-                        .panelFont(size: 11)
-                        .foregroundColor(TerminalColors.secondaryText)
-                        .lineLimit(1)
-                    Image(systemName: screenSelector.isPickerExpanded ? "chevron.up" : "chevron.down")
-                        .panelFont(size: 9)
-                        .foregroundColor(TerminalColors.dimmedText)
-                }
+                SettingsPickerValue(
+                    value: currentSelectionLabel,
+                    isExpanded: screenSelector.isPickerExpanded,
+                    lineLimit: 1
+                )
             }
             .padding(.vertical, SettingsLayout.rowVerticalPadding)
             .contentShape(Rectangle())

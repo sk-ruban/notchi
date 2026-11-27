@@ -55,14 +55,10 @@ struct SoundPickerView: View {
 
                 Spacer()
 
-                HStack(spacing: 4) {
-                    Text(AppSettings.isMuted ? String(localized: "Muted") : selectedSound.displayName(customSounds: customSounds))
-                        .panelFont(size: 11)
-                        .foregroundColor(TerminalColors.secondaryText)
-                    Image(systemName: selector.isPickerExpanded ? "chevron.up" : "chevron.down")
-                        .panelFont(size: 9)
-                        .foregroundColor(TerminalColors.dimmedText)
-                }
+                SettingsPickerValue(
+                    value: AppSettings.isMuted ? String(localized: "Muted") : selectedSound.displayName(customSounds: customSounds),
+                    isExpanded: selector.isPickerExpanded
+                )
             }
             .padding(.vertical, SettingsLayout.rowVerticalPadding)
             .contentShape(Rectangle())

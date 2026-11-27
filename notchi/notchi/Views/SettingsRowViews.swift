@@ -136,3 +136,83 @@ struct SettingsPicker<Content: View>: View {
         .padding(.vertical, SettingsLayout.pickerInset)
     }
 }
+
+/// The current value and expand chevron on the right of a collapsible picker's row.
+struct SettingsPickerValue: View {
+    let value: String
+    let isExpanded: Bool
+    var lineLimit: Int?
+    var truncationMode: Text.TruncationMode = .tail
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(value)
+                .panelFont(size: 11)
+                .foregroundColor(TerminalColors.secondaryText)
+                .lineLimit(lineLimit)
+                .truncationMode(truncationMode)
+            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                .panelFont(size: 9)
+                .foregroundColor(TerminalColors.dimmedText)
+        }
+    }
+}
+
+/// The row that expands or collapses a settings picker.
+struct SettingsPickerHeader: View {
+    let icon: String
+    let title: LocalizedStringKey
+    let value: String
+    let isExpanded: Bool
+    var valueLineLimit: Int?
+    var valueTruncationMode: Text.TruncationMode = .tail
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            SettingsRowView(icon: icon, title: title) {
+                SettingsPickerValue(
+                    value: value,
+                    isExpanded: isExpanded,
+                    lineLimit: valueLineLimit,
+                    truncationMode: valueTruncationMode
+                )
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// One choice in a `SettingsPicker`, with an optional dimmed hint on the right.
+struct SettingsPickerOption: View {
+    let title: String
+    let isSelected: Bool
+    var hint: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(isSelected ? TerminalColors.green : Color.clear)
+                    .frame(width: 6, height: 6)
+                Text(title)
+                    .panelFont(size: 11, weight: .medium)
+                    .foregroundColor(isSelected ? TerminalColors.primaryText : TerminalColors.secondaryText)
+                    .lineLimit(1)
+                Spacer()
+                if let hint {
+                    Text(hint)
+                        .panelFont(size: 9)
+                        .foregroundColor(TerminalColors.dimmedText)
+                }
+            }
+            .padding(.horizontal, SettingsLayout.pickerOptionHorizontalPadding)
+            .padding(.vertical, SettingsLayout.pickerOptionVerticalPadding)
+            .background(isSelected ? TerminalColors.hoverBackground : Color.clear)
+            .cornerRadius(4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
