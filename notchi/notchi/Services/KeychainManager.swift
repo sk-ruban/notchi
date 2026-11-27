@@ -68,12 +68,13 @@ nonisolated enum KeychainManager {
         )
     }
 
-    static func setAnthropicApiKey(_ key: String?) {
+    /// Returns whether the Keychain accepted the change.
+    @discardableResult
+    static func setAnthropicApiKey(_ key: String?) -> Bool {
         if let key, !key.isEmpty {
-            saveString(key, service: notchiService, account: anthropicApiKeyAccount)
-        } else {
-            deleteItem(service: notchiService, account: anthropicApiKeyAccount)
+            return saveString(key, service: notchiService, account: anthropicApiKeyAccount)
         }
+        return deleteItem(service: notchiService, account: anthropicApiKeyAccount)
     }
 
     static func getOpenAIApiKey(allowInteraction: Bool = false) -> String? {
@@ -84,12 +85,13 @@ nonisolated enum KeychainManager {
         )
     }
 
-    static func setOpenAIApiKey(_ key: String?) {
+    /// Returns whether the Keychain accepted the change.
+    @discardableResult
+    static func setOpenAIApiKey(_ key: String?) -> Bool {
         if let key, !key.isEmpty {
-            saveString(key, service: notchiService, account: openAIApiKeyAccount)
-        } else {
-            deleteItem(service: notchiService, account: openAIApiKeyAccount)
+            return saveString(key, service: notchiService, account: openAIApiKeyAccount)
         }
+        return deleteItem(service: notchiService, account: openAIApiKeyAccount)
     }
 
     // MARK: - Cached OAuth Token
@@ -374,7 +376,7 @@ nonisolated enum KeychainManager {
         return string
     }
 
-    private static func saveString(_ value: String, service: String, account: String) {
+    private static func saveString(_ value: String, service: String, account: String) -> Bool {
         #if DEBUG
         keychainWritesForTesting += 1
         #endif
@@ -388,20 +390,20 @@ nonisolated enum KeychainManager {
         ]
         let update: [String: Any] = [kSecValueData as String: data]
         let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        guard status == errSecItemNotFound else { return status == errSecSuccess }
 
-        if status == errSecItemNotFound {
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            SecItemAdd(addQuery as CFDictionary, nil)
-        }
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
     }
 
-    private static func deleteItem(service: String, account: String) {
+    private static func deleteItem(service: String, account: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }
