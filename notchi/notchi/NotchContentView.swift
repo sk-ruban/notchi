@@ -1,94 +1,5 @@
 import SwiftUI
 
-enum NotchConstants {
-    static let expandedPanelSize = CGSize(width: 450, height: 450)
-    static let expandedPanelHorizontalPadding: CGFloat = 19 * 2
-    static let expandedPanelContentInset: CGFloat = 48
-    static let expandedPanelHitTestSlack: CGFloat = 48
-    static let expandedPanelVerticalInset: CGFloat = 24
-
-    static var expandedPanelContentWidth: CGFloat {
-        expandedPanelSize.width - expandedPanelContentInset
-    }
-
-    static func expandedContentHeight(notchHeight: CGFloat) -> CGFloat {
-        expandedPanelSize.height - notchHeight - expandedPanelVerticalInset
-    }
-
-    static var scalablePanelHeight: CGFloat {
-        expandedPanelSize.height - expandedPanelVerticalInset
-    }
-
-    static func panelSize(scale: CGFloat) -> CGSize {
-        CGSize(
-            width: expandedPanelContentWidth * scale + expandedPanelHorizontalPadding + expandedPanelHitTestSlack,
-            height: scalablePanelHeight * scale + expandedPanelVerticalInset
-        )
-    }
-}
-
-enum PanelTypography {
-    static let enlargedFontScale: CGFloat = 1.125
-
-    static func fontScale(panelScale: CGFloat) -> CGFloat {
-        panelScale > 1 ? enlargedFontScale : 1
-    }
-}
-
-private struct PanelScaleKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 1
-}
-
-extension EnvironmentValues {
-    var panelScale: CGFloat {
-        get { self[PanelScaleKey.self] }
-        set { self[PanelScaleKey.self] = newValue }
-    }
-}
-
-extension View {
-    func panelIcon(size: CGFloat, weight: Font.Weight = .regular) -> some View {
-        modifier(PanelIconModifier(size: size, weight: weight))
-    }
-
-    func panelFont(
-        size: CGFloat,
-        weight: Font.Weight = .regular,
-        design: Font.Design = .default,
-        transform: @escaping (Font) -> Font = { $0 }
-    ) -> some View {
-        modifier(PanelFontModifier(size: size, weight: weight, design: design, transform: transform))
-    }
-}
-
-struct PanelIconModifier: ViewModifier {
-    @Environment(\.panelScale) private var panelScale
-    let size: CGFloat
-    let weight: Font.Weight
-
-    func body(content: Content) -> some View {
-        content.font(.system(size: size * panelScale, weight: weight))
-    }
-}
-
-struct PanelFontModifier: ViewModifier {
-    @Environment(\.panelScale) private var panelScale
-    let size: CGFloat
-    let weight: Font.Weight
-    let design: Font.Design
-    let transform: (Font) -> Font
-
-    func body(content: Content) -> some View {
-        let scaledSize = size * PanelTypography.fontScale(panelScale: panelScale)
-        return content.font(transform(.system(size: scaledSize, weight: weight, design: design)))
-    }
-}
-
-extension Notification.Name {
-    static let notchiShouldCollapse = Notification.Name("notchiShouldCollapse")
-    static let notchiQuestionOptionShortcut = Notification.Name("notchiQuestionOptionShortcut")
-}
-
 private let cornerRadiusInsets = (
     opened: (top: CGFloat(19), bottom: CGFloat(24)),
     closed: (top: CGFloat(6), bottom: CGFloat(14))
@@ -113,13 +24,6 @@ private enum SpriteHandoffTiming {
     }
 }
 
-private enum LaunchWaveTiming {
-    static let startDelay = 1.0
-    static let preparationDuration = 0.45
-    static let spriteScale: CGFloat = 1.2
-    static let horizontalOffset: CGFloat = 5
-}
-
 struct NotchContentView: View {
     private enum NotchSide {
         case left, right
@@ -134,11 +38,6 @@ struct NotchContentView: View {
         let direction: Direction
         let sessionId: String
         let keepsGrassIslandRendered: Bool
-    }
-
-    struct LaunchWave: Equatable {
-        let state: NotchiState
-        let startedAt: Date
     }
 
     struct HeaderSpriteContent: Equatable {
@@ -173,7 +72,7 @@ struct NotchContentView: View {
     var devinUsageService: DevinUsageService = .shared
     var haptics: HapticService = .shared
     var animationVisibility: AnimationVisibility = .shared
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
     @ObservedObject private var updateManager = UpdateManager.shared
     @AppStorage(AppSettings.notchLeftContentKey) private var leftContentRaw = NotchSlotContent.ring.rawValue
     @AppStorage(AppSettings.notchRightContentKey) private var rightContentRaw = NotchSlotContent.latest.rawValue
@@ -193,13 +92,11 @@ struct NotchContentView: View {
     @State private var spriteHandoffGeneration = 0
     // Set once the expanded panel has finished fading out the collapsed header sprites.
     @State private var hasExpandedPanelSettled = false
-    @State private var launchGlowVisible = false
-    @State private var launchGlowProgress: Double = 0
-    @State private var isLaunchWavePreparing = false
-    @State private var launchWave: LaunchWave?
-    @State private var launchSpriteFamily = AppSettings.lastUsedAgentProvider.spriteFamily
-    @MainActor private static var hasPlayedLaunchGlow = false
-    @MainActor private static var hasPlayedLaunchWave = false
+    @State var launchGlowVisible = false
+    @State var launchGlowProgress: Double = 0
+    @State var isLaunchWavePreparing = false
+    @State var launchWave: LaunchWave?
+    @State var launchSpriteFamily = AppSettings.lastUsedAgentProvider.spriteFamily
 
     private var sessionStore: SessionStore {
         stateMachine.sessionStore
@@ -442,14 +339,6 @@ struct NotchContentView: View {
         )
     }
 
-    static func collapsedRingProvider(
-        spriteSession: SessionData?,
-        effectiveSession: SessionData?,
-        lastUsedProvider: AgentProvider
-    ) -> AgentProvider {
-        (spriteSession ?? effectiveSession)?.provider ?? lastUsedProvider
-    }
-
     private var ringClaudeUsageService: ClaudeUsageService {
         ClaudeUsageServices.shared.service(forSession: collapsedSpriteSession ?? activeSession) ?? usageService
     }
@@ -459,77 +348,6 @@ struct NotchContentView: View {
         case .claude: ringClaudeUsageService.isUsageStale
         case .codex: codexUsageService.isUsageStale
         case .devin: devinUsageService.isUsageStale
-        }
-    }
-
-    static func collapsedRingUsage(
-        provider: AgentProvider,
-        claudeUsage: QuotaPeriod?,
-        codexSessionUsage: QuotaPeriod?,
-        codexWeeklyUsage: QuotaPeriod?,
-        devinDailyUsage: QuotaPeriod? = nil,
-        devinWeeklyUsage: QuotaPeriod? = nil
-    ) -> QuotaPeriod? {
-        switch provider {
-        case .claude: claudeUsage
-        case .codex: codexSessionUsage ?? codexWeeklyUsage
-        case .devin: devinDailyUsage ?? devinWeeklyUsage
-        }
-    }
-
-    static func collapsedRingPercentage(
-        isUsageEnabled: Bool,
-        provider: AgentProvider,
-        claudeUsage: QuotaPeriod?,
-        codexSessionUsage: QuotaPeriod?,
-        codexWeeklyUsage: QuotaPeriod?,
-        devinDailyUsage: QuotaPeriod? = nil,
-        devinWeeklyUsage: QuotaPeriod? = nil
-    ) -> Int? {
-        guard isUsageEnabled else { return nil }
-        return collapsedRingUsage(
-            provider: provider,
-            claudeUsage: claudeUsage,
-            codexSessionUsage: codexSessionUsage,
-            codexWeeklyUsage: codexWeeklyUsage,
-            devinDailyUsage: devinDailyUsage,
-            devinWeeklyUsage: devinWeeklyUsage
-        )?.usagePercentage
-    }
-
-    enum CollapsedRingContent: Equatable {
-        case percentage(Int)
-        case unlimited
-    }
-
-    static func collapsedRingContent(
-        isUsageEnabled: Bool,
-        provider: AgentProvider,
-        claudeUsage: QuotaPeriod?,
-        codexSessionUsage: QuotaPeriod?,
-        codexWeeklyUsage: QuotaPeriod?,
-        codexHasUnlimitedCredits: Bool,
-        devinDailyUsage: QuotaPeriod? = nil,
-        devinWeeklyUsage: QuotaPeriod? = nil,
-        devinHasNoQuota: Bool = false
-    ) -> CollapsedRingContent? {
-        guard isUsageEnabled else { return nil }
-        if let percentage = collapsedRingPercentage(
-            isUsageEnabled: isUsageEnabled,
-            provider: provider,
-            claudeUsage: claudeUsage,
-            codexSessionUsage: codexSessionUsage,
-            codexWeeklyUsage: codexWeeklyUsage,
-            devinDailyUsage: devinDailyUsage,
-            devinWeeklyUsage: devinWeeklyUsage
-        ) {
-            return .percentage(percentage)
-        }
-        let hasCodexQuota = codexSessionUsage != nil || codexWeeklyUsage != nil
-        switch provider {
-        case .codex: return codexHasUnlimitedCredits && !hasCodexQuota ? .unlimited : nil
-        case .devin: return devinHasNoQuota ? .unlimited : nil
-        case .claude: return nil
         }
     }
 
@@ -602,10 +420,6 @@ struct NotchContentView: View {
 
     private var expandedPanelHeight: CGFloat {
         Self.expandedPanelHeight(mode: panelMode, notchHeight: notchSize.height)
-    }
-
-    private var launchWavePreparationAnimation: Animation {
-        .easeInOut(duration: LaunchWaveTiming.preparationDuration)
     }
 
     private static let islandBadgeLeadingInset: CGFloat = 30
@@ -1031,62 +845,6 @@ struct NotchContentView: View {
         guard expanded,
               let panel = NSApp.windows.first(where: { $0 is NotchPanel }) else { return }
         panel.makeKey()
-    }
-
-    private func startLaunchGlow() {
-        guard !Self.hasPlayedLaunchGlow else { return }
-        Self.hasPlayedLaunchGlow = true
-
-        guard !accessibilityReduceMotion else { return }
-
-        let duration = LaunchIridescentGlowTiming.duration(reduceMotion: accessibilityReduceMotion)
-        launchGlowProgress = 0
-        launchGlowVisible = true
-
-        Task {
-            // Commit the hidden 0 state before animating so the glow blooms from nothing.
-            await Task.yield()
-            withAnimation(.linear(duration: duration)) {
-                launchGlowProgress = 1
-            }
-
-            try? await Task.sleep(for: .seconds(duration))
-            launchGlowVisible = false
-        }
-    }
-
-    private func startLaunchWave() async {
-        guard !Self.hasPlayedLaunchWave else { return }
-
-        let provider = AppSettings.lastUsedAgentProvider
-        launchSpriteFamily = provider.spriteFamily
-
-        isLaunchWavePreparing = true
-
-        try? await Task.sleep(for: .seconds(LaunchWaveTiming.startDelay))
-
-        guard !Task.isCancelled, !Self.hasPlayedLaunchWave else {
-            isLaunchWavePreparing = false
-            return
-        }
-
-        Self.hasPlayedLaunchWave = true
-        isLaunchWavePreparing = false
-        launchWave = LaunchWave(
-            state: NotchiState(task: .waving, spriteFamily: provider.spriteFamily),
-            startedAt: Date()
-        )
-
-        try? await Task.sleep(for: .seconds(NotchiState.launchWaveDuration))
-
-        guard !Task.isCancelled else {
-            launchWave = nil
-            return
-        }
-
-        withAnimation(launchWavePreparationAnimation) {
-            launchWave = nil
-        }
     }
 
     private func toggleMute() {
