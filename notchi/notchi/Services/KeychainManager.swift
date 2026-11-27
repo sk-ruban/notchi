@@ -22,12 +22,6 @@ nonisolated enum KeychainManager {
     private static let credentialReadLock = NSLock()
     private nonisolated(unsafe) static var recentCredentialCacheEntries: [String: ClaudeCredentialCacheEntry] = [:]
     private nonisolated(unsafe) static var lastSecurityCLIFailureAt: [String: Date] = [:]
-    private static let isoFractional: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-    private static let isoBasic = ISO8601DateFormatter()
 
     private struct ClaudeCredentialCacheEntry {
         let credentials: ClaudeOAuthCredentials
@@ -336,7 +330,7 @@ nonisolated enum KeychainManager {
             if let epoch = Double(trimmed) {
                 return parseEpoch(epoch)
             }
-            return isoFractional.date(from: trimmed) ?? isoBasic.date(from: trimmed)
+            return ISO8601Timestamps.date(from: trimmed)
         default:
             return nil
         }

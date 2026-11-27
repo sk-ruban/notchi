@@ -13,7 +13,7 @@ final class PollSchedulerEntry {
     }
 }
 
-struct TestPollTimer: ClaudeUsagePollTimer {
+struct TestPollTimer: UsagePollTimer {
     let invalidateHandler: () -> Void
 
     func invalidate() {
@@ -26,7 +26,7 @@ final class PollSchedulerSpy {
     private(set) var intervals: [TimeInterval] = []
     private var entries: [PollSchedulerEntry] = []
 
-    func schedule(after interval: TimeInterval, handler: @escaping () -> Void) -> any ClaudeUsagePollTimer {
+    func schedule(after interval: TimeInterval, handler: @escaping () -> Void) -> any UsagePollTimer {
         intervals.append(interval)
         let entry = PollSchedulerEntry(interval: interval, handler: handler)
         entries.append(entry)

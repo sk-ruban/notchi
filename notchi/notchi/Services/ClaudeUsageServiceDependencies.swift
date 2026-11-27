@@ -1,9 +1,5 @@
 import Foundation
 
-protocol ClaudeUsagePollTimer {
-    func invalidate()
-}
-
 struct ClaudeUsageServiceDependencies {
     var fetchUsage: (URLRequest) async throws -> (Data, URLResponse)
     var getOAuthTokenFromEnvironment: () -> String?
@@ -18,20 +14,12 @@ struct ClaudeUsageServiceDependencies {
     var resolveUserAgent: () async -> String?
     var pollJitter: () -> Double
     var now: () -> Date
-    var schedulePoll: @MainActor (TimeInterval, @escaping () -> Void) -> any ClaudeUsagePollTimer
+    var schedulePoll: @MainActor (TimeInterval, @escaping () -> Void) -> any UsagePollTimer
     // Per account, so one account's failed login can't switch the others' usage off.
     var isUsageEnabled: () -> Bool = { AppSettings.isUsageEnabled }
     var setUsageEnabled: (Bool) -> Void = { AppSettings.isUsageEnabled = $0 }
     var loadExtraUsageObservation: () -> ClaudeExtraUsageObservation? = { AppSettings.claudeExtraUsageObservation }
     var saveExtraUsageObservation: (ClaudeExtraUsageObservation?) -> Void = { AppSettings.claudeExtraUsageObservation = $0 }
-}
-
-private struct LivePollTimer: ClaudeUsagePollTimer {
-    let timer: Timer
-
-    func invalidate() {
-        timer.invalidate()
-    }
 }
 
 /// Which Claude Code login a usage service reads, and where it keeps its saved state.
@@ -127,7 +115,7 @@ extension ClaudeUsageServiceDependencies {
                 let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { _ in
                     handler()
                 }
-                return LivePollTimer(timer: timer)
+                return LiveUsagePollTimer(timer: timer)
             }
         )
         dependencies.loadExtraUsageObservation = {

@@ -76,9 +76,9 @@ final class ClaudeUsageService {
 
     private let dependencies: ClaudeUsageServiceDependencies
     private var resolvedUserAgent: String?
-    private var pollTimer: (any ClaudeUsagePollTimer)?
-    private var pendingResumeReconnectTimer: (any ClaudeUsagePollTimer)?
-    private var selfHealRetryTimer: (any ClaudeUsagePollTimer)?
+    private var pollTimer: (any UsagePollTimer)?
+    private var pendingResumeReconnectTimer: (any UsagePollTimer)?
+    private var selfHealRetryTimer: (any UsagePollTimer)?
     private let pollInterval: TimeInterval = 60
     // Bumped whenever polling stops or is rescheduled, so a timer or credential read begun earlier knows it was superseded.
     private var pollScheduleGeneration: UInt64 = 0
@@ -1016,13 +1016,6 @@ final class ClaudeUsageService {
         return Double(value.trimmingCharacters(in: .whitespaces))
     }
 
-    private static let isoFractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    private static let isoBasic = ISO8601DateFormatter()
-
     private func parseHeaderResetDate(from response: HTTPURLResponse) -> Date? {
         guard let value = response.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-reset"),
               !value.isEmpty else {
@@ -1031,7 +1024,7 @@ final class ClaudeUsageService {
         if let epoch = TimeInterval(value) {
             return Date(timeIntervalSince1970: epoch)
         }
-        return Self.isoFractional.date(from: value) ?? Self.isoBasic.date(from: value)
+        return ISO8601Timestamps.date(from: value)
     }
 
     private func resolveUserAgent() async -> String? {
@@ -1387,7 +1380,7 @@ final class ClaudeUsageService {
             return false
         }
 
-        let resetDate = Self.isoFractional.date(from: resetMarker) ?? Self.isoBasic.date(from: resetMarker)
+        let resetDate = ISO8601Timestamps.date(from: resetMarker)
         return resetDate.map { $0 > now } ?? false
     }
 
