@@ -43,24 +43,12 @@ nonisolated enum CodexRateLimitWindows {
     }
 }
 
-protocol CodexUsagePollTimer {
-    func invalidate()
-}
-
-private struct LiveCodexUsagePollTimer: CodexUsagePollTimer {
-    let timer: Timer
-
-    func invalidate() {
-        timer.invalidate()
-    }
-}
-
 struct CodexUsageServiceDependencies {
     var loadAuth: @Sendable () -> CodexAuthRead
     var fetchAPIUsage: @Sendable (CodexAPIAuth) async -> CodexAPIUsage?
     var now: @Sendable () -> Date
-    var schedulePoll: (TimeInterval, @escaping @MainActor () -> Void) -> any CodexUsagePollTimer = { interval, action in
-        LiveCodexUsagePollTimer(timer: Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+    var schedulePoll: (TimeInterval, @escaping @MainActor () -> Void) -> any UsagePollTimer = { interval, action in
+        LiveUsagePollTimer(timer: Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             Task { @MainActor in action() }
         })
     }
@@ -117,7 +105,7 @@ final class CodexUsageService {
     private var currentAccountId: String?
     private var generation: UInt64 = 0
     private var isFetching = false
-    private var pollTimer: (any CodexUsagePollTimer)?
+    private var pollTimer: (any UsagePollTimer)?
     private let dependencies: CodexUsageServiceDependencies
 
     convenience init() {

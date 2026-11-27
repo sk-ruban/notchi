@@ -209,6 +209,6 @@ final class ClaudeUsageServicesTests: XCTestCase {
     }
 }
 
-private struct InertPollTimer: ClaudeUsagePollTimer {
+private struct InertPollTimer: UsagePollTimer {
     func invalidate() {}
 }

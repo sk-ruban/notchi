@@ -542,7 +542,7 @@ private actor UsageResponseGate {
 }
 
 @MainActor
-private final class TestCodexUsagePollTimer: CodexUsagePollTimer {
+private final class TestCodexUsagePollTimer: UsagePollTimer {
     var invalidated = false
     func invalidate() { invalidated = true }
 }

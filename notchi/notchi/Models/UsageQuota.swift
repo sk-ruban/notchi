@@ -76,13 +76,6 @@ nonisolated struct QuotaPeriod: Codable, Equatable, Sendable {
     let utilization: Double
     let resetsAt: String?
 
-    private static let isoFractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    private static let isoBasic = ISO8601DateFormatter()
-
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
@@ -94,7 +87,7 @@ nonisolated struct QuotaPeriod: Codable, Equatable, Sendable {
 
     var resetDate: Date? {
         guard let resetsAt else { return nil }
-        return Self.isoFractional.date(from: resetsAt) ?? Self.isoBasic.date(from: resetsAt)
+        return ISO8601Timestamps.date(from: resetsAt)
     }
 
     var isExpired: Bool {
@@ -122,6 +115,6 @@ nonisolated struct QuotaPeriod: Codable, Equatable, Sendable {
 extension QuotaPeriod {
     nonisolated init(utilization: Double, resetDate: Date?) {
         self.utilization = utilization
-        self.resetsAt = resetDate.map { Self.isoFractional.string(from: $0) }
+        self.resetsAt = resetDate.map { ISO8601Timestamps.fractional.string(from: $0) }
     }
 }
