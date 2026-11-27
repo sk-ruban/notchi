@@ -67,6 +67,9 @@ private struct InlineAnswerTextField: NSViewRepresentable {
             self.parent = parent
         }
 
+        // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+        nonisolated deinit {}
+
         func controlTextDidChange(_ notification: Notification) {
             guard let textField = notification.object as? NSTextField else { return }
             parent.text = textField.stringValue
@@ -100,6 +103,9 @@ private struct InlineAnswerTextField: NSViewRepresentable {
     private final class SubmittingTextField: NSTextField {
         var onSubmitText: ((String) -> Void)?
         private var didSubmitCurrentEditingSession = false
+
+        // The isolated-deinit back-deploy shim aborts on macOS 15; this deinit only releases stored properties.
+        nonisolated deinit {}
 
         func submitCurrentText(_ text: String) {
             didSubmitCurrentEditingSession = true
