@@ -222,6 +222,37 @@ final class SocketServerTests: XCTestCase {
         XCTAssertTrue(duplicateSnapshot.isEmpty, "Duplicate server should not steal the socket path")
     }
 
+    func testStoppingADuplicateServerLeavesTheOriginalListenerReachable() async throws {
+        let recorder = EventRecorder()
+        let sessionId = "after-duplicate-stop"
+        let (_, listeningPath) = try await makeServer(clientReadTimeout: 0.5, recorder: recorder)
+        let duplicateServer = SocketServer(socketPath: listeningPath, clientReadTimeout: 0.5)
+        duplicateServer.start { _ in nil }
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        duplicateServer.stop()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let client = try connectClient(to: listeningPath)
+        try client.send(makeEventPayload(sessionId: sessionId))
+        client.closeConnection()
+        let originalServerReceivedEvent = await waitUntil(timeout: 0.5) {
+            await recorder.snapshot().map(\.sessionId) == [sessionId]
+        }
+        XCTAssertTrue(originalServerReceivedEvent)
+    }
+
+    func testStoppingTheListeningServerRemovesItsSocketFile() async throws {
+        let (server, listeningPath) = try await makeServer(clientReadTimeout: 0.5, recorder: EventRecorder())
+
+        server.stop()
+
+        let socketFileRemoved = await waitUntil(timeout: 1) {
+            !FileManager.default.fileExists(atPath: listeningPath)
+        }
+        XCTAssertTrue(socketFileRemoved)
+    }
+
     func testDuplicateServerRetriesAndTakesOverAfterOriginalStops() async throws {
         let firstRecorder = EventRecorder()
         let secondRecorder = EventRecorder()
