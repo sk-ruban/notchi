@@ -271,6 +271,60 @@ struct NotchContentView: View {
         return min(1, max(minimumScale, notchHeight / referenceNotchHeight))
     }
 
+    private static let nonNotchHeaderSpriteWidth: CGFloat = 32
+    private static let nonNotchHeaderSpriteSpacing: CGFloat = 2
+
+    static func nonNotchSpriteStripWidth(
+        notchSize: CGSize,
+        leftContent: NotchSlotContent,
+        rightContent: NotchSlotContent
+    ) -> CGFloat {
+        guard notchSize.width > 0 else { return 0 }
+        let sideWidth = max(0, notchSize.height - 12) + 24
+        let headerRowWidth = notchSize.width + sideWidth - cornerRadiusInsets.closed.top
+        let hasRing = leftContent == .ring || rightContent == .ring
+        return max(0, hasRing ? headerRowWidth - sideWidth : headerRowWidth)
+    }
+
+    static func nonNotchHeaderSpriteCapacity(availableWidth: CGFloat) -> Int {
+        guard availableWidth >= nonNotchHeaderSpriteWidth else { return 0 }
+        let stride = nonNotchHeaderSpriteWidth + nonNotchHeaderSpriteSpacing
+        let rawCapacity = Int(floor((availableWidth + nonNotchHeaderSpriteSpacing) / stride))
+        return min(SessionStore.islandSessionLimit, max(0, rawCapacity))
+    }
+
+    static func nonNotchHeaderSessions(
+        from sessions: [SessionData],
+        selected: ProviderSessionKey? = nil,
+        screenHasNotch: Bool,
+        leftContent: NotchSlotContent,
+        rightContent: NotchSlotContent,
+        notchSize: CGSize
+    ) -> [SessionData] {
+        guard !screenHasNotch else { return [] }
+        guard leftContent.isSprite || rightContent.isSprite else { return [] }
+
+        let eligibleSessions: [SessionData]
+        if leftContent == .latest || rightContent == .latest {
+            eligibleSessions = sessions
+        } else {
+            let allowedProviders = Set([leftContent.spriteProvider, rightContent.spriteProvider].compactMap { $0 })
+            eligibleSessions = sessions.filter { allowedProviders.contains($0.provider) }
+        }
+
+        guard eligibleSessions.count >= 2 else { return [] }
+
+        let availableWidth = nonNotchSpriteStripWidth(
+            notchSize: notchSize,
+            leftContent: leftContent,
+            rightContent: rightContent
+        )
+        let capacity = nonNotchHeaderSpriteCapacity(availableWidth: availableWidth)
+        guard capacity >= 2 else { return [] }
+
+        return SessionStore.islandSessions(from: eligibleSessions, selected: selected, limit: capacity)
+    }
+
     private var collapsedHeaderSpriteOffsetX: CGFloat {
         let baseOffset: CGFloat = 15
         guard !isExpanded && panelManager.isCollapsedHovered else { return baseOffset }
@@ -718,11 +772,25 @@ struct NotchContentView: View {
         showingSessionActivity = true
     }
 
+    private var nonNotchHeaderSessions: [SessionData] {
+        Self.nonNotchHeaderSessions(
+            from: Array(sessionStore.sessions.values),
+            selected: sessionStore.selectedSessionKey,
+            screenHasNotch: panelManager.screenHasNotch,
+            leftContent: leftContent,
+            rightContent: rightContent,
+            notchSize: notchSize
+        )
+    }
+
     @ViewBuilder
     private var headerRow: some View {
+        let multiSessions = nonNotchHeaderSessions
         if isCompactIdle && launchWave == nil && !isLaunchWavePreparing {
             Color.clear
                 .frame(width: compactContentWidth)
+        } else if !multiSessions.isEmpty {
+            nonNotchHeaderRow(sessions: multiSessions)
         } else {
             HStack(spacing: 0) {
                 slotView(leftContent, side: .left)
@@ -733,6 +801,50 @@ struct NotchContentView: View {
                 slotView(rightContent, side: .right)
             }
         }
+    }
+
+    @ViewBuilder
+    private func nonNotchHeaderRow(sessions: [SessionData]) -> some View {
+        let stripWidth = Self.nonNotchSpriteStripWidth(
+            notchSize: notchSize,
+            leftContent: leftContent,
+            rightContent: rightContent
+        )
+        HStack(spacing: 0) {
+            if leftContent == .ring {
+                ringSlot(side: .left)
+            }
+
+            nonNotchSpriteStrip(sessions: sessions, width: stripWidth)
+
+            if rightContent == .ring {
+                ringSlot(side: .right)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nonNotchSpriteStrip(sessions: [SessionData], width: CGFloat) -> some View {
+        HStack(spacing: Self.nonNotchHeaderSpriteSpacing) {
+            ForEach(sessions) { session in
+                SessionSpriteView(
+                    state: session.state,
+                    isPrimarySprite: session.id == sessions.first?.id,
+                    mirrorSeed: session.id
+                )
+                .scaleEffect(collapsedHeaderSpriteScale, anchor: .bottom)
+                .offset(y: collapsedHeaderSpriteOffsetY)
+                .frame(width: Self.nonNotchHeaderSpriteWidth, height: notchSize.height)
+                .contentShape(Rectangle())
+                .simultaneousGesture(collapsedSessionGesture(for: session))
+            }
+        }
+        .frame(width: width, height: notchSize.height)
+        .opacity(collapsedHeaderSpriteVisuals.opacity)
+        .blur(radius: collapsedHeaderSpriteVisuals.blur)
+        .animation(collapsedHeaderSpriteVisibilityAnimation, value: isExpanded)
+        .allowsHitTesting(!isExpanded)
+        .environment(\.isAnimationPaused, isCollapsedHeaderSpriteAnimationPaused)
     }
 
     @ViewBuilder
@@ -748,15 +860,27 @@ struct NotchContentView: View {
         }
     }
 
+    private func openCollapsedSession(_ session: SessionData) {
+        sessionStore.selectSession(matchingStableId: session.id)
+        showingSessionActivity = true
+        panelManager.expand()
+    }
+
     private func collapsedSpriteGesture(for content: NotchSlotContent, side: NotchSide) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { _ in
                 guard !isExpanded else { return }
                 let excluded = (side == .left ? rightContent : leftContent).spriteProvider
                 guard let session = sessionForSprite(content, excluding: excluded) else { return }
-                sessionStore.selectSession(matchingStableId: session.id)
-                showingSessionActivity = true
-                panelManager.expand()
+                openCollapsedSession(session)
+            }
+    }
+
+    private func collapsedSessionGesture(for session: SessionData) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                guard !isExpanded else { return }
+                openCollapsedSession(session)
             }
     }
 
